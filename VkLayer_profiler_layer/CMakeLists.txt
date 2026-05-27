@@ -169,19 +169,6 @@ else ()
     list (APPEND PROFILER_CODEGEN_SKIP_LICENSES SPIRV-Specification)
 endif ()
 
-# Generate string serialization and deserialization functions
-add_custom_command (
-    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_serializer.generated.h"
-    COMMAND "${Python3_EXECUTABLE}"
-        "${PROFILER_SCRIPTS_DIR}/gen_names.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/profiler_helpers/profiler_string_serializer.yml"
-        --output "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_serializer.generated.h"
-        --registry "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml"
-    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_names.py"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/profiler_helpers/profiler_string_serializer.yml"
-    DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml")
-list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_serializer.generated.h")
-
 # Generate licenses file
 set (PROFILER_LICENSES_FILE "${CMAKE_BINARY_DIR}/LICENSES.rst")
 add_custom_command (

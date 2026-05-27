@@ -42,4 +42,5 @@ add_library (profiler_trace
     ${headers})
 
 target_link_libraries (profiler_trace
-    PUBLIC profiler_common)
+    PUBLIC profiler_common
+    PUBLIC profiler_helpers)

@@ -22,6 +22,22 @@ cmake_minimum_required (VERSION 3.8...3.31)
 
 project (profiler_helpers)
 
+# Generate string serialization and deserialization functions
+add_custom_command (
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_serializer.generated.h"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_names.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/profiler_string_serializer.in"
+        --output "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_serializer.generated.h"
+        --registry "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml"
+    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_names.py"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/profiler_string_serializer.in"
+    DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml")
+list (APPEND PROFILER_HELPERS_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_serializer.generated.h")
+
+add_custom_target (profiler_helpers_codegen
+    DEPENDS ${PROFILER_HELPERS_CODEGEN_FILES})
+
 set (headers
     "profiler_csv_helpers.h"
     "profiler_string_serializer.h"
@@ -44,3 +60,7 @@ add_library (profiler_helpers
 
 target_link_libraries (profiler_helpers
     PUBLIC profiler_common)
+
+add_dependencies (profiler_helpers profiler_helpers_codegen)
+target_include_directories (profiler_helpers
+    PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
