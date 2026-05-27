@@ -21,49 +21,11 @@
 import sys
 import os
 import io
-import xml.etree.ElementTree as etree
+import vulkan
 
 # Read configuration variables
 VULKAN_REGISTRY_XML_PATH = os.path.abspath( sys.argv[ 1 ] )
 CMAKE_CURRENT_BINARY_DIR = os.path.abspath( sys.argv[ 2 ] )
-
-class VulkanSpec:
-    def __init__( self, vk_xml: etree.ElementTree ):
-        self.xml = vk_xml.getroot()
-        self.types = self.xml.find( "types" )
-        self.commands = self.xml.find( "commands" )
-        self.extensions = self.xml.find( "extensions" )
-        self.vulkansc = self.xml.find( "feature[@api=\"vulkansc\"]" )
-        self.handles = [handle.text for handle in self.types.findall( "type[@category=\"handle\"][type=\"VK_DEFINE_HANDLE\"]/name" )]
-
-    def get_command_name( self, cmd: etree.Element ):
-        try: # Function definition
-            return cmd.find( "proto/name" ).text
-        except: # Function alias
-            return cmd.get( "name" )
-
-    def get_command_handle( self, cmd: etree.Element ):
-        try: # Function definition
-            return cmd.find( "param[1]/type" ).text
-        except: # Function alias
-            return self.commands.find( "command/proto[name=\"" + cmd.get( "alias" ) + "\"]/../param[1]/type" ).text
-
-    def get_command_extension( self, cmd: etree.Element ):
-        try: # Extension function
-            cmd_name = self.get_command_name( cmd )
-            return self.extensions.find( "extension/require/command[@name=\"" + cmd_name + "\"]/../.." ).get( "name" )
-        except AttributeError: # Core function
-            return None
-
-    def is_vulkansc_command( self, cmd: etree.Element ):
-        # Check if cmd is secure version of a standard functions
-        if "api" in cmd.attrib.keys() and cmd.attrib[ "api" ] == "vulkansc":
-            return True
-        # Check if cmd is required by vulkansc feature set
-        cmd_name = self.get_command_name( cmd )
-        if self.vulkansc is not None and self.vulkansc.find( "require/command[@name=\"" + cmd_name + "\"]" ) is not None:
-            return True
-        return False
 
 class DispatchTableCommand:
     def __init__( self, name, extension ):
@@ -72,12 +34,11 @@ class DispatchTableCommand:
 
 # Dispatch tables
 class DispatchTableGenerator:
-    def __init__( self, vk_xml: etree.ElementTree ):
+    def __init__( self, spec: vulkan.Registry ):
         self.instance_dispatch_table = {}
         self.device_dispatch_table = {}
-        spec = VulkanSpec( vk_xml )
         for cmd in spec.commands.findall( "command" ):
-            if not spec.is_vulkansc_command( cmd ):
+            if not spec.is_vulkansc_command( cmd ) and not spec.is_disabled_command( cmd ):
                 cmd_handle = spec.get_command_handle( cmd )
                 cmd_name = spec.get_command_name( cmd )
                 cmd_extension = spec.get_command_extension( cmd )
@@ -155,8 +116,8 @@ class DispatchTableGenerator:
 # Generate dispatch tables
 def gen_dispatch_tables():
     out_path = os.path.join( CMAKE_CURRENT_BINARY_DIR, "vk_dispatch_tables.h" )
-    vk_xml = etree.parse( VULKAN_REGISTRY_XML_PATH )
-    generator = DispatchTableGenerator( vk_xml )
+    vulkan_registry = vulkan.load_registry( VULKAN_REGISTRY_XML_PATH )
+    generator = DispatchTableGenerator( vulkan_registry )
     with open( out_path, mode="w" ) as out:
         generator.write_commands( out )
 

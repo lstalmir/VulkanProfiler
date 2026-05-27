@@ -54,10 +54,10 @@ namespace Profiler
     {
         return {
             { "pApplicationName", applicationInfo.pApplicationName },
-            { "applicationVersion", m_pStringSerializer->GetVersion( applicationInfo.applicationVersion ) },
+            { "applicationVersion", m_pStringSerializer->GetVersionString( applicationInfo.applicationVersion ) },
             { "pEngineName", applicationInfo.pEngineName },
-            { "engineVersion", m_pStringSerializer->GetVersion( applicationInfo.engineVersion ) },
-            { "apiVersion", m_pStringSerializer->GetVersion( applicationInfo.apiVersion ) }
+            { "engineVersion", m_pStringSerializer->GetVersionString( applicationInfo.engineVersion ) },
+            { "apiVersion", m_pStringSerializer->GetVersionString( applicationInfo.apiVersion ) }
         };
     }
 
@@ -73,8 +73,8 @@ namespace Profiler
     nlohmann::json DeviceProfilerJsonSerializer::Serialize( const VkPhysicalDeviceProperties& deviceProperties ) const
     {
         return {
-            { "apiVersion", m_pStringSerializer->GetVersion( deviceProperties.apiVersion ) },
-            { "driverVersion", m_pStringSerializer->GetVersion( deviceProperties.driverVersion ) },
+            { "apiVersion", m_pStringSerializer->GetVersionString( deviceProperties.apiVersion ) },
+            { "driverVersion", m_pStringSerializer->GetVersionString( deviceProperties.driverVersion ) },
             { "vendorID", deviceProperties.vendorID },
             { "deviceID", deviceProperties.deviceID },
             { "deviceType", deviceProperties.deviceType },
