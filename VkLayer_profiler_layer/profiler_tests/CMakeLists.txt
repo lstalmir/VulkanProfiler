@@ -36,7 +36,7 @@ endif ()
 if (BUILD_TESTS)
     add_subdirectory (shaders)
 
-    set (tests
+    set (profiler_backend_tests_sources
         "profiler_command_buffer_tests.cpp"
         "profiler_config_tests.cpp"
         "profiler_extensions_tests.cpp"
@@ -47,8 +47,12 @@ if (BUILD_TESTS)
         "profiler_vulkan_state.h"
         )
 
+    set (profiler_overlay_tests_sources
+        "profiler_overlay_test.cpp"
+        )
+
     add_executable (profiler_tests
-        ${tests}
+        ${profiler_backend_tests_sources}
         )
 
     add_dependencies (profiler_tests profiler_tests_shaders)
@@ -64,7 +68,21 @@ if (BUILD_TESTS)
         PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
         )
 
-    install (TARGETS profiler_tests
+    add_executable (profiler_overlay_tests
+        ${profiler_overlay_tests_sources}
+        )
+
+    target_link_libraries (profiler_overlay_tests
+        PRIVATE ${Vulkan_LIBRARIES}
+        PRIVATE profiler
+        PRIVATE profiler_trace
+        PRIVATE profiler_helpers
+        PRIVATE profiler_overlay
+        PRIVATE SDL3::SDL3-static
+        PRIVATE imgui
+        )
+
+    install (TARGETS profiler_tests profiler_overlay_tests
         COMPONENT Tests
         EXCLUDE_FROM_ALL
         )

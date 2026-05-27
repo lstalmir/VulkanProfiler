@@ -6241,7 +6241,7 @@ namespace Profiler
                             const ProfilerShader* pShader = m_InspectorPipeline.m_ShaderTuple.GetShaderAtIndex( group.generalShader );
                             if( pShader )
                             {
-                                groupTypeName = m_pStringSerializer->GetGeneralShaderGroupTypeName( pShader->m_Stage );
+                                groupTypeName = m_pStringSerializer->GetShortShaderStageName( pShader->m_Stage );
                             }
                         }
 

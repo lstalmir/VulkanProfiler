@@ -22,6 +22,8 @@
 #include <vulkan/vulkan.h>
 #include <string>
 
+#include "profiler_string_serializer.generated.h"
+
 namespace Profiler
 {
     class DeviceProfilerFrontend;
@@ -36,6 +38,7 @@ namespace Profiler
 
     \***********************************************************************************/
     class DeviceProfilerStringSerializer
+        : public DeviceProfilerStringSerializerGenerated
     {
     public:
         inline static const char* DefaultFlagsSeparator = " | ";
@@ -60,57 +63,22 @@ namespace Profiler
         std::string GetPointer( const void* ) const;
         std::string GetBool( VkBool32 ) const;
         std::string GetVec4( const float* ) const;
-
         std::string GetColorHex( const float* ) const;
-
         std::string GetByteSize( VkDeviceSize ) const;
 
+        std::string GetVersionString( uint32_t version ) const;
+        uint32_t GetVersion( const std::string_view& str ) const;
+
         std::string GetQueueTypeName( VkQueueFlags ) const;
-        std::string GetQueueFlagNames( VkQueueFlags ) const;
 
         std::string GetShaderName( const struct ProfilerShader& ) const;
         std::string GetShortShaderName( const struct ProfilerShader& ) const;
-        std::string GetShaderStageName( VkShaderStageFlagBits ) const;
-        std::string GetShortShaderStageName( VkShaderStageFlagBits ) const;
-        std::string GetShaderGroupTypeName( VkRayTracingShaderGroupTypeKHR ) const;
-        std::string GetGeneralShaderGroupTypeName( VkShaderStageFlagBits ) const;
 
-        std::string GetFormatName( VkFormat ) const;
-        std::string GetIndexTypeName( VkIndexType ) const;
-        std::string GetVertexInputRateName( VkVertexInputRate ) const;
-        std::string GetPrimitiveTopologyName( VkPrimitiveTopology ) const;
-        std::string GetPolygonModeName( VkPolygonMode ) const;
-        std::string GetCullModeName( VkCullModeFlags ) const;
-        std::string GetFrontFaceName( VkFrontFace ) const;
-        std::string GetBlendFactorName( VkBlendFactor ) const;
-        std::string GetBlendOpName( VkBlendOp ) const;
-        std::string GetCompareOpName( VkCompareOp ) const;
-        std::string GetLogicOpName( VkLogicOp ) const;
         std::string GetColorComponentFlagNames( VkColorComponentFlags ) const;
-        std::string GetDynamicStateName( VkDynamicState ) const;
-
-        std::string GetMemoryPropertyFlagNames( VkMemoryPropertyFlags, const char* separator = DefaultFlagsSeparator ) const;
-        std::string GetBufferUsageFlagNames( VkBufferUsageFlags, const char* separator = DefaultFlagsSeparator ) const;
-        std::string GetImageUsageFlagNames( VkImageUsageFlags, const char* separator = DefaultFlagsSeparator ) const;
+        VkColorComponentFlags GetColorComponentFlags( const std::string_view& str ) const;
 
         std::string GetImageTypeName( VkImageType, VkImageCreateFlags = 0, uint32_t = 1 ) const;
-        std::string GetImageTilingName( VkImageTiling ) const;
-        std::string GetImageAspectFlagNames( VkImageAspectFlags, const char* separator = DefaultFlagsSeparator ) const;
-
-        std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
-        std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;
-        std::string GetAccelerationStructureTypeFlagNames( VkFlags flags, const char* separator = DefaultFlagsSeparator ) const;
-        std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;
-        std::string GetBuildAccelerationStructureModeName( VkBuildAccelerationStructureModeKHR mode ) const;
-
-        std::string GetCopyMicromapModeName( VkCopyMicromapModeEXT mode ) const;
-        std::string GetMicromapTypeName( VkMicromapTypeEXT type ) const;
-        std::string GetMicromapTypeFlagNames( VkFlags flags, const char* separator = DefaultFlagsSeparator ) const;
-        std::string GetBuildMicromapModeName( VkBuildMicromapModeEXT mode ) const;
-        std::string GetBuildMicromapFlagNames( VkBuildMicromapFlagsEXT flags ) const;
-
-        std::string GetGeometryTypeName( VkGeometryTypeKHR ) const;
-        std::string GetGeometryFlagNames( VkGeometryFlagsKHR ) const;
+        VkImageType GetImageType( const std::string_view& str ) const;
 
     private:
         DeviceProfilerFrontend& m_Frontend;

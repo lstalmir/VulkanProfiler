@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,10 @@
 #include <vulkan/vulkan.h>
 #include <nlohmann/json.hpp>
 
+#include <unordered_set>
+#include <vector>
+#include <string>
+
 namespace Profiler
 {
     /*************************************************************************\
@@ -37,6 +41,13 @@ namespace Profiler
     {
     public:
         DeviceProfilerJsonSerializer( const class DeviceProfilerStringSerializer* );
+
+        nlohmann::json Serialize( const VkApplicationInfo& ) const;
+        nlohmann::json Serialize( const VkPhysicalDeviceProperties& ) const;
+        nlohmann::json Serialize( const VkPhysicalDeviceMemoryProperties& ) const;
+        nlohmann::json Serialize( const std::vector<VkQueueFamilyProperties>& ) const;
+        nlohmann::json Serialize( const std::unordered_set<std::string>& ) const;
+        nlohmann::json Serialize( const struct DeviceProfilerConfig& ) const;
 
         nlohmann::json GetCommandArgs( const struct DeviceProfilerDrawcall& ) const;
         nlohmann::json GetPipelineArgs( const struct DeviceProfilerPipeline& ) const;

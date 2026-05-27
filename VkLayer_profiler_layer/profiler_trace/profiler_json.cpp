@@ -44,6 +44,148 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
+        Serialize
+
+    Description:
+        Serialize VkApplicationInfo structure into a JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::Serialize( const VkApplicationInfo& applicationInfo ) const
+    {
+        return {
+            { "pApplicationName", applicationInfo.pApplicationName },
+            { "applicationVersion", m_pStringSerializer->GetVersionString( applicationInfo.applicationVersion ) },
+            { "pEngineName", applicationInfo.pEngineName },
+            { "engineVersion", m_pStringSerializer->GetVersionString( applicationInfo.engineVersion ) },
+            { "apiVersion", m_pStringSerializer->GetVersionString( applicationInfo.apiVersion ) }
+        };
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize VkPhysicalDeviceProperties structure into a JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::Serialize( const VkPhysicalDeviceProperties& deviceProperties ) const
+    {
+        return {
+            { "apiVersion", m_pStringSerializer->GetVersionString( deviceProperties.apiVersion ) },
+            { "driverVersion", m_pStringSerializer->GetVersionString( deviceProperties.driverVersion ) },
+            { "vendorID", deviceProperties.vendorID },
+            { "deviceID", deviceProperties.deviceID },
+            { "deviceType", deviceProperties.deviceType },
+            { "deviceName", deviceProperties.deviceName }
+        };
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize VkPhysicalDeviceMemoryProperties structure into a JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::Serialize( const VkPhysicalDeviceMemoryProperties& memoryProperties ) const
+    {
+        nlohmann::json::array_t memoryTypes;
+        nlohmann::json::array_t memoryHeaps;
+
+        for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
+        {
+            memoryHeaps.push_back(
+                { { "size", memoryProperties.memoryHeaps[i].size },
+                    { "flags", memoryProperties.memoryHeaps[i].flags } } );
+        }
+
+        for( uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i )
+        {
+            memoryTypes.push_back(
+                { { "heapIndex", memoryProperties.memoryTypes[i].heapIndex },
+                    { "propertyFlags", m_pStringSerializer->GetMemoryPropertyFlagNames( memoryProperties.memoryTypes[i].propertyFlags ) } } );
+        }
+
+        return {
+            { "memoryTypes", std::move( memoryTypes ) },
+            { "memoryHeaps", std::move( memoryHeaps ) }
+        };
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize VkQueueFamilyProperties vector into a JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::Serialize( const std::vector<VkQueueFamilyProperties>& queueFamilyProperties ) const
+    {
+        nlohmann::json::array_t queueFamilies;
+
+        for( size_t i = 0; i < queueFamilyProperties.size(); ++i )
+        {
+            const VkQueueFamilyProperties& properties = queueFamilyProperties[i];
+            queueFamilies.push_back(
+                { { "queueFlags", m_pStringSerializer->GetQueueFlagNames( properties.queueFlags ) },
+                    { "queueCount", properties.queueCount },
+                    { "timestampValidBits", properties.timestampValidBits },
+                    { "minImageTransferGranularity",
+                        {
+                            { "width", properties.minImageTransferGranularity.width },
+                            { "height", properties.minImageTransferGranularity.height },
+                            { "depth", properties.minImageTransferGranularity.depth },
+                        } } } );
+        }
+
+        return queueFamilies;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize unordered set of strings into a JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::Serialize( const std::unordered_set<std::string>& set ) const
+    {
+        nlohmann::json::array_t array;
+
+        for( const std::string& item : set )
+        {
+            array.push_back( item );
+        }
+
+        return array;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    Description:
+        Serialize VkQueueFamilyProperties vector into a JSON object.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerJsonSerializer::Serialize( const DeviceProfilerConfig& config ) const
+    {
+        // TODO: codegen
+        return {};
+    }
+
+    /*************************************************************************\
+
+    Function:
         GetCommandArgs
 
     Description:

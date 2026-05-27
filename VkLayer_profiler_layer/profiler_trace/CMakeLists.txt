@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021 Lukasz Stalmirski
+# Copyright (c) 2019-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,12 +25,14 @@ project (profiler_trace)
 set (headers
     "profiler_trace.h"
     "profiler_trace_event.h"
+    "profiler_trace_frontend.h"
     "profiler_json.h"
     )
 
 set (sources
     "profiler_trace.cpp"
     "profiler_trace_event.cpp"
+    "profiler_trace_frontend.cpp"
     "profiler_json.cpp"
     )
 
@@ -40,4 +42,5 @@ add_library (profiler_trace
     ${headers})
 
 target_link_libraries (profiler_trace
-    PUBLIC profiler_common)
+    PUBLIC profiler_common
+    PUBLIC profiler_helpers)

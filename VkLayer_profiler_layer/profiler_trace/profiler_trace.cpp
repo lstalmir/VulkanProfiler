@@ -179,7 +179,7 @@ namespace Profiler
             // Write file header.
             m_OutputFile << '{';
             m_OutputFile << "\"displayTimeUnit\":\"ns\"," << lf;
-            m_OutputFile << " \"otherData\":" << json::object() << "," << lf;
+            m_OutputFile << " \"otherData\":" << GetMetadataObject() << "," << lf;
             m_OutputFile << " \"traceEvents\":[" << eof;
 
             m_OutputFileEmpty = true;
@@ -564,6 +564,28 @@ namespace Profiler
     Milliseconds DeviceProfilerTraceSerializer::GetNormalizedGpuTimestamp( uint64_t gpuTimestamp ) const
     {
         return ((gpuTimestamp - m_DeviceCalibratedTimestamp) * m_GpuTimestampPeriod);
+    }
+
+    /*************************************************************************\
+
+    Function:
+        CloseOutputFile
+
+    Description:
+        Close the output file.
+
+    \*************************************************************************/
+    nlohmann::json DeviceProfilerTraceSerializer::GetMetadataObject() const
+    {
+        return {
+            { "applicationInfo", m_pJsonSerializer->Serialize( m_Frontend.GetApplicationInfo() ) },
+            { "physicalDeviceProperties", m_pJsonSerializer->Serialize( m_Frontend.GetPhysicalDeviceProperties() ) },
+            { "physicalDeviceMemoryProperties", m_pJsonSerializer->Serialize( m_Frontend.GetPhysicalDeviceMemoryProperties() ) },
+            { "queueFamilyProperties", m_pJsonSerializer->Serialize( m_Frontend.GetQueueFamilyProperties() ) },
+            { "enabledInstanceExtensions", m_pJsonSerializer->Serialize( m_Frontend.GetEnabledInstanceExtensions() ) },
+            { "enabledDeviceExtensions", m_pJsonSerializer->Serialize( m_Frontend.GetEnabledDeviceExtensions() ) },
+            { "profilerConfig", m_pJsonSerializer->Serialize( m_Frontend.GetProfilerConfig() ) }
+        };
     }
 
     /*************************************************************************\
