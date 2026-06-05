@@ -56,6 +56,9 @@ This section describes in detail all available configuration options exposed by 
             .. NOTE::
                 The extension allows to collect more in more passes, but that requires resubmission of the command buffers, which could result in unexpected behavior when done from the layer without application's knowledge. Because of that, the layer does not support multi-pass performance queries.
 
+        nvidia
+            Enables NVIDIA performance counters using NvPerf SDK. To use this option, copy `nvperf_grfx_host.dll` or `libnvperf_grfx_host.so` library (available in the NvPerf SDK: `https://developer.nvidia.com/nsight-perf-sdk`_) to the profiler's installation directory.
+
 .. confval:: performance_query_mode
     :type: enum
     :default: query

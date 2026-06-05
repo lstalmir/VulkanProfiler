@@ -126,6 +126,41 @@ add_subdirectory (VulkanMemoryAllocator)
 set (JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory (json)
 
+# biojppm/rapidyaml
+function (build_rapidyaml)
+    find_package (Python3 COMPONENTS Interpreter)
+
+    # Amalgamate ryml into a single header:
+    set (ryml_dir "${CMAKE_CURRENT_SOURCE_DIR}/rapidyaml")
+    set (ryml_header_dir "${CMAKE_CURRENT_BINARY_DIR}/rapidyaml")
+    set (ryml_header "${ryml_header_dir}/ryml_all.hpp")
+    set (amscript "${ryml_dir}/tools/amalgamate.py")
+
+    file (GLOB_RECURSE ryml_sources
+        LIST_DIRECTORIES FALSE
+        CONFIGURE_DEPENDS "${ryml_dir}/src")
+
+    add_custom_command (OUTPUT "${ryml_header}"
+        COMMAND "${Python3_EXECUTABLE}" "${amscript}" "${ryml_header}"
+        COMMENT "${Python3_EXECUTABLE} ${amscript} ${ryml_header}"
+        DEPENDS ${ryml_sources} "${amscript}" "${ryml_dir}/ext/c4core/cmake/amalgamate_utils.py")
+
+    # Build the static library.
+    add_library (ryml STATIC
+        "${ryml_dir}/samples/singleheaderlib/lib.cpp"
+        "${ryml_header}")
+
+    target_include_directories (ryml PUBLIC "${ryml_header_dir}")
+endfunction ()
+
+build_rapidyaml()
+
+# nvidia/nvperf
+add_library (nvperf INTERFACE)
+target_include_directories (nvperf
+    INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nvperf/redist/include"
+    INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nvperf/redist/NvPerfUtility/include")
+
 # ocornut/imgui
 set (imgui_backends
     imgui/backends/imgui_impl_vulkan.h

@@ -145,6 +145,11 @@
                             "key": "khr",
                             "label": "KHR",
                             "description": "Enable VK_KHR_performance_query extension."
+                        },
+                        {
+                            "key": "nvidia",
+                            "label": "NVIDIA",
+                            "description": "Enable NVIDIA NvPerf SDK."
                         }
                     ],
                     "settings": [
