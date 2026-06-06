@@ -32,59 +32,45 @@ namespace Profiler
         Serialize TraceEvent to JSON object.
 
     \*************************************************************************/
-    void TraceEvent::Serialize( simdjson::builder::string_builder& builder ) const
+    void TraceEvent::Serialize( DeviceProfilerJsonBuilder& builder ) const
     {
-        bool firstArg = true;
-
         using namespace std::literals;
 
         if( !m_Name.empty() )
         {
-            builder.append_key_value( "name", m_Name );
-            firstArg = false;
+            builder.AddKeyValue( "name", m_Name );
         }
 
         if( !m_Category.empty() )
         {
-            if( !firstArg ) builder.append_comma();
-            builder.append_key_value( "cat", m_Category );
-            firstArg = false;
+            builder.AddKeyValue( "cat", m_Category );
         }
 
-        if( !firstArg ) builder.append_comma();
-        builder.append_key_value( "ph", std::string( 1, static_cast<char>( m_Phase ) ) );
-        builder.append_comma();
-        builder.append_key_value( "ts", m_Timestamp.count() );
-        builder.append_comma();
-        builder.append_key_value( "pid", 0 );
-        firstArg = false;
+        const char phase[] = { static_cast<char>( m_Phase ), '\0' };
+        builder.AddKeyValue( "ph", std::string_view( phase ) );
+        builder.AddKeyValue( "ts", m_Timestamp.count() );
+        builder.AddKeyValue( "pid", 0 );
 
         if( m_Queue != VK_NULL_HANDLE )
         {
             char queueHexHandle[32] = {};
             ProfilerStringFunctions::Hex( queueHexHandle, reinterpret_cast<uint64_t>( m_Queue ) );
 
-            if( !firstArg ) builder.append_comma();
-            builder.append_key_value( "tid", "VkQueue 0x"s + queueHexHandle );
-            firstArg = false;
+            builder.AddKeyValue( "tid", "VkQueue 0x"s + queueHexHandle );
         }
 
         if( m_Color )
         {
-            if( !firstArg ) builder.append_comma();
-            builder.escape_and_append_with_quotes( "cname" );
-            builder.append_colon();
+            builder.BeginKeyValue( "cname" );
             m_Color( builder );
-            firstArg = false;
+            builder.EndKeyValue();
         }
 
         if( m_Args )
         {
-            if( !firstArg ) builder.append_comma();
-            builder.escape_and_append_with_quotes( "args" );
-            builder.append_colon();
+            builder.BeginKeyValue( "args" );
             m_Args( builder );
-            firstArg = false;
+            builder.EndKeyValue();
         }
     }
 
@@ -97,13 +83,13 @@ namespace Profiler
         Serialize TraceInstantEvent to JSON object.
 
     \*************************************************************************/
-    void TraceInstantEvent::Serialize( simdjson::builder::string_builder& builder ) const
+    void TraceInstantEvent::Serialize( DeviceProfilerJsonBuilder& builder ) const
     {
         TraceEvent::Serialize( builder );
 
         // Instant events contain additional 's' parameter
-        builder.append_comma();
-        builder.append_key_value( "s", std::string( 1, static_cast<char>(m_Scope)) );
+        const char scope[] = { static_cast<char>(m_Scope), '\0' };
+        builder.AddKeyValue( "s", std::string_view( scope ) );
     }
 
     /*************************************************************************\
@@ -115,13 +101,12 @@ namespace Profiler
         Serialize TraceAsyncEvent to JSON object.
 
     \*************************************************************************/
-    void TraceAsyncEvent::Serialize( simdjson::builder::string_builder& builder ) const
+    void TraceAsyncEvent::Serialize( DeviceProfilerJsonBuilder& builder ) const
     {
         TraceEvent::Serialize( builder );
 
         // Async events contain additional 'id' parameter
-        builder.append_comma();
-        builder.append_key_value( "id", m_Id );
+        builder.AddKeyValue( "id", m_Id );
     }
 
     /*************************************************************************\
@@ -133,13 +118,12 @@ namespace Profiler
         Serialize TraceCompleteEvent to JSON object.
 
     \*************************************************************************/
-    void TraceCompleteEvent::Serialize( simdjson::builder::string_builder& builder ) const
+    void TraceCompleteEvent::Serialize( DeviceProfilerJsonBuilder& builder ) const
     {
         TraceEvent::Serialize( builder );
 
         // Complete events contain additional 'dur' parameter
-        builder.append_comma();
-        builder.append_key_value( "dur", m_Duration.count() );
+        builder.AddKeyValue( "dur", m_Duration.count() );
     }
 
     /*************************************************************************\
@@ -151,47 +135,42 @@ namespace Profiler
         Serialize TraceCounterEvent to JSON object.
 
     \*************************************************************************/
-    void TraceCounterEvent::Serialize( simdjson::builder::string_builder& builder ) const
+    void TraceCounterEvent::Serialize( DeviceProfilerJsonBuilder& builder ) const
     {
         TraceEvent::Serialize( builder );
 
         // Counter events contain all metrics in 'args' parameter
-        builder.append_comma();
-        builder.escape_and_append_with_quotes( "args" );
-        builder.append_colon();
-
-        builder.start_array();
+        builder.BeginArray( "args" );
 
         for( uint32_t i = 0; i < m_CounterCount; ++i )
         {
             const VkProfilerPerformanceCounterProperties2EXT& properties = m_pCounterProperties[i];
             const VkProfilerPerformanceCounterResultEXT result = m_pCounterResults ? m_pCounterResults[i] : VkProfilerPerformanceCounterResultEXT();
 
-            if( i > 0 ) builder.append_comma();
             switch( properties.storage )
             {
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                builder.append_key_value( properties.shortName, result.int32 );
+                builder.AddKeyValue( properties.shortName, result.int32 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                builder.append_key_value( properties.shortName, result.uint32 );
+                builder.AddKeyValue( properties.shortName, result.uint32 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                builder.append_key_value( properties.shortName, result.int64 );
+                builder.AddKeyValue( properties.shortName, result.int64 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                builder.append_key_value( properties.shortName, result.uint64 );
+                builder.AddKeyValue( properties.shortName, result.uint64 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                builder.append_key_value( properties.shortName, result.float32 );
+                builder.AddKeyValue( properties.shortName, result.float32 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                builder.append_key_value( properties.shortName, result.float64 );
+                builder.AddKeyValue( properties.shortName, result.float64 );
                 break;
             }
         }
 
-        builder.end_array();
+        builder.EndArray();
     }
 
     /*************************************************************************\
@@ -203,18 +182,17 @@ namespace Profiler
         Serialize DebugTraceEvent to JSON object.
 
     \*************************************************************************/
-    void DebugTraceEvent::Serialize( simdjson::builder::string_builder& builder ) const
+    void DebugTraceEvent::Serialize( DeviceProfilerJsonBuilder& builder ) const
     {
         TraceEvent::Serialize( builder );
 
         // Set thread id
-        builder.append_comma();
-        builder.append_key_value( "tid", "Debug labels" );
+        builder.AddKeyValue( "tid", "Debug labels" );
 
         if( m_Phase == Phase::eInstant )
         {
-            builder.append_comma();
-            builder.append_key_value( "s", std::string( 1, static_cast<char>(TraceInstantEvent::Scope::eThread) ) );
+            const char scope[] = { static_cast<char>( TraceInstantEvent::Scope::eThread ), '\0' };
+            builder.AddKeyValue( "s", std::string_view( scope ) );
         }
     }
 
@@ -227,12 +205,11 @@ namespace Profiler
         Serialize ApiTraceEvent to JSON object.
 
     \*************************************************************************/
-    void ApiTraceEvent::Serialize( simdjson::builder::string_builder& builder ) const
+    void ApiTraceEvent::Serialize( DeviceProfilerJsonBuilder& builder ) const
     {
         TraceEvent::Serialize( builder );
 
         // Set thread id
-        builder.append_comma();
-        builder.append_key_value( "tid", "Thread " + std::to_string( m_ThreadId ) );
+        builder.AddKeyValue( "tid", "Thread " + std::to_string( m_ThreadId ) );
     }
 }

@@ -19,9 +19,9 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_json.h"
 #include "profiler/profiler_frontend.h"
 #include "profiler_helpers/profiler_time_helpers.h"
-#include <simdjson.h>
 #include <vulkan/vulkan.h>
 #include <atomic>
 #include <list>
@@ -103,7 +103,7 @@ namespace Profiler
         VkQueue      m_CommandQueue;
 
         // Serialized events
-        simdjson::builder::string_builder m_JsonBuilder;
+        DeviceProfilerJsonBuilder m_JsonBuilder;
 
         // Debug labels can cross command buffer and frame boundaries
         // Tracking depth of the stack to detect labels which begin in one frame and end in the next

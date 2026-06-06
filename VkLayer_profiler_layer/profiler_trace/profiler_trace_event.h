@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_json.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
 #include <simdjson.h>
@@ -42,7 +43,7 @@ namespace Profiler
     \*************************************************************************/
     struct TraceEvent
     {
-        typedef std::function<void( simdjson::builder::string_builder& )> Callback;
+        typedef std::function<void( DeviceProfilerJsonBuilder& )> Callback;
 
         enum class Phase
         {
@@ -99,7 +100,7 @@ namespace Profiler
         {
         }
 
-        virtual void Serialize( simdjson::builder::string_builder& builder ) const;
+        virtual void Serialize( DeviceProfilerJsonBuilder& builder ) const;
     };
 
     /*************************************************************************\
@@ -141,7 +142,7 @@ namespace Profiler
         {
         }
 
-        void Serialize( simdjson::builder::string_builder& builder ) const override;
+        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -180,7 +181,7 @@ namespace Profiler
                 || (m_Phase == Phase::eAsyncInstant) );
         }
 
-        void Serialize( simdjson::builder::string_builder& builder ) const override;
+        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -215,7 +216,7 @@ namespace Profiler
         {
         }
 
-        void Serialize( simdjson::builder::string_builder& builder ) const override;
+        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -253,7 +254,7 @@ namespace Profiler
         {
         }
 
-        void Serialize( simdjson::builder::string_builder& builder ) const override;
+        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -281,7 +282,7 @@ namespace Profiler
         {
         }
 
-        void Serialize( simdjson::builder::string_builder& builder ) const override;
+        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -313,6 +314,6 @@ namespace Profiler
         {
         }
 
-        void Serialize( simdjson::builder::string_builder& builder ) const override;
+        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
     };
 }
