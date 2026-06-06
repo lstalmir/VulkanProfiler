@@ -46,7 +46,7 @@
 #define PROFILER_METRICS_DLL_INTEL "libigdmd.so"
 #endif
 
-#include <nlohmann/json.hpp>
+#include <yyjson.h>
 #include <fstream>
 
 namespace MD = MetricsDiscovery;
@@ -1106,12 +1106,41 @@ namespace Profiler
             vulkanDriverName[ vulkanDriverNameLength ] = 0;
 
             // Parse JSON file.
-            nlohmann::json icd = nlohmann::json::parse( std::ifstream( vulkanDriverName ) );
+            yyjson_doc* pIcdJson = yyjson_read_file(
+                vulkanDriverName,
+                YYJSON_READ_NOFLAG,
+                nullptr,
+                nullptr );
 
-            if( icd[ "file_format_version" ] == "1.0.0" )
+            if( !pIcdJson )
             {
+                RegCloseKey( hDeviceRegistryKey );
+                continue;
+            }
+
+            yyjson_val* pIcdJsonRoot = yyjson_doc_get_root( pIcdJson );
+            const char* pFileFormatVersion = yyjson_get_str( yyjson_obj_get( pIcdJsonRoot, "file_format_version" ) );
+
+            if( pFileFormatVersion && strcmp( pFileFormatVersion, "1.0.0" ) == 0 )
+            {
+                yyjson_val* pICD = yyjson_obj_get( pIcdJsonRoot, "ICD" );
+                if( !pICD )
+                {
+                    yyjson_doc_free( pIcdJson );
+                    RegCloseKey( hDeviceRegistryKey );
+                    continue;
+                }
+
                 // Get path to the DLL.
-                std::filesystem::path vulkanModulePath = icd[ "ICD" ][ "library_path" ];
+                const char* pVulkanModulePath = yyjson_get_str( yyjson_obj_get( pICD, "library_path" ) );
+                if( !pVulkanModulePath )
+                {
+                    yyjson_doc_free( pIcdJson );
+                    RegCloseKey( hDeviceRegistryKey );
+                    continue;
+                }
+
+                std::filesystem::path vulkanModulePath( pVulkanModulePath );
 
                 if( !vulkanModulePath.is_absolute() )
                 {
@@ -1126,7 +1155,8 @@ namespace Profiler
                     igdmdPath = ProfilerPlatformFunctions::FindFile( vulkanModulePath.parent_path(), PROFILER_METRICS_DLL_INTEL );
                 }
             }
-            
+
+            yyjson_doc_free( pIcdJson );
             RegCloseKey( hDeviceRegistryKey );
 
             // Exit enumeration if the DLL has been found.

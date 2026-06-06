@@ -21,7 +21,7 @@
 #pragma once
 #include "profiler/profiler_frontend.h"
 #include "profiler_helpers/profiler_time_helpers.h"
-#include <nlohmann/json.hpp>
+#include <yyjson.h>
 #include <vulkan/vulkan.h>
 #include <atomic>
 #include <list>
@@ -34,6 +34,8 @@
 
 namespace Profiler
 {
+    struct TraceEvent;
+
     /*************************************************************************\
 
     Structure:
@@ -91,7 +93,7 @@ namespace Profiler
         std::list<std::string> m_ErrorMessages;
 
         // Output file
-        std::ofstream m_OutputFile;
+        FILE* m_pOutputFile;
         bool m_OutputFileEmpty;
 
         // Currently serialized frame data
@@ -101,7 +103,9 @@ namespace Profiler
         VkQueue      m_CommandQueue;
 
         // Serialized events
-        nlohmann::json m_Events;
+        yyjson_alc* m_pJsonAllocator;
+        yyjson_mut_doc* m_pJsonDocument;
+        std::vector<yyjson_mut_val*> m_pJsonEvents;
 
         // Debug labels can cross command buffer and frame boundaries
         // Tracking depth of the stack to detect labels which begin in one frame and end in the next
@@ -132,6 +136,7 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerDrawcall& );
         void Serialize( const std::vector<struct TipRange>& );
 
+        void AppendEvent( const TraceEvent& event );
         bool AppendEventsToOutputFile();
     };
 

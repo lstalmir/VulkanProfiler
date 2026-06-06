@@ -22,7 +22,7 @@
 #include "profiler/profiler_frontend.h"
 
 #include <assert.h>
-#include <nlohmann/json.hpp>
+#include <yyjson.h>
 
 namespace Profiler
 {
@@ -53,27 +53,56 @@ namespace Profiler
     \***********************************************************************************/
     bool DeviceProfilerMetricsSetFile::Read( const std::string& filename )
     {
-        try
-        {
-            std::ifstream file( filename );
-            nlohmann::json json = nlohmann::json::parse( file );
+        m_Name.clear();
+        m_Description.clear();
+        m_Counters.clear();
 
-            m_Name = json["name"].get<std::string>();
-            m_Description = json["description"].get<std::string>();
+        yyjson_doc* pDocument = yyjson_read_file(
+            filename.c_str(),
+            YYJSON_READ_NOFLAG,
+            nullptr,
+            nullptr );
 
-            m_Counters.clear();
-
-            for( const auto& counter : json["counters"] )
-            {
-                m_Counters.push_back( counter.get<std::string>() );
-            }
-
-            return true;
-        }
-        catch( ... )
+        if( !pDocument )
         {
             return false;
         }
+
+        yyjson_val* pRoot = yyjson_doc_get_root( pDocument );
+        if( !pRoot || !yyjson_is_obj( pRoot ) )
+        {
+            yyjson_doc_free( pDocument );
+            return false;
+        }
+
+        yyjson_obj_iter iter;
+        if( yyjson_obj_iter_init( pRoot, &iter ) )
+        {
+            yyjson_val* pName = yyjson_obj_iter_get( &iter, "name" );
+            if( pName && yyjson_is_str( pName ) )
+                m_Name = yyjson_get_str( pName );
+
+            yyjson_val* pDescription = yyjson_obj_iter_get( &iter, "description" );
+            if( pDescription && yyjson_is_str( pDescription ) )
+                m_Description = yyjson_get_str( pDescription );
+
+            yyjson_val* pCounters = yyjson_obj_iter_get( &iter, "counters" );
+            if( pCounters && yyjson_is_arr( pCounters ) )
+            {
+                yyjson_arr_iter countersIter;
+                yyjson_arr_iter_init( pCounters, &countersIter );
+
+                while( yyjson_arr_iter_has_next( &countersIter ) )
+                {
+                    yyjson_val* pCounter = yyjson_arr_iter_next( &countersIter );
+                    if( pCounter && yyjson_is_str( pCounter ) )
+                        m_Counters.push_back( yyjson_get_str( pCounter ) );
+                }
+            }
+        }
+
+        yyjson_doc_free( pDocument );
+        return true;
     }
 
     /***********************************************************************************\
@@ -87,22 +116,35 @@ namespace Profiler
     \***********************************************************************************/
     bool DeviceProfilerMetricsSetFile::Write( const std::string& filename ) const
     {
-        try
-        {
-            nlohmann::json json;
-            json["name"] = m_Name;
-            json["description"] = m_Description;
-            json["counters"] = m_Counters;
-
-            std::ofstream file( filename );
-            file << std::setw( 4 ) << json;
-
-            return true;
-        }
-        catch( ... )
+        yyjson_mut_doc* pDocument = yyjson_mut_doc_new( nullptr );
+        if( !pDocument )
         {
             return false;
         }
+
+        yyjson_mut_val* pRoot = yyjson_mut_obj( pDocument );
+        yyjson_mut_doc_set_root( pDocument, pRoot );
+
+        yyjson_mut_obj_add_str( pDocument, pRoot, "name", m_Name.c_str() );
+        yyjson_mut_obj_add_str( pDocument, pRoot, "description", m_Description.c_str() );
+
+        yyjson_mut_val* pCounters =
+            yyjson_mut_obj_add_arr( pDocument, pRoot, "counters" );
+
+        for( const std::string& counter : m_Counters )
+        {
+            yyjson_mut_arr_add_str( pDocument, pCounters, counter.c_str() );
+        }
+
+        bool success = yyjson_mut_write_file(
+            filename.c_str(),
+            pDocument,
+            YYJSON_WRITE_NOFLAG,
+            nullptr,
+            nullptr );
+
+        yyjson_mut_doc_free( pDocument );
+        return success;
     }
 
     /***********************************************************************************\

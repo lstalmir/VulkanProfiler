@@ -122,9 +122,8 @@ add_subdirectory (SPIRV-Specification)
 # GPUOpen/VulkanMemoryAllocator
 add_subdirectory (VulkanMemoryAllocator)
 
-# nlohmann/json
-set (JSON_BuildTests OFF CACHE INTERNAL "")
-add_subdirectory (json)
+# ibireme/yyjson
+add_subdirectory (yyjson)
 
 # ocornut/imgui
 set (imgui_backends

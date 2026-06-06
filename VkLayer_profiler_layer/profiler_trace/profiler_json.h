@@ -20,7 +20,7 @@
 
 #pragma once
 #include <vulkan/vulkan.h>
-#include <nlohmann/json.hpp>
+#include <yyjson.h>
 
 namespace Profiler
 {
@@ -38,17 +38,20 @@ namespace Profiler
     public:
         DeviceProfilerJsonSerializer( const class DeviceProfilerStringSerializer* );
 
-        nlohmann::json GetCommandArgs( const struct DeviceProfilerDrawcall& ) const;
-        nlohmann::json GetPipelineArgs( const struct DeviceProfilerPipeline& ) const;
+        void SetDocument( yyjson_mut_doc* );
+        void WriteCommandArgs( yyjson_mut_val*, const struct DeviceProfilerDrawcall& ) const;
+        void WritePipelineArgs( yyjson_mut_val*, const struct DeviceProfilerPipeline& ) const;
 
     private:
         const class DeviceProfilerStringSerializer* m_pStringSerializer;
 
-        nlohmann::json GetColorClearValue( const VkClearColorValue& ) const;
-        nlohmann::json GetDepthStencilClearValue( const VkClearDepthStencilValue& ) const;
-        nlohmann::json GetShaderStageArgs( const struct ProfilerShader& ) const;
-        nlohmann::json GetGraphicsPipelineCreateInfoArgs( const VkGraphicsPipelineCreateInfo& ) const;
-        nlohmann::json GetComputePipelineCreateInfoArgs( const VkComputePipelineCreateInfo& ) const;
-        nlohmann::json GetRayTracingPipelineCreateInfoArgs( const VkRayTracingPipelineCreateInfoKHR& ) const;
+        yyjson_mut_doc* m_pDocument;
+
+        void WriteColorClearValue( yyjson_mut_val*, const VkClearColorValue& ) const;
+        void WriteDepthStencilClearValue( yyjson_mut_val*, const VkClearDepthStencilValue& ) const;
+        void WriteShaderStageArgs( yyjson_mut_val*, const struct ProfilerShader& ) const;
+        void WriteGraphicsPipelineCreateInfoArgs( yyjson_mut_val*, const VkGraphicsPipelineCreateInfo& ) const;
+        void WriteComputePipelineCreateInfoArgs( yyjson_mut_val*, const VkComputePipelineCreateInfo& ) const;
+        void WriteRayTracingPipelineCreateInfoArgs( yyjson_mut_val*, const VkRayTracingPipelineCreateInfoKHR& ) const;
     };
 }

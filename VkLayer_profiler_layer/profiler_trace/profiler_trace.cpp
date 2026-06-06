@@ -36,12 +36,7 @@
 #include <iomanip>
 #include <iostream>
 
-#include <nlohmann/json.hpp>
-
 #include "profiler_ext/VkProfilerEXT.h"
-
-// Alias commonly used types
-using json = nlohmann::json;
 
 namespace
 {
@@ -76,26 +71,12 @@ namespace
         }
     }
 
-    std::ostream& lf( std::ostream& out )
-    {
-        out.write( "\n", 1 );
-        return out;
-    }
-
     static constexpr std::streamoff eof_len = 3;
-    std::ostream& eof( std::ostream& out )
-    {
-        out << "]}" << lf;
-        out << std::flush;
-        return out;
-    }
-
     static constexpr std::streamoff eol_len = 2;
-    std::ostream& eol( std::ostream& out )
-    {
-        out << ',' << lf;
-        return out;
-    }
+
+#define lf  "\n", 1, 1
+#define eof "]}", eof_len, 1
+#define eol ",\n", eol_len, 1
 }
 
 namespace Profiler
@@ -113,11 +94,13 @@ namespace Profiler
         : m_Frontend( frontend )
         , m_pStringSerializer( new DeviceProfilerStringSerializer( m_Frontend ) )
         , m_pJsonSerializer( new DeviceProfilerJsonSerializer( m_pStringSerializer ) )
-        , m_OutputFile()
+        , m_pOutputFile( nullptr )
         , m_OutputFileEmpty( true )
         , m_pData( nullptr )
         , m_CommandQueue( VK_NULL_HANDLE )
-        , m_Events()
+        , m_pJsonAllocator( nullptr )
+        , m_pJsonDocument( nullptr )
+        , m_pJsonEvents( 0 )
         , m_DebugLabelStackDepth( 0 )
         , m_HostTimeDomain( OSGetDefaultTimeDomain() )
         , m_HostCalibratedTimestamp( 0 )
@@ -155,46 +138,31 @@ namespace Profiler
     \*************************************************************************/
     bool DeviceProfilerTraceSerializer::OpenOutputFile( const std::string& fileName )
     {
-        // Clear exceptions mask to prevent throwing any exceptions from the stream functions.
-        m_OutputFile.exceptions( std::ios::iostate( 0 ) );
+        // Open the file for writing.
+        fopen_s( &m_pOutputFile, fileName.c_str(), "wb" );
 
-        try
-        {
-            // Open the file for writing.
-            m_OutputFile.open( fileName, std::ios::out | std::ios::trunc | std::ios::binary );
-        }
-        catch( const std::ios_base::failure& )
-        {
-            // Handled below.
-        }
-
-        if( m_OutputFile.fail() )
+        if( !m_pOutputFile )
         {
             m_ErrorMessages.push_back( "Could not open file '" + fileName + "' for writing." );
             return false;
         }
 
-        try
-        {
-            // Write file header.
-            m_OutputFile << '{';
-            m_OutputFile << "\"displayTimeUnit\":\"ns\"," << lf;
-            m_OutputFile << " \"otherData\":" << json::object() << "," << lf;
-            m_OutputFile << " \"traceEvents\":[" << eof;
+        // Write file header.
+        fprintf( m_pOutputFile,
+            "{\"displayTimeUnit\": \"ns\",\n"
+            " \"otherData\": {},\n"
+            " \"traceEvents\": [\n" );
 
-            m_OutputFileEmpty = true;
-        }
-        catch( const std::ios_base::failure& )
+        if( ferror( m_pOutputFile ) )
         {
-            // Handled below.
-        }
+            m_ErrorMessages.push_back( "Error while writing the trace file header." );
 
-        if( m_OutputFile.fail() )
-        {
-            m_ErrorMessages.push_back( "Error while writing header data to the output file." );
+            fclose( m_pOutputFile );
+            m_pOutputFile = nullptr;
             return false;
         }
 
+        m_OutputFileEmpty = true;
         return true;
     }
 
@@ -209,22 +177,10 @@ namespace Profiler
     \*************************************************************************/
     bool DeviceProfilerTraceSerializer::CloseOutputFile()
     {
-        if( m_OutputFile.is_open() )
+        if( m_pOutputFile )
         {
-            try
-            {
-                m_OutputFile.close();
-            }
-            catch( const std::ios_base::failure& )
-            {
-                // Handled below.
-            }
-
-            if( m_OutputFile.fail() )
-            {
-                m_ErrorMessages.push_back( "Error while closing the output file." );
-                return false;
-            }
+            fclose( m_pOutputFile );
+            m_pOutputFile = nullptr;
         }
 
         return true;
@@ -240,44 +196,38 @@ namespace Profiler
     \*************************************************************************/
     bool DeviceProfilerTraceSerializer::AppendEventsToOutputFile()
     {
-        if( m_Events.empty() || m_OutputFile.fail() )
+        if( m_pJsonEvents.empty() || !m_pOutputFile )
         {
             // Silently ignore the attempt if an error occurred previously or there are no events to write.
             return false;
         }
 
-        try
+        // Remove last 3 characters ("]}" + lf)
+        fseek( m_pOutputFile, -eof_len, SEEK_END );
+
+        // Continue the array
+        if( !m_OutputFileEmpty )
         {
-            // Remove last 3 characters ("]}" + lf)
-            m_OutputFile.seekp( -eof_len, std::ios::end );
-
-            // Continue the array
-            if( !m_OutputFileEmpty )
-            {
-                m_OutputFile << eol;
-            }
-            else
-            {
-                m_OutputFile << lf;
-            }
-
-            for( const json& event : m_Events )
-            {
-                m_OutputFile << event << eol;
-            }
-
-            // Remove the last comma and insert end of array and end of object
-            m_OutputFile.seekp( -eol_len, std::ios::end );
-            m_OutputFile << eof;
-
-            m_OutputFileEmpty = false;
+            fwrite( eol, m_pOutputFile );
         }
-        catch( const std::ios_base::failure& )
+        else
         {
-            // Handled below.
+            fwrite( lf, m_pOutputFile );
         }
 
-        if( m_OutputFile.fail() )
+        for( yyjson_mut_val* pEvent : m_pJsonEvents )
+        {
+            yyjson_mut_val_write_fp( m_pOutputFile, pEvent, 0, nullptr, nullptr );
+            fwrite( eol, m_pOutputFile );
+        }
+
+        // Remove the last comma and insert end of array and end of object
+        fseek( m_pOutputFile, -eol_len, SEEK_END );
+        fwrite( eof, m_pOutputFile );
+
+        m_OutputFileEmpty = false;
+
+        if( ferror( m_pOutputFile ) )
         {
             m_ErrorMessages.push_back( "Error while writing events to the output file." );
             return false;
@@ -307,13 +257,22 @@ namespace Profiler
         // Setup state for serialization
         m_pData = &data;
 
+        if( !m_pJsonAllocator )
+        {
+            m_pJsonAllocator = yyjson_alc_dyn_new();
+        }
+
+        assert( !m_pJsonDocument );
+        m_pJsonDocument = yyjson_mut_doc_new( m_pJsonAllocator );
+        m_pJsonSerializer->SetDocument( m_pJsonDocument );
+
         SetupTimestampNormalizationConstants();
 
         const Milliseconds frameGpuBeginTimestamp = GetNormalizedGpuTimestamp( data.m_BeginTimestamp );
         const Milliseconds frameGpuEndTimestamp = GetNormalizedGpuTimestamp( data.m_EndTimestamp );
 
         std::string frameName = "Frame #" + std::to_string( data.m_CPU.m_FrameIndex );
-        m_Events.push_back( TraceEvent(
+        AppendEvent( TraceEvent(
             TraceEvent::Phase::eDurationBegin,
             frameName,
             "Frames",
@@ -326,7 +285,7 @@ namespace Profiler
             m_CommandQueue = submitBatchData.m_Handle;
 
             // Insert queue submission event
-            m_Events.push_back( ApiTraceEvent(
+            AppendEvent( ApiTraceEvent(
                 TraceEvent::Phase::eInstant,
                 "vkQueueSubmit",
                 submitBatchData.m_ThreadId,
@@ -337,7 +296,7 @@ namespace Profiler
                 #if ENABLE_FLOW_EVENTS
                 for( const auto& waitSemaphore : submitData.m_WaitSemaphores )
                 {
-                    m_Events.push_back( TraceEvent(
+                    AppendEvent( TraceEvent(
                         TraceEvent::Phase::eFlowEnd,
                         m_pStringSerializer->GetName( waitSemaphore ),
                         "Synchronization",
@@ -354,7 +313,7 @@ namespace Profiler
                 #if ENABLE_FLOW_EVENTS
                 for( const auto& signalSemaphpre : submitData.m_SignalSemaphores )
                 {
-                    m_Events.push_back( TraceEvent(
+                    AppendEvent( TraceEvent(
                         TraceEvent::Phase::eFlowStart,
                         m_pStringSerializer->GetName( signalSemaphpre ),
                         "Synchronization",
@@ -368,7 +327,7 @@ namespace Profiler
         if( data.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
         {
             // Insert present event
-            m_Events.push_back( ApiTraceEvent(
+            AppendEvent( ApiTraceEvent(
                 TraceEvent::Phase::eInstant,
                 "vkQueuePresentKHR",
                 data.m_CPU.m_ThreadId,
@@ -397,7 +356,7 @@ namespace Profiler
                         data.m_PerformanceCounters.m_StreamResults[j].m_Samples[i];
                 }
 
-                m_Events.push_back( TraceCounterEvent(
+                AppendEvent( TraceCounterEvent(
                     GetNormalizedGpuTimestamp( data.m_PerformanceCounters.m_StreamTimestamps[i] ),
                     m_CommandQueue,
                     performanceCountersCount,
@@ -406,7 +365,7 @@ namespace Profiler
             }
 
             Fill( performanceCounterSamples, VkProfilerPerformanceCounterResultEXT{} );
-            m_Events.push_back( TraceCounterEvent(
+            AppendEvent( TraceCounterEvent(
                 frameGpuEndTimestamp,
                 m_CommandQueue,
                 performanceCountersCount,
@@ -414,7 +373,7 @@ namespace Profiler
                 performanceCounterSamples.data() ) );
         }
 
-        m_Events.push_back( TraceEvent(
+        AppendEvent( TraceEvent(
             TraceEvent::Phase::eDurationEnd,
             frameName,
             "Frames",
@@ -427,7 +386,11 @@ namespace Profiler
         // Write the serialized events to the output file
         bool result = AppendEventsToOutputFile();
 
-        m_Events.clear();
+        yyjson_mut_doc_free( m_pJsonDocument );
+        m_pJsonDocument = nullptr;
+        m_pJsonSerializer->SetDocument( nullptr );
+        m_pJsonEvents.clear();
+
         m_pData = nullptr;
 
         return result;
@@ -580,7 +543,7 @@ namespace Profiler
         const std::string eventName = m_pStringSerializer->GetName( data );
 
         // Begin
-        m_Events.push_back( TraceEvent(
+        AppendEvent( TraceEvent(
             TraceEvent::Phase::eDurationBegin,
             eventName,
             "Command buffers",
@@ -599,7 +562,7 @@ namespace Profiler
                 performanceCounterCount,
                 performanceCounterProperties.data() );
 
-            m_Events.push_back( TraceCounterEvent(
+            AppendEvent( TraceCounterEvent(
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue,
                 performanceCounterProperties.size(),
@@ -619,7 +582,7 @@ namespace Profiler
         // Clear performance counters before the next command buffer
         if( performanceCounterCount )
         {
-            m_Events.push_back( TraceCounterEvent(
+            AppendEvent( TraceCounterEvent(
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
                 m_CommandQueue,
                 performanceCounterProperties.size(),
@@ -628,7 +591,7 @@ namespace Profiler
         }
 
         // End
-        m_Events.push_back( TraceEvent(
+        AppendEvent( TraceEvent(
             TraceEvent::Phase::eDurationEnd,
             eventName,
             "Command buffers",
@@ -653,7 +616,7 @@ namespace Profiler
         if( isValidRenderPass )
         {
             // Begin
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Render passes",
@@ -666,14 +629,14 @@ namespace Profiler
                 const std::string beginEventName = m_pStringSerializer->GetName( data.m_Begin, data.m_Dynamic );
 
                 // vkCmdBeginRenderPass
-                m_Events.push_back( TraceEvent(
+                AppendEvent( TraceEvent(
                     TraceEvent::Phase::eDurationBegin,
                     beginEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_Begin.m_BeginTimestamp.m_Value ),
                     m_CommandQueue ) );
 
-                m_Events.push_back( TraceEvent(
+                AppendEvent( TraceEvent(
                     TraceEvent::Phase::eDurationEnd,
                     beginEventName,
                     "Drawcalls",
@@ -696,14 +659,14 @@ namespace Profiler
                 const std::string endEventName = m_pStringSerializer->GetName( data.m_End, data.m_Dynamic );
 
                 // vkCmdEndRenderPass
-                m_Events.push_back( TraceEvent(
+                AppendEvent( TraceEvent(
                     TraceEvent::Phase::eDurationBegin,
                     endEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_End.m_BeginTimestamp.m_Value ),
                     m_CommandQueue ) );
 
-                m_Events.push_back( TraceEvent(
+                AppendEvent( TraceEvent(
                     TraceEvent::Phase::eDurationEnd,
                     endEventName,
                     "Drawcalls",
@@ -712,7 +675,7 @@ namespace Profiler
             }
 
             // End
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 eventName,
                 "Render passes",
@@ -737,7 +700,7 @@ namespace Profiler
         if( !isOnlySubpassInRenderPass )
         {
             // Begin
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName, "",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
@@ -766,7 +729,7 @@ namespace Profiler
         if( !isOnlySubpassInRenderPass )
         {
             // End
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 eventName, "",
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
@@ -786,7 +749,10 @@ namespace Profiler
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerPipelineData& data )
     {
         const std::string eventName = m_pStringSerializer->GetName( data, true /*showEntryPoints*/ );
-        const nlohmann::json eventArgs = m_pJsonSerializer->GetPipelineArgs( data );
+
+        yyjson_mut_val* pEventArgs = yyjson_mut_obj( m_pJsonDocument );
+        m_pJsonSerializer->WritePipelineArgs(
+            pEventArgs, data );
 
         const bool isValidPipeline =
             (data.m_Handle ||
@@ -796,14 +762,14 @@ namespace Profiler
         if( isValidPipeline )
         {
             // Begin
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Pipelines",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue,
-                {} ,
-                eventArgs ) );
+                nullptr,
+                pEventArgs ) );
         }
 
         for( const auto& drawcall : data.m_Drawcalls )
@@ -818,7 +784,7 @@ namespace Profiler
         if( isValidPipeline )
         {
             // End
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 eventName,
                 "Pipelines",
@@ -841,19 +807,22 @@ namespace Profiler
         if( data.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
             const std::string eventName = m_pStringSerializer->GetCommandName( data );
-            const nlohmann::json eventArgs = m_pJsonSerializer->GetCommandArgs( data );
+
+            yyjson_mut_val* pEventArgs = yyjson_mut_obj( m_pJsonDocument );
+            m_pJsonSerializer->WriteCommandArgs(
+                pEventArgs, data );
 
             // Cannot use complete events due to loss of precision
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Drawcalls",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue,
-                {},
-                eventArgs ) );
+                nullptr,
+                pEventArgs ) );
 
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 eventName,
                 "Drawcalls",
@@ -867,7 +836,7 @@ namespace Profiler
             {
                 const char* pDebugLabel = data.m_Payload.m_DebugLabel.m_pName == nullptr ? "" : data.m_Payload.m_DebugLabel.m_pName;
                 // Insert debug labels as instant events
-                m_Events.push_back( DebugTraceEvent(
+                AppendEvent( DebugTraceEvent(
                     TraceEvent::Phase::eInstant,
                     pDebugLabel,
                     GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
@@ -876,7 +845,7 @@ namespace Profiler
             if( data.m_Type == DeviceProfilerDrawcallType::eBeginDebugLabel )
             {
                 const char* pDebugLabel = data.m_Payload.m_DebugLabel.m_pName == nullptr ? "" : data.m_Payload.m_DebugLabel.m_pName;
-                m_Events.push_back( DebugTraceEvent(
+                AppendEvent( DebugTraceEvent(
                     TraceEvent::Phase::eDurationBegin,
                     pDebugLabel,
                     GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
@@ -889,7 +858,7 @@ namespace Profiler
                 // End only events that started in current frame
                 if( m_DebugLabelStackDepth > 0 )
                 {
-                    m_Events.push_back( DebugTraceEvent(
+                    AppendEvent( DebugTraceEvent(
                         TraceEvent::Phase::eDurationEnd,
                         "",
                         GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
@@ -910,18 +879,31 @@ namespace Profiler
     {
         for( const TipRange& range : tipData )
         {
-            m_Events.push_back( ApiTraceEvent(
+            AppendEvent( ApiTraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 range.m_pFunctionName,
                 range.m_ThreadId,
                 GetNormalizedCpuTimestamp( range.m_BeginTimestamp ) ) );
 
-            m_Events.push_back( ApiTraceEvent(
+            AppendEvent( ApiTraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 range.m_pFunctionName,
                 range.m_ThreadId,
                 GetNormalizedCpuTimestamp( range.m_EndTimestamp ) ) );
         }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        AppendEvent
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::AppendEvent( const TraceEvent& event )
+    {
+        event.Serialize(
+            m_pJsonDocument,
+            m_pJsonEvents.emplace_back( yyjson_mut_obj( m_pJsonDocument ) ) );
     }
 
     /*************************************************************************\
