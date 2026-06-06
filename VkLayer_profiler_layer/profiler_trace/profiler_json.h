@@ -20,7 +20,8 @@
 
 #pragma once
 #include <vulkan/vulkan.h>
-#include <nlohmann/json.hpp>
+
+#include <stdio.h>
 
 namespace Profiler
 {
@@ -38,17 +39,17 @@ namespace Profiler
     public:
         DeviceProfilerJsonSerializer( const class DeviceProfilerStringSerializer* );
 
-        nlohmann::json GetCommandArgs( const struct DeviceProfilerDrawcall& ) const;
-        nlohmann::json GetPipelineArgs( const struct DeviceProfilerPipeline& ) const;
+        void WriteCommandArgs( FILE*, const struct DeviceProfilerDrawcall& ) const;
+        void WritePipelineArgs( FILE*, const struct DeviceProfilerPipeline& ) const;
 
     private:
         const class DeviceProfilerStringSerializer* m_pStringSerializer;
 
-        nlohmann::json GetColorClearValue( const VkClearColorValue& ) const;
-        nlohmann::json GetDepthStencilClearValue( const VkClearDepthStencilValue& ) const;
-        nlohmann::json GetShaderStageArgs( const struct ProfilerShader& ) const;
-        nlohmann::json GetGraphicsPipelineCreateInfoArgs( const VkGraphicsPipelineCreateInfo& ) const;
-        nlohmann::json GetComputePipelineCreateInfoArgs( const VkComputePipelineCreateInfo& ) const;
-        nlohmann::json GetRayTracingPipelineCreateInfoArgs( const VkRayTracingPipelineCreateInfoKHR& ) const;
+        void WriteColorClearValue( FILE*, const VkClearColorValue& ) const;
+        void WriteDepthStencilClearValue( FILE*, const VkClearDepthStencilValue& ) const;
+        void WriteShaderStageArgs( FILE*, const struct ProfilerShader& ) const;
+        void WriteGraphicsPipelineCreateInfoArgs( FILE*, const VkGraphicsPipelineCreateInfo& ) const;
+        void WriteComputePipelineCreateInfoArgs( FILE*, const VkComputePipelineCreateInfo& ) const;
+        void WriteRayTracingPipelineCreateInfoArgs( FILE*, const VkRayTracingPipelineCreateInfoKHR& ) const;
     };
 }

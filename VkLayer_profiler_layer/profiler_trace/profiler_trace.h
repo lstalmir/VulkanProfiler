@@ -34,6 +34,8 @@
 
 namespace Profiler
 {
+    struct TraceEvent;
+
     /*************************************************************************\
 
     Structure:
@@ -91,7 +93,7 @@ namespace Profiler
         std::list<std::string> m_ErrorMessages;
 
         // Output file
-        std::ofstream m_OutputFile;
+        FILE* m_pOutputFile;
         bool m_OutputFileEmpty;
 
         // Currently serialized frame data
@@ -99,9 +101,6 @@ namespace Profiler
 
         // Target command queue for the current batch
         VkQueue      m_CommandQueue;
-
-        // Serialized events
-        nlohmann::json m_Events;
 
         // Debug labels can cross command buffer and frame boundaries
         // Tracking depth of the stack to detect labels which begin in one frame and end in the next
@@ -132,7 +131,7 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerDrawcall& );
         void Serialize( const std::vector<struct TipRange>& );
 
-        bool AppendEventsToOutputFile();
+        void AppendEvent( const TraceEvent& event );
     };
 
     /*************************************************************************\

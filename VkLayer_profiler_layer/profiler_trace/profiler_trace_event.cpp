@@ -21,6 +21,8 @@
 #include "profiler_trace_event.h"
 #include "profiler/profiler_helpers.h"
 
+#include <inttypes.h>
+
 namespace Profiler
 {
     /*************************************************************************\
@@ -32,29 +34,57 @@ namespace Profiler
         Serialize TraceEvent to JSON object.
 
     \*************************************************************************/
-    void TraceEvent::Serialize( nlohmann::json& jsonObject ) const
+    void TraceEvent::Serialize( FILE* pFile ) const
     {
-        using namespace std::literals;
+        bool sep = false;
 
-        char queueHexHandle[ 32 ] = {};
-        ProfilerStringFunctions::Hex( queueHexHandle, reinterpret_cast<uint64_t>(m_Queue) );
-
-        jsonObject = {
-            { "name", m_Name },
-            { "cat", m_Category },
-            { "ph", std::string( 1, static_cast<char>(m_Phase) ) },
-            { "ts", m_Timestamp.count() },
-            { "pid", 0 },
-            { "tid", "VkQueue 0x"s + queueHexHandle } };
-
-        if( !m_Color.empty() )
+        if( !m_Name.empty() )
         {
-            jsonObject[ "cname" ] = m_Color;
+            fprintf( pFile, "\"name\":\"%s\"", m_Name.c_str() );
+            sep = true;
         }
 
-        if( !m_Args.empty() )
+        if( !m_Category.empty() )
         {
-            jsonObject[ "args" ] = m_Args;
+            if( sep ) fputc( ',', pFile );
+            fprintf( pFile, "\"cat\":\"%s\"", m_Category.c_str() );
+            sep = true;
+        }
+
+        if( sep ) fputc( ',', pFile );
+        fprintf( pFile,
+            "\"ph\":\"%c\","
+            "\"ts\":%f,"
+            "\"pid\":0",
+            static_cast<char>( m_Phase ),
+            m_Timestamp.count() );
+        sep = true;
+
+        if( m_Queue != VK_NULL_HANDLE )
+        {
+            char queueHexHandle[32] = {};
+            ProfilerStringFunctions::Hex( queueHexHandle, reinterpret_cast<uint64_t>( m_Queue ) );
+
+            if( sep ) fputc( ',', pFile );
+            fprintf( pFile,
+                "\"tid\":\"VkQueue 0x%s\"", queueHexHandle );
+            sep = true;
+        }
+
+        if( m_ColorCallback )
+        {
+            if( sep ) fputc( ',', pFile );
+            fputs( "\"cname\":", pFile );
+            m_ColorCallback( pFile );
+            sep = true;
+        }
+
+        if( m_ArgsCallback )
+        {
+            if( sep ) fputc( ',', pFile );
+            fputs( "\"args\":", pFile );
+            m_ArgsCallback( pFile );
+            sep = true;
         }
     }
 
@@ -67,12 +97,12 @@ namespace Profiler
         Serialize TraceInstantEvent to JSON object.
 
     \*************************************************************************/
-    void TraceInstantEvent::Serialize( nlohmann::json& jsonObject ) const
+    void TraceInstantEvent::Serialize( FILE* pFile ) const
     {
-        TraceEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( pFile );
 
         // Instant events contain additional 's' parameter
-        jsonObject[ "s" ] = std::string( 1, static_cast<char>(m_Scope));
+        fprintf( pFile, ",\"s\":\"%c\"", static_cast<char>(m_Scope) );
     }
 
     /*************************************************************************\
@@ -84,12 +114,12 @@ namespace Profiler
         Serialize TraceAsyncEvent to JSON object.
 
     \*************************************************************************/
-    void TraceAsyncEvent::Serialize( nlohmann::json& jsonObject ) const
+    void TraceAsyncEvent::Serialize( FILE* pFile ) const
     {
-        TraceEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( pFile );
 
         // Async events contain additional 'id' parameter
-        jsonObject[ "id" ] = m_Id;
+        fprintf( pFile, ",\"id\":%" PRIu64, m_Id );
     }
 
     /*************************************************************************\
@@ -101,12 +131,12 @@ namespace Profiler
         Serialize TraceCompleteEvent to JSON object.
 
     \*************************************************************************/
-    void TraceCompleteEvent::Serialize( nlohmann::json& jsonObject ) const
+    void TraceCompleteEvent::Serialize( FILE* pFile ) const
     {
-        TraceEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( pFile );
 
         // Complete events contain additional 'dur' parameter
-        jsonObject[ "dur" ] = m_Duration.count();
+        fprintf( pFile, ",\"dur\":%f", m_Duration.count() );
     }
 
     /*************************************************************************\
@@ -118,16 +148,12 @@ namespace Profiler
         Serialize TraceCounterEvent to JSON object.
 
     \*************************************************************************/
-    void TraceCounterEvent::Serialize( nlohmann::json& jsonObject ) const
+    void TraceCounterEvent::Serialize( FILE* pFile ) const
     {
-        TraceEvent::Serialize( jsonObject );
-
-        jsonObject.erase( "name" );
-        jsonObject.erase( "cat" );
-        jsonObject.erase( "args" );
+        TraceEvent::Serialize( pFile );
 
         // Counter events contain all metrics in 'args' parameter
-        nlohmann::json& args = jsonObject["args"];
+        fputs( ",\"args\":{", pFile );
 
         for( uint32_t i = 0; i < m_CounterCount; ++i )
         {
@@ -137,25 +163,27 @@ namespace Profiler
             switch( properties.storage )
             {
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                args[properties.shortName] = result.int32;
+                fprintf( pFile, "\"%s\":%" PRId32, properties.shortName, result.int32 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                args[properties.shortName] = result.uint32;
+                fprintf( pFile, "\"%s\":%" PRIu32, properties.shortName, result.uint32 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                args[properties.shortName] = result.int64;
+                fprintf( pFile, "\"%s\":%" PRId64, properties.shortName, result.int64 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                args[properties.shortName] = result.uint64;
+                fprintf( pFile, "\"%s\":%" PRIu64, properties.shortName, result.uint64 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                args[properties.shortName] = result.float32;
+                fprintf( pFile, "\"%s\":%f", properties.shortName, result.float32 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                args[properties.shortName] = result.float64;
+                fprintf( pFile, "\"%s\":%lf", properties.shortName, result.float64 );
                 break;
             }
         }
+
+        fputc( '}', pFile );
     }
 
     /*************************************************************************\
@@ -167,16 +195,16 @@ namespace Profiler
         Serialize DebugTraceEvent to JSON object.
 
     \*************************************************************************/
-    void DebugTraceEvent::Serialize( nlohmann::json& jsonObject ) const
+    void DebugTraceEvent::Serialize( FILE* pFile ) const
     {
-        TraceEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( pFile );
 
         // Set thread id
-        jsonObject[ "tid" ] = "Debug labels";
+        fputs( ",\"tid\":\"Debug labels\"", pFile );
 
         if( m_Phase == Phase::eInstant )
         {
-            jsonObject[ "s" ] = std::string( 1, static_cast<char>(TraceInstantEvent::Scope::eThread) );
+            fprintf( pFile, ",\"s\":\"%c\"", static_cast<char>( TraceInstantEvent::Scope::eThread ) );
         }
     }
 
@@ -189,25 +217,11 @@ namespace Profiler
         Serialize ApiTraceEvent to JSON object.
 
     \*************************************************************************/
-    void ApiTraceEvent::Serialize( nlohmann::json& jsonObject ) const
+    void ApiTraceEvent::Serialize( FILE* pFile ) const
     {
-        TraceEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( pFile );
 
         // Set thread id
-        jsonObject[ "tid" ] = "Thread " + std::to_string( m_ThreadId );
-    }
-
-    /*************************************************************************\
-
-    Function:
-        to_json
-
-    Description:
-        Serialize TraceEvent to JSON object.
-
-    \*************************************************************************/
-    void to_json( nlohmann::json& jsonObject, const TraceEvent& event )
-    {
-        event.Serialize( jsonObject );
+        fprintf( pFile, ",\"tid\":\"Thread %u\"", m_ThreadId );
     }
 }

@@ -23,7 +23,7 @@
 #include "profiler_helpers/profiler_string_serializer.h"
 #include "profiler_layer_objects/VkObject.h"
 
-#include <fmt/format.h>
+#include <inttypes.h>
 
 namespace Profiler
 {
@@ -50,8 +50,10 @@ namespace Profiler
         Serialize command arguments into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetCommandArgs( const DeviceProfilerDrawcall& drawcall ) const
+    void DeviceProfilerJsonSerializer::WriteCommandArgs( FILE* pFile, const DeviceProfilerDrawcall& drawcall ) const
     {
+        fputc( '{', pFile );
+
         switch( drawcall.m_Type )
         {
         default:
@@ -59,358 +61,522 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eInsertDebugLabel:
         case DeviceProfilerDrawcallType::eBeginDebugLabel:
         case DeviceProfilerDrawcallType::eEndDebugLabel:
-            return {};
+            break;
 
         case DeviceProfilerDrawcallType::eDraw:
-            return {
-                { "vertexCount", drawcall.m_Payload.m_Draw.m_VertexCount },
-                { "instanceCount", drawcall.m_Payload.m_Draw.m_InstanceCount },
-                { "firstVertex", drawcall.m_Payload.m_Draw.m_FirstVertex },
-                { "firstInstance", drawcall.m_Payload.m_Draw.m_FirstInstance } };
+            fprintf( pFile,
+                "\"vertexCount\":%" PRIu32 ","
+                "\"instanceCount\":%" PRIu32 ","
+                "\"firstVertex\":%" PRIu32 ","
+                "\"firstInstance\":%" PRIu32,
+                drawcall.m_Payload.m_Draw.m_VertexCount,
+                drawcall.m_Payload.m_Draw.m_InstanceCount,
+                drawcall.m_Payload.m_Draw.m_FirstVertex,
+                drawcall.m_Payload.m_Draw.m_FirstInstance );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndexed:
-            return {
-                { "indexCount", drawcall.m_Payload.m_DrawIndexed.m_IndexCount },
-                { "instanceCount", drawcall.m_Payload.m_DrawIndexed.m_InstanceCount },
-                { "firstIndex", drawcall.m_Payload.m_DrawIndexed.m_FirstIndex },
-                { "vertexOffset", drawcall.m_Payload.m_DrawIndexed.m_VertexOffset },
-                { "firstInstance", drawcall.m_Payload.m_DrawIndexed.m_FirstInstance } };
+            fprintf( pFile,
+                "\"indexCount\":%" PRIu32 ","
+                "\"instanceCount\":%" PRIu32 ","
+                "\"firstIndex\":%" PRIu32 ","
+                "\"vertexOffset\":%" PRIi32 ","
+                "\"firstInstance\":%" PRIu32,
+                drawcall.m_Payload.m_DrawIndexed.m_IndexCount,
+                drawcall.m_Payload.m_DrawIndexed.m_InstanceCount,
+                drawcall.m_Payload.m_DrawIndexed.m_FirstIndex,
+                drawcall.m_Payload.m_DrawIndexed.m_VertexOffset,
+                drawcall.m_Payload.m_DrawIndexed.m_FirstInstance );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndirect.m_Stride } };
+            fprintf( pFile,
+                "\"buffer\":\"%s\","
+                "\"offset\":%" PRIu64 ","
+                "\"drawCount\":%" PRIu32 ","
+                "\"stride\":%" PRIu32,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirect.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_DrawIndirect.m_Offset,
+                drawcall.m_Payload.m_DrawIndirect.m_DrawCount,
+                drawcall.m_Payload.m_DrawIndirect.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride } };
+            fprintf( pFile,
+                "\"buffer\":\"%s\","
+                "\"offset\":%" PRIu64 ","
+                "\"drawCount\":%" PRIu32 ","
+                "\"stride\":%" PRIu32,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset,
+                drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount,
+                drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndirectCount.m_Stride } };
+            fprintf( pFile,
+                "\"buffer\":\"%s\","
+                "\"offset\":%" PRIu64 ","
+                "\"countBuffer\":\"%s\","
+                "\"countOffset\":%" PRIu64 ","
+                "\"maxDrawCount\":%" PRIu32 ","
+                "\"stride\":%" PRIu32,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_DrawIndirectCount.m_Offset,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer ).c_str(),
+                drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset,
+                drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount,
+                drawcall.m_Payload.m_DrawIndirectCount.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Stride } };
+            fprintf( pFile,
+                "\"buffer\":\"%s\","
+                "\"offset\":%" PRIu64 ","
+                "\"countBuffer\":\"%s\","
+                "\"countOffset\":%" PRIu64 ","
+                "\"maxDrawCount\":%" PRIu32 ","
+                "\"stride\":%" PRIu32,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Offset,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer ).c_str(),
+                drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountOffset,
+                drawcall.m_Payload.m_DrawIndexedIndirectCount.m_MaxDrawCount,
+                drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasks:
-            return {
-                { "groupCountX", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountX },
-                { "groupCountY", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountY },
-                { "groupCountZ", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountZ }
-            };
+            fprintf( pFile,
+                "\"groupCountX\":%" PRIu32 ","
+                "\"groupCountY\":%" PRIu32 ","
+                "\"groupCountZ\":%" PRIu32,
+                drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountX,
+                drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountY,
+                drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountZ );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Stride }
-            };
+            fprintf( pFile,
+                "\"buffer\":\"%s\","
+                "\"offset\":%" PRIu64 ","
+                "\"drawCount\":%" PRIu32 ","
+                "\"stride\":%" PRIu32,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Offset,
+                drawcall.m_Payload.m_DrawMeshTasksIndirect.m_DrawCount,
+                drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride }
-            };
+            fprintf( pFile,
+                "\"buffer\":\"%s\","
+                "\"offset\":%" PRIu64 ","
+                "\"countBuffer\":\"%s\","
+                "\"countOffset\":%" PRIu64 ","
+                "\"maxDrawCount\":%" PRIu32 ","
+                "\"stride\":%" PRIu32,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Offset,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountBuffer ).c_str(),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountOffset,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_MaxDrawCount,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
-            return {
-                { "taskCount", drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount },
-                { "firstTask", drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask }
-            };
+            fprintf( pFile,
+                "\"taskCount\":%" PRIu32 ","
+                "\"firstTask\":%" PRIu32,
+                drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount,
+                drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride }
-            };
+            fprintf( pFile,
+                "\"buffer\":\"%s\","
+                "\"offset\":%" PRIu64 ","
+                "\"drawCount\":%" PRIu32 ","
+                "\"stride\":%" PRIu32,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride }
-            };
+            fprintf( pFile,
+                "\"buffer\":\"%s\","
+                "\"offset\":%" PRIu64 ","
+                "\"countBuffer\":\"%s\","
+                "\"countOffset\":%" PRIu64 ","
+                "\"maxDrawCount\":%" PRIu32 ","
+                "\"stride\":%" PRIu32,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ).c_str(),
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount,
+                drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMulti:
-        {
-            std::vector<nlohmann::json> vertexInfos;
+            fprintf( pFile,
+                "\"drawCount\":%" PRIu32 ","
+                "\"instanceCount\":%" PRIu32 ","
+                "\"firstInstance\":%" PRIu32 ","
+                "\"stride\":%" PRIu32 ","
+                "\"vertexInfos\":[",
+                drawcall.m_Payload.m_DrawMulti.m_DrawCount,
+                drawcall.m_Payload.m_DrawMulti.m_InstanceCount,
+                drawcall.m_Payload.m_DrawMulti.m_FirstInstance,
+                drawcall.m_Payload.m_DrawMulti.m_Stride );
 
             for( uint32_t i = 0; i < drawcall.m_Payload.m_DrawMulti.m_DrawCount; i++ )
             {
                 const VkMultiDrawInfoEXT& vertexInfo = drawcall.m_Payload.m_DrawMulti.m_pVertexInfo[i];
-                vertexInfos.push_back( {
-                    { "firstVertex", vertexInfo.firstVertex },
-                    { "vertexCount", vertexInfo.vertexCount }
-                } );
+                if( i > 0 ) fputc( ',', pFile );
+                fprintf( pFile,
+                    "{\"firstVertex\":%" PRIu32 ","
+                    "\"vertexCount\":%" PRIu32 "}",
+                    vertexInfo.firstVertex,
+                    vertexInfo.vertexCount );
             }
 
-            return {
-                { "drawCount", drawcall.m_Payload.m_DrawMulti.m_DrawCount },
-                { "instanceCount", drawcall.m_Payload.m_DrawMulti.m_InstanceCount },
-                { "firstInstance", drawcall.m_Payload.m_DrawMulti.m_FirstInstance },
-                { "stride", drawcall.m_Payload.m_DrawMulti.m_Stride },
-                { "vertexInfos", vertexInfos }
-            };
-        }
+            fputc( ']', pFile );
+            break;
         
         case DeviceProfilerDrawcallType::eDrawMultiIndexed:
-        {
-            std::vector<nlohmann::json> indexInfos;
+            fprintf( pFile,
+                "\"drawCount\":%" PRIu32 ","
+                "\"instanceCount\":%" PRIu32 ","
+                "\"firstInstance\":%" PRIu32 ","
+                "\"stride\":%" PRIu32 ","
+                "\"indexInfos\":[",
+                drawcall.m_Payload.m_DrawMultiIndexed.m_DrawCount,
+                drawcall.m_Payload.m_DrawMultiIndexed.m_InstanceCount,
+                drawcall.m_Payload.m_DrawMultiIndexed.m_FirstInstance,
+                drawcall.m_Payload.m_DrawMultiIndexed.m_Stride );
 
             for( uint32_t i = 0; i < drawcall.m_Payload.m_DrawMulti.m_DrawCount; i++ )
             {
                 const VkMultiDrawIndexedInfoEXT& indexInfo = drawcall.m_Payload.m_DrawMultiIndexed.m_pIndexInfo[i];
-                indexInfos.push_back( {
-                    { "firstIndex", indexInfo.firstIndex },
-                    { "indexCount", indexInfo.indexCount },
-                    { "vertexOffset", indexInfo.vertexOffset }
-                } );
+                if( i > 0 ) fputc( ',', pFile );
+                fprintf( pFile,
+                    "{\"firstIndex\":%" PRIu32 ","
+                    "\"indexCount\":%" PRIu32 ","
+                    "\"vertexOffset\":%" PRIu32 "}",
+                    indexInfo.firstIndex,
+                    indexInfo.indexCount,
+                    indexInfo.vertexOffset );
             }
 
-            return {
-                { "drawCount", drawcall.m_Payload.m_DrawMultiIndexed.m_DrawCount },
-                { "instanceCount", drawcall.m_Payload.m_DrawMultiIndexed.m_InstanceCount },
-                { "firstInstance", drawcall.m_Payload.m_DrawMultiIndexed.m_FirstInstance },
-                { "stride", drawcall.m_Payload.m_DrawMultiIndexed.m_Stride },
-                { "indexInfos", indexInfos }
-            };
-        }
+            fputc( ']', pFile );
+            break;
 
         case DeviceProfilerDrawcallType::eDispatch:
-            return {
-                { "groupCountX", drawcall.m_Payload.m_Dispatch.m_GroupCountX },
-                { "groupCountY", drawcall.m_Payload.m_Dispatch.m_GroupCountY },
-                { "groupCountZ", drawcall.m_Payload.m_Dispatch.m_GroupCountZ } };
+            fprintf( pFile,
+                "\"groupCountX\":%" PRIu32 ","
+                "\"groupCountY\":%" PRIu32 ","
+                "\"groupCountZ\":%" PRIu32,
+                drawcall.m_Payload.m_Dispatch.m_GroupCountX,
+                drawcall.m_Payload.m_Dispatch.m_GroupCountY,
+                drawcall.m_Payload.m_Dispatch.m_GroupCountZ );
+            break;
 
         case DeviceProfilerDrawcallType::eDispatchIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DispatchIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DispatchIndirect.m_Offset } };
+            fprintf( pFile,
+                "\"buffer\":\"%s\","
+                "\"offset\":%" PRIu64,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_DispatchIndirect.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_DispatchIndirect.m_Offset );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyBuffer:
-            return {
-                { "srcBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer ) },
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_DstBuffer ) } };
+            fprintf( pFile,
+                "\"srcBuffer\":\"%s\","
+                "\"dstBuffer\":\"%s\"",
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer ).c_str(),
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_DstBuffer ).c_str() );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyBufferToImage:
-            return {
-                { "srcBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_DstImage ) } };
+            fprintf( pFile,
+                "\"srcBuffer\":\"%s\","
+                "\"dstImage\":\"%s\"",
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer ).c_str(),
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_DstImage ).c_str() );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyImage:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_SrcImage ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_DstImage ) } };
+            fprintf( pFile,
+                "\"srcImage\":\"%s\","
+                "\"dstImage\":\"%s\"",
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_SrcImage ).c_str(),
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_DstImage ).c_str() );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyImageToBuffer:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage ) },
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer ) } };
+            fprintf( pFile,
+                "\"srcImage\":\"%s\","
+                "\"dstBuffer\":\"%s\"",
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage ).c_str(),
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer ).c_str() );
+            break;
 
         case DeviceProfilerDrawcallType::eClearAttachments:
-            return {
-                { "attachmentCount", drawcall.m_Payload.m_ClearAttachments.m_Count } };
+            fprintf( pFile,
+                "\"attachmentCount\":%" PRIu32,
+                drawcall.m_Payload.m_ClearAttachments.m_Count );
+            break;
 
         case DeviceProfilerDrawcallType::eClearColorImage:
-            return {
-                { "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearColorImage.m_Image ) },
-                { "value", GetColorClearValue( drawcall.m_Payload.m_ClearColorImage.m_Value ) } };
+            fprintf( pFile,
+                "\"image\":\"%s\","
+                "\"value\":",
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearColorImage.m_Image ).c_str() );
+            WriteColorClearValue( pFile, drawcall.m_Payload.m_ClearColorImage.m_Value );
+            break;
 
         case DeviceProfilerDrawcallType::eClearDepthStencilImage:
-            return {
-                { "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearDepthStencilImage.m_Image ) },
-                { "value", GetDepthStencilClearValue( drawcall.m_Payload.m_ClearDepthStencilImage.m_Value ) } };
+            fprintf( pFile,
+                "\"image\":\"%s\","
+                "\"value\":",
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearDepthStencilImage.m_Image ).c_str() );
+            WriteDepthStencilClearValue( pFile, drawcall.m_Payload.m_ClearDepthStencilImage.m_Value );
+            break;
 
         case DeviceProfilerDrawcallType::eResolveImage:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_SrcImage ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_DstImage ) } };
+            fprintf( pFile,
+                "\"srcImage\":\"%s\","
+                "\"dstImage\":\"%s\"",
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_SrcImage ).c_str(),
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_DstImage ).c_str() );
+            break;
 
         case DeviceProfilerDrawcallType::eBlitImage:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_SrcImage ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_DstImage ) } };
+            fprintf( pFile,
+                "\"srcImage\":\"%s\","
+                "\"dstImage\":\"%s\"",
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_SrcImage ).c_str(),
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_DstImage ).c_str() );
+            break;
 
         case DeviceProfilerDrawcallType::eFillBuffer:
-            return {
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_FillBuffer.m_Buffer ) },
-                { "dstOffset", drawcall.m_Payload.m_FillBuffer.m_Offset },
-                { "size", drawcall.m_Payload.m_FillBuffer.m_Size },
-                { "data", drawcall.m_Payload.m_FillBuffer.m_Data } };
+            fprintf( pFile,
+                "\"dstBuffer\":\"%s\","
+                "\"dstOffset\":%" PRIu64 ","
+                "\"size\":%" PRIu64 ","
+                "\"data\":%" PRIu32,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_FillBuffer.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_FillBuffer.m_Offset,
+                drawcall.m_Payload.m_FillBuffer.m_Size,
+                drawcall.m_Payload.m_FillBuffer.m_Data );
+            break;
 
         case DeviceProfilerDrawcallType::eUpdateBuffer:
-            return {
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_UpdateBuffer.m_Buffer ) },
-                { "dstOffset", drawcall.m_Payload.m_UpdateBuffer.m_Offset },
-                { "dataSize", drawcall.m_Payload.m_UpdateBuffer.m_Size } };
+            fprintf( pFile,
+                "\"dstBuffer\":\"%s\","
+                "\"dstOffset\":%" PRIu64 ","
+                "\"dataSize\":%" PRIu64,
+                m_pStringSerializer->GetName( drawcall.m_Payload.m_UpdateBuffer.m_Buffer ).c_str(),
+                drawcall.m_Payload.m_UpdateBuffer.m_Offset,
+                drawcall.m_Payload.m_UpdateBuffer.m_Size );
+            break;
 
         case DeviceProfilerDrawcallType::eTraceRaysKHR:
-            return {
-                { "width", drawcall.m_Payload.m_TraceRays.m_Width },
-                { "height", drawcall.m_Payload.m_TraceRays.m_Height },
-                { "depth", drawcall.m_Payload.m_TraceRays.m_Depth } };
+            fprintf( pFile,
+                "\"width\":%" PRIu32 ","
+                "\"height\":%" PRIu32 ","
+                "\"depth\":%" PRIu32,
+                drawcall.m_Payload.m_TraceRays.m_Width,
+                drawcall.m_Payload.m_TraceRays.m_Height,
+                drawcall.m_Payload.m_TraceRays.m_Depth );
+            break;
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
-            return {
-                { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress } };
+            fprintf( pFile,
+                "\"indirectDeviceAddress\":%" PRIu64,
+                drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress );
+            break;
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
-            return {
-                { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress } };
+            fprintf( pFile,
+                "\"indirectDeviceAddress\":%" PRIu64,
+                drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress );
+            break;
 
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
         {
             const uint32_t infoCount = drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
 
-            std::vector<nlohmann::json> infos;
-            infos.reserve( infoCount );
+            fprintf( pFile,
+                "\"infoCount\":%" PRIu32 ","
+                "\"infos\":[",
+                infoCount );
 
             for( uint32_t i = 0; i < infoCount; ++i )
             {
                 const auto& info = drawcall.m_Payload.m_BuildAccelerationStructures.m_pInfos[ i ];
 
-                std::vector<nlohmann::json> geometries;
+                if( i > 0 ) fputc( ',', pFile );
+                fprintf( pFile,
+                    "\"type\":\"%s\","
+                    "\"flags\":\"%s\","
+                    "\"mode\":\"%s\","
+                    "\"src\":\"%s\","
+                    "\"dst\":\"%s\","
+                    "\"geometryCount\":%" PRIu32 ","
+                    "\"geometries\":[",
+                    m_pStringSerializer->GetAccelerationStructureTypeName( info.type ).c_str(),
+                    m_pStringSerializer->GetBuildAccelerationStructureFlagNames( info.flags ).c_str(),
+                    m_pStringSerializer->GetBuildAccelerationStructureModeName( info.mode ).c_str(),
+                    m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.srcAccelerationStructure ) ).c_str(),
+                    m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.dstAccelerationStructure ) ).c_str(),
+                    info.geometryCount );
+
                 if( info.pGeometries )
                 {
-                    geometries.reserve( info.geometryCount );
                     for( uint32_t j = 0; j < info.geometryCount; ++j )
                     {
                         const auto& geometry = info.pGeometries[ j ];
-                        nlohmann::json geometryData;
+
+                        if( j > 0 ) fputc( ',', pFile );
+                        fprintf( pFile,
+                            "{\"type\":\"%s\","
+                            "\"flags\":\"%s\","
+                            "\"data\":{",
+                            m_pStringSerializer->GetGeometryTypeName( geometry.geometryType ).c_str(),
+                            m_pStringSerializer->GetGeometryFlagNames( geometry.flags ).c_str() );
 
                         switch( geometry.geometryType )
                         {
                         case VK_GEOMETRY_TYPE_TRIANGLES_KHR:
-                            geometryData = {
-                                { "vertexFormat", m_pStringSerializer->GetFormatName( geometry.geometry.triangles.vertexFormat ) },
-                                { "vertexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.vertexData.hostAddress ) },
-                                { "vertexStride", geometry.geometry.triangles.vertexStride },
-                                { "maxVertex", geometry.geometry.triangles.maxVertex },
-                                { "indexType", m_pStringSerializer->GetIndexTypeName( geometry.geometry.triangles.indexType ) },
-                                { "indexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.indexData.hostAddress ) },
-                                { "transformData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.transformData.hostAddress ) } };
+                            fprintf( pFile,
+                                "\"vertexFormat\":\"%s\","
+                                "\"vertexData\":\"%s\","
+                                "\"vertexStride\":%" PRIu64 ","
+                                "\"maxVertex\":%" PRIu32 ","
+                                "\"indexType\":\"%s\","
+                                "\"indexData\":\"%s\","
+                                "\"transformData\":\"%s\"",
+                                m_pStringSerializer->GetFormatName( geometry.geometry.triangles.vertexFormat ).c_str(),
+                                m_pStringSerializer->GetPointer( geometry.geometry.triangles.vertexData.hostAddress ).c_str(),
+                                geometry.geometry.triangles.vertexStride,
+                                geometry.geometry.triangles.maxVertex,
+                                m_pStringSerializer->GetIndexTypeName( geometry.geometry.triangles.indexType ).c_str(),
+                                m_pStringSerializer->GetPointer( geometry.geometry.triangles.indexData.hostAddress ).c_str(),
+                                m_pStringSerializer->GetPointer( geometry.geometry.triangles.transformData.hostAddress ).c_str() );
                             break;
 
                         case VK_GEOMETRY_TYPE_AABBS_KHR:
-                            geometryData = {
-                                { "data", m_pStringSerializer->GetPointer( geometry.geometry.aabbs.data.hostAddress ) },
-                                { "stride", geometry.geometry.aabbs.stride } };
+                            fprintf( pFile,
+                                "\"data\":\"%s\","
+                                "\"stride\":%" PRIu64 "",
+                                m_pStringSerializer->GetPointer( geometry.geometry.aabbs.data.hostAddress ).c_str(),
+                                geometry.geometry.aabbs.stride );
                             break;
 
                         case VK_GEOMETRY_TYPE_INSTANCES_KHR:
-                            geometryData = {
-                                { "arrayOfPointers", static_cast<bool>( geometry.geometry.instances.arrayOfPointers ) },
-                                { "data", m_pStringSerializer->GetPointer( geometry.geometry.instances.data.hostAddress ) } };
+                            fprintf( pFile,
+                                "\"arrayOfPointers\":%s,"
+                                "\"data\":\"%s\"",
+                                geometry.geometry.instances.arrayOfPointers ? "true" : "false",
+                                m_pStringSerializer->GetPointer( geometry.geometry.instances.data.hostAddress ).c_str() );
                             break;
                         }
 
-                        nlohmann::json geometryRange;
+                        fputs( "},\"range\":{", pFile );
+
                         if( drawcall.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
                         {
                             const auto& range = drawcall.m_Payload.m_BuildAccelerationStructures.m_ppRanges[ i ][ j ];
-                            geometryRange = {
-                                { "primitiveCount", range.primitiveCount },
-                                { "primitiveOffset", range.primitiveOffset },
-                                { "firstVertex", range.firstVertex },
-                                { "transformOffset", range.transformOffset } };
+                            fprintf( pFile,
+                                "\"primitiveCount\":%" PRIu32 ","
+                                "\"primitiveOffset\":%" PRIu32 ","
+                                "\"firstVertex\":%" PRIu32 ","
+                                "\"transformOffset\":%" PRIu32 "",
+                                range.primitiveCount,
+                                range.primitiveOffset,
+                                range.firstVertex,
+                                range.transformOffset );
                         }
                         else //( drawcall.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR )
                         {
-                            geometryRange = {
-                                { "maxPrimitiveCount", drawcall.m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts[ i ][ j ] } };
+                            fprintf( pFile,
+                                "\"maxPrimitiveCount\":%" PRIu32 "",
+                                drawcall.m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts[ i ][ j ] );
                         }
 
-                        geometries.push_back({
-                            { "type", m_pStringSerializer->GetGeometryTypeName( geometry.geometryType ) },
-                            { "flags", m_pStringSerializer->GetGeometryFlagNames( geometry.flags ) },
-                            { "data", geometryData },
-                            { "range", geometryRange } });
+                        fputs( "}}", pFile );
                     }
                 }
 
-                infos.push_back({
-                    { "type", m_pStringSerializer->GetAccelerationStructureTypeName( info.type ) },
-                    { "flags", m_pStringSerializer->GetBuildAccelerationStructureFlagNames( info.flags ) },
-                    { "mode", m_pStringSerializer->GetBuildAccelerationStructureModeName( info.mode ) },
-                    { "src", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.srcAccelerationStructure ) ) },
-                    { "dst", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.dstAccelerationStructure ) ) },
-                    { "geometryCount", info.geometryCount },
-                    { "geometries", geometries } });
+                fputc( ']', pFile );
             }
 
-            return {
-                { "infoCount", infoCount },
-                { "infos", infos } };
+            fputc( ']', pFile );
+            break;
         }
 
         case DeviceProfilerDrawcallType::eBuildMicromapsEXT:
         {
             const uint32_t infoCount = drawcall.m_Payload.m_BuildMicromaps.m_InfoCount;
 
-            std::vector<nlohmann::json> infos;
-            infos.reserve( infoCount );
+            fprintf( pFile,
+                "\"infoCount\":%" PRIu32 ","
+                "\"infos\":[",
+                infoCount );
 
             for( uint32_t i = 0; i < infoCount; ++i )
             {
                 const auto& info = drawcall.m_Payload.m_BuildMicromaps.m_pInfos[i];
 
-                std::vector<nlohmann::json> usageCounts;
-                usageCounts.reserve( info.usageCountsCount );
+                if( i > 0 ) fputc( ',', pFile );
+                fprintf( pFile,
+                    "\"type\":\"%s\","
+                    "\"flags\":\"%s\","
+                    "\"mode\":\"%s\","
+                    "\"dst\":\"%s\","
+                    "\"usageCountsCount\":%" PRIu32 ","
+                    "\"usageCounts\":[",
+                    m_pStringSerializer->GetMicromapTypeName( info.type ).c_str(),
+                    m_pStringSerializer->GetBuildMicromapFlagNames( info.flags ).c_str(),
+                    m_pStringSerializer->GetBuildMicromapModeName( info.mode ).c_str(),
+                    m_pStringSerializer->GetName( VkMicromapEXTHandle( info.dstMicromap ) ).c_str(),
+                    info.usageCountsCount );
 
                 for( uint32_t j = 0; j < info.usageCountsCount; ++j )
                 {
                     const auto& usageCount = info.pUsageCounts[j];
-                    usageCounts.push_back( {
-                        { "count", usageCount.count },
-                        { "format", usageCount.format },
-                        { "subdivisionLevel", usageCount.subdivisionLevel } } );
+                    if( j > 0 ) fputc( ',', pFile );
+                    fprintf( pFile,
+                        "{\"count\":%" PRIu32 ","
+                        "\"format\":%" PRIu32 ","
+                        "\"subdivisionLevel\":%" PRIu32 "}",
+                        usageCount.count,
+                        usageCount.format,
+                        usageCount.subdivisionLevel );
                 }
 
-                infos.push_back( {
-                    { "type", m_pStringSerializer->GetMicromapTypeName( info.type ) },
-                    { "flags", m_pStringSerializer->GetBuildMicromapFlagNames( info.flags ) },
-                    { "mode", m_pStringSerializer->GetBuildMicromapModeName( info.mode ) },
-                    { "dst", m_pStringSerializer->GetName( VkMicromapEXTHandle( info.dstMicromap ) ) },
-                    { "usageCountsCount", info.usageCountsCount },
-                    { "usageCounts", usageCounts },
-                    { "data", m_pStringSerializer->GetPointer( info.data.hostAddress ) },
-                    { "scratchData", m_pStringSerializer->GetPointer( info.scratchData.hostAddress ) },
-                    { "triangleArray", m_pStringSerializer->GetPointer( info.triangleArray.hostAddress ) },
-                    { "triangleArrayStride", info.triangleArrayStride } } );
+                fprintf( pFile,
+                    "],"
+                    "\"data\":\"%s\","
+                    "\"scratchData\":\"%s\","
+                    "\"triangleArray\":\"%s\","
+                    "\"triangleArrayStride\":%" PRIu64 "",
+                    m_pStringSerializer->GetPointer( info.data.hostAddress ).c_str(),
+                    m_pStringSerializer->GetPointer( info.scratchData.hostAddress ).c_str(),
+                    m_pStringSerializer->GetPointer( info.triangleArray.hostAddress ).c_str(),
+                    info.triangleArrayStride );
             }
 
-            return {
-                { "infoCount", infoCount },
-                { "infos", infos } };
+            fputc( ']', pFile );
+            break;
         }
         }
+
+        fputc( '}', pFile );
     }
 
     /*************************************************************************\
@@ -422,19 +588,20 @@ namespace Profiler
         Serialize pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetPipelineArgs( const DeviceProfilerPipeline& pipeline ) const
+    void DeviceProfilerJsonSerializer::WritePipelineArgs( FILE* pFile, const DeviceProfilerPipeline& pipeline ) const
     {
-        nlohmann::json args = {};
-
         // Append shader stages info.
         if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
         {
-            nlohmann::json& shaderStages = args["shaders"];
-
+            fputs( "\"shaders\":[", pFile );
+            bool firstShader = true;
             for( const ProfilerShader& shader : pipeline.m_ShaderTuple.m_Shaders )
             {
-                shaderStages.push_back( GetShaderStageArgs( shader ) );
+                if( !firstShader ) fputc( ',', pFile );
+                firstShader = false;
+                WriteShaderStageArgs( pFile, shader );
             }
+            fputc( ']', pFile );
         }
 
         // Append pipeline create info details.
@@ -444,26 +611,24 @@ namespace Profiler
             {
             case DeviceProfilerPipelineType::eGraphics:
             {
-                args.update( GetGraphicsPipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo ) );
+                WriteGraphicsPipelineCreateInfoArgs( pFile,
+                    pipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo );
                 break;
             }
             case DeviceProfilerPipelineType::eCompute:
             {
-                args.update( GetComputePipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_ComputePipelineCreateInfo ) );
+                WriteComputePipelineCreateInfoArgs( pFile,
+                    pipeline.m_pCreateInfo->m_ComputePipelineCreateInfo );
                 break;
             }
             case DeviceProfilerPipelineType::eRayTracingKHR:
             {
-                args.update( GetRayTracingPipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR ) );
+                WriteRayTracingPipelineCreateInfoArgs( pFile,
+                    pipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR );
                 break;
             }
             }
         }
-
-        return args;
     }
 
     /*************************************************************************\
@@ -475,24 +640,18 @@ namespace Profiler
         Serialize VkClearColorValue struct into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetColorClearValue( const VkClearColorValue& value ) const
+    void DeviceProfilerJsonSerializer::WriteColorClearValue( FILE* pFile, const VkClearColorValue& value ) const
     {
-        return { "VkClearColorValue", {
-            { "float32", {
-                value.float32[ 0 ],
-                value.float32[ 1 ],
-                value.float32[ 2 ],
-                value.float32[ 3 ] } },
-            { "int32", {
-                value.int32[ 0 ],
-                value.int32[ 1 ],
-                value.int32[ 2 ],
-                value.int32[ 3 ] } },
-            { "uint32", {
-                value.uint32[ 0 ],
-                value.uint32[ 1 ],
-                value.uint32[ 2 ],
-                value.uint32[ 3 ] } } } };
+        fputs( "{\"VkClearColorValue\":{", pFile );
+        fputs( "\"float32\":[", pFile );
+        fprintf( pFile, "%f,%f,%f,%f", value.float32[0], value.float32[1], value.float32[2], value.float32[3] );
+        fputs( "],", pFile );
+        fputs( "\"int32\":[", pFile );
+        fprintf( pFile, "%d,%d,%d,%d", value.int32[0], value.int32[1], value.int32[2], value.int32[3] );
+        fputs( "],", pFile );
+        fputs( "\"uint32\":[", pFile );
+        fprintf( pFile, "%u,%u,%u,%u", value.uint32[0], value.uint32[1], value.uint32[2], value.uint32[3] );
+        fputs( "]}}", pFile );
     }
 
     /*************************************************************************\
@@ -504,11 +663,11 @@ namespace Profiler
         Serialize VkClearDepthStencilValue struct into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetDepthStencilClearValue( const VkClearDepthStencilValue& value ) const
+    void DeviceProfilerJsonSerializer::WriteDepthStencilClearValue( FILE* pFile, const VkClearDepthStencilValue& value ) const
     {
-        return { "VkClearDepthStencilValue", {
-            { "depth", value.depth },
-            { "stencil", value.stencil } } };
+        fputs( "{\"VkClearDepthStencilValue\":{", pFile );
+        fprintf( pFile, "\"depth\":%f,\"stencil\":%u", value.depth, value.stencil );
+        fputs( "}}", pFile );
     }
 
     /*************************************************************************\
@@ -520,12 +679,13 @@ namespace Profiler
         Serialize shader stage into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetShaderStageArgs( const ProfilerShader& shader ) const
+    void DeviceProfilerJsonSerializer::WriteShaderStageArgs( FILE* pFile, const ProfilerShader& shader ) const
     {
-        nlohmann::json shaderStage = {
-            { "stage", m_pStringSerializer->GetShaderStageName( shader.m_Stage ) },
-            { "entryPoint", shader.m_EntryPoint }
-        };
+        fprintf( pFile,
+            "{\"stage\":\"%s\","
+            "\"entryPoint\":\"%s\"",
+            m_pStringSerializer->GetShaderStageName( shader.m_Stage ).c_str(),
+            shader.m_EntryPoint.c_str() );
 
         if( shader.m_pShaderModule )
         {
@@ -535,26 +695,28 @@ namespace Profiler
             const uint32_t identifierSize = shaderModule.m_IdentifierSize;
             const uint8_t* pIdentifier = shaderModule.m_Identifier;
 
-            std::string shaderIdentifier;
-            shaderIdentifier.reserve( identifierSize * 3 );
-
-            // Convert from the end to keep the little-endian order.
-            for( uint32_t i = identifierSize; i > 0; --i )
+            if( identifierSize > 0 && pIdentifier )
             {
-                shaderIdentifier.push_back( hexDigits[pIdentifier[i - 1] >> 4] );
-                shaderIdentifier.push_back( hexDigits[pIdentifier[i - 1] & 0xF] );
+                fputs( ",\"shaderIdentifier\":\"", pFile );
 
-                if( ( i != 1 ) && ( ( i - 1 ) % 8 ) == 0 )
+                // Convert from the end to keep the little-endian order.
+                for( uint32_t i = identifierSize; i > 0; --i )
                 {
-                    // Insert a dash separator every 8 bytes for better readability.
-                    shaderIdentifier.push_back( '-' );
-                }
-            }
+                    fputc( hexDigits[pIdentifier[i - 1] >> 4], pFile );
+                    fputc( hexDigits[pIdentifier[i - 1] & 0xF], pFile );
 
-            shaderStage["shaderIdentifier"] = shaderIdentifier;
+                    if( ( i != 1 ) && ( ( i - 1 ) % 8 ) == 0 )
+                    {
+                        // Insert a dash separator every 8 bytes for better readability.
+                        fputc( '-', pFile );
+                    }
+                }
+
+                fputc( '"', pFile );
+            }
         }
 
-        return shaderStage;
+        fputc( '}', pFile );
     }
 
     /*************************************************************************\
@@ -566,224 +728,372 @@ namespace Profiler
         Serialize graphics pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetGraphicsPipelineCreateInfoArgs( const VkGraphicsPipelineCreateInfo& createInfo ) const
+    void DeviceProfilerJsonSerializer::WriteGraphicsPipelineCreateInfoArgs( FILE* pFile, const VkGraphicsPipelineCreateInfo& createInfo ) const
     {
-        nlohmann::json args = {};
-        args["vertexInputState"] = nullptr;
-        args["inputAssemblyState"] = nullptr;
-        args["tessellationState"] = nullptr;
-        args["viewportState"] = nullptr;
-        args["rasterizationState"] = nullptr;
-        args["multisampleState"] = nullptr;
-        args["depthStencilState"] = nullptr;
-        args["colorBlendState"] = nullptr;
-        args["dynamicStates"] = nlohmann::json::array();
-
         // VkPipelineVertexInputStateCreateInfo
+        fputs( "\"vertexInputState\":", pFile );
         if( createInfo.pVertexInputState )
         {
             const auto& state = *createInfo.pVertexInputState;
-            args["vertexInputState"] = {
-                { "attributeCount", state.vertexAttributeDescriptionCount },
-                { "attributes", nullptr },
-                { "bindingCount", state.vertexBindingDescriptionCount },
-                { "bindings", nullptr }
-            };
+
+            fprintf( pFile,
+                "{\"attributeCount\":%" PRIu32 ","
+                "\"bindingCount\":%" PRIu32 ","
+                "\"attributes\":",
+                state.vertexAttributeDescriptionCount,
+                state.vertexBindingDescriptionCount );
 
             if( state.pVertexAttributeDescriptions )
             {
-                auto& attributesArgs = args["vertexInputState"]["attributes"] = nlohmann::json::array();
+                fputc( '[', pFile );
                 for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
                 {
                     const auto& attribute = state.pVertexAttributeDescriptions[i];
-                    attributesArgs.push_back( {
-                        { "location", attribute.location },
-                        { "binding", attribute.binding },
-                        { "format", m_pStringSerializer->GetFormatName( attribute.format ) },
-                        { "offset", attribute.offset } } );
+                    if( i > 0 ) fputc( ',', pFile );
+                    fprintf( pFile,
+                        "{\"location\":%" PRIu32 ","
+                        "\"binding\":%" PRIu32 ","
+                        "\"format\":\"%s\","
+                        "\"offset\":%" PRIu32 "}",
+                        attribute.location,
+                        attribute.binding,
+                        m_pStringSerializer->GetFormatName( attribute.format ).c_str(),
+                        attribute.offset );
                 }
+                fputc( ']', pFile );
             }
+            else
+            {
+                fputs( "null", pFile );
+            }
+
+            fputs( ",\"bindings\":", pFile );
 
             if( state.pVertexBindingDescriptions )
             {
-                auto& bindingsArgs = args["vertexInputState"]["bindings"] = nlohmann::json::array();
+                fputc( '[', pFile );
                 for( uint32_t i = 0; i < state.vertexBindingDescriptionCount; ++i )
                 {
                     const auto& binding = state.pVertexBindingDescriptions[i];
-                    bindingsArgs.push_back( {
-                        { "binding", binding.binding },
-                        { "stride", binding.stride },
-                        { "inputRate", m_pStringSerializer->GetVertexInputRateName( binding.inputRate ) } } );
+                    if( i > 0 ) fputc( ',', pFile );
+                    fprintf( pFile,
+                        "{\"binding\":%" PRIu32 ","
+                        "\"stride\":%" PRIu32 ","
+                        "\"inputRate\":\"%s\"}",
+                        binding.binding,
+                        binding.stride,
+                        m_pStringSerializer->GetVertexInputRateName( binding.inputRate ).c_str() );
                 }
+                fputc( ']', pFile );
             }
+            else
+            {
+                fputs( "null", pFile );
+            }
+
+            fputs( "},", pFile );
+        }
+        else
+        {
+            fputs( "null,", pFile );
         }
 
         // VkPipelineInputAssemblyStateCreateInfo
+        fputs( "\"inputAssemblyState\":", pFile );
         if( createInfo.pInputAssemblyState )
         {
             const auto& state = *createInfo.pInputAssemblyState;
-            args["inputAssemblyState"] = {
-                { "topology", m_pStringSerializer->GetPrimitiveTopologyName( state.topology ) },
-                { "primitiveRestartEnable", static_cast<bool>( state.primitiveRestartEnable ) }
-            };
+            fprintf( pFile,
+                "{\"topology\":\"%s\","
+                "\"primitiveRestartEnable\":%s},",
+                m_pStringSerializer->GetPrimitiveTopologyName( state.topology ).c_str(),
+                state.primitiveRestartEnable ? "true" : "false" );
+        }
+        else
+        {
+            fputs( "null,", pFile );
         }
 
         // VkPipelineTessellationStateCreateInfo
+        fputs( "\"tessellationState\":", pFile );
         if( createInfo.pTessellationState )
         {
             const auto& state = *createInfo.pTessellationState;
-            args["tessellationState"] = {
-                { "patchControlPoints", state.patchControlPoints }
-            };
+            fprintf( pFile,
+                "{\"patchControlPoints\":%" PRIu32 "},",
+                state.patchControlPoints );
+        }
+        else
+        {
+            fputs( "null,", pFile );
         }
 
         // VkPipelineViewportStateCreateInfo
+        fputs( "\"viewportState\":", pFile );
         if( createInfo.pViewportState )
         {
             const auto& state = *createInfo.pViewportState;
-            args["viewportState"] = {
-                { "viewportCount", state.viewportCount },
-                { "viewports", nullptr },
-                { "scissorCount", state.scissorCount },
-                { "scissors", nullptr }
-            };
+            fprintf( pFile,
+                "{\"viewportCount\":%" PRIu32 ","
+                "\"scissorCount\":%" PRIu32 ","
+                "\"viewports\":",
+                state.viewportCount,
+                state.scissorCount );
 
             if( state.pViewports )
             {
-                auto& viewportsArgs = args["viewportState"]["viewports"] = nlohmann::json::array();
+                fputc( '[', pFile );
                 for( uint32_t i = 0; i < state.viewportCount; ++i )
                 {
                     const auto& viewport = state.pViewports[i];
-                    viewportsArgs.push_back( {
-                        { "x", viewport.x },
-                        { "y", viewport.y },
-                        { "width", viewport.width },
-                        { "height", viewport.height },
-                        { "minDepth", viewport.minDepth },
-                        { "maxDepth", viewport.maxDepth } } );
+                    if( i > 0 ) fputc( ',', pFile );
+                    fprintf( pFile,
+                        "{\"x\":%f,"
+                        "\"y\":%f,"
+                        "\"width\":%f,"
+                        "\"height\":%f,"
+                        "\"minDepth\":%f,"
+                        "\"maxDepth\":%f}",
+                        viewport.x,
+                        viewport.y,
+                        viewport.width,
+                        viewport.height,
+                        viewport.minDepth,
+                        viewport.maxDepth );
                 }
+                fputc( ']', pFile );
             }
+            else
+            {
+                fputs( "null", pFile );
+            }
+
+            fputs( ",\"scissors\":", pFile );
 
             if( state.pScissors )
             {
-                auto& scissorsArgs = args["viewportState"]["scissors"] = nlohmann::json::array();
+                fputc( '[', pFile );
                 for( uint32_t i = 0; i < state.scissorCount; ++i )
                 {
                     const auto& scissor = state.pScissors[i];
-                    scissorsArgs.push_back( {
-                        { "offsetX", scissor.offset.x },
-                        { "offsetY", scissor.offset.y },
-                        { "extentWidth", scissor.extent.width },
-                        { "extentHeight", scissor.extent.height } } );
+                    if( i > 0 ) fputc( ',', pFile );
+                    fprintf( pFile,
+                        "{\"offsetX\":%" PRIi32 ","
+                        "\"offsetY\":%" PRIi32 ","
+                        "\"extentWidth\":%" PRIu32 ","
+                        "\"extentHeight\":%" PRIu32 "}",
+                        scissor.offset.x,
+                        scissor.offset.y,
+                        scissor.extent.width,
+                        scissor.extent.height );
                 }
+                fputc( ']', pFile );
             }
+            else
+            {
+                fputs( "null", pFile );
+            }
+
+            fputs( "},", pFile );
+        }
+        else
+        {
+            fputs( "null,", pFile );
         }
 
         // VkPipelineRasterizationStateCreateInfo
+        fputs( "\"rasterizationState\":", pFile );
         if( createInfo.pRasterizationState )
         {
             const auto& state = *createInfo.pRasterizationState;
-            args["rasterizationState"] = {
-                { "depthClampEnable", static_cast<bool>( state.depthClampEnable ) },
-                { "rasterizerDiscardEnable", static_cast<bool>( state.rasterizerDiscardEnable ) },
-                { "polygonMode", m_pStringSerializer->GetPolygonModeName( state.polygonMode ) },
-                { "cullMode", m_pStringSerializer->GetCullModeName( state.cullMode ) },
-                { "frontFace", m_pStringSerializer->GetFrontFaceName( state.frontFace ) },
-                { "depthBiasEnable", static_cast<bool>( state.depthBiasEnable ) },
-                { "depthBiasConstantFactor", state.depthBiasConstantFactor },
-                { "depthBiasClamp", state.depthBiasClamp },
-                { "depthBiasSlopeFactor", state.depthBiasSlopeFactor },
-                { "lineWidth", state.lineWidth }
-            };
+            fprintf( pFile,
+                "{\"depthClampEnable\":%s,"
+                "\"rasterizerDiscardEnable\":%s,"
+                "\"polygonMode\":\"%s\","
+                "\"cullMode\":\"%s\","
+                "\"frontFace\":\"%s\","
+                "\"depthBiasEnable\":%s,"
+                "\"depthBiasConstantFactor\":%f,"
+                "\"depthBiasClamp\":%f,"
+                "\"depthBiasSlopeFactor\":%f,"
+                "\"lineWidth\":%f},",
+                state.depthClampEnable ? "true" : "false",
+                state.rasterizerDiscardEnable ? "true" : "false",
+                m_pStringSerializer->GetPolygonModeName( state.polygonMode ).c_str(),
+                m_pStringSerializer->GetCullModeName( state.cullMode ).c_str(),
+                m_pStringSerializer->GetFrontFaceName( state.frontFace ).c_str(),
+                state.depthBiasEnable ? "true" : "false",
+                state.depthBiasConstantFactor,
+                state.depthBiasClamp,
+                state.depthBiasSlopeFactor,
+                state.lineWidth );
+        }
+        else
+        {
+            fputs( "null,", pFile );
         }
 
         // VkPipelineMultisampleStateCreateInfo
+        fputs( "\"multisampleState\":", pFile );
         if( createInfo.pMultisampleState )
         {
             const auto& state = *createInfo.pMultisampleState;
-            args["multisampleState"] = {
-                { "rasterizationSamples", state.rasterizationSamples },
-                { "sampleShadingEnable", static_cast<bool>( state.sampleShadingEnable ) },
-                { "minSampleShading", state.minSampleShading },
-                { "sampleMask", fmt::format( "0x{:08X}", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF ) },
-                { "alphaToCoverateEnable", static_cast<bool>( state.alphaToCoverageEnable ) },
-                { "alphaToOneEnable", static_cast<bool>( state.alphaToOneEnable ) }
-            };
+            fprintf( pFile,
+                "{\"rasterizationSamples\":%" PRIu32 ","
+                "\"sampleShadingEnable\":%s,"
+                "\"minSampleShading\":%f,"
+                "\"sampleMask\":\"0x%08X\","
+                "\"alphaToCoverageEnable\":%s,"
+                "\"alphaToOneEnable\":%s}",
+                state.rasterizationSamples,
+                state.sampleShadingEnable ? "true" : "false",
+                state.minSampleShading,
+                state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF,
+                state.alphaToCoverageEnable ? "true" : "false",
+                state.alphaToOneEnable ? "true" : "false" );
+        }
+        else
+        {
+            fputs( "null,", pFile );
         }
 
         // VkPipelineDepthStencilStateCreateInfo
+        fputs( "\"depthStencilState\":", pFile );
         if( createInfo.pDepthStencilState )
         {
             const auto& state = *createInfo.pDepthStencilState;
-            args["depthStencilState"] = {
-                { "depthTestEnable", static_cast<bool>( state.depthTestEnable ) },
-                { "depthWriteEnable", static_cast<bool>( state.depthWriteEnable ) },
-                { "depthCompareOp", m_pStringSerializer->GetCompareOpName( state.depthCompareOp ) },
-                { "depthBoundsTestEnable", static_cast<bool>( state.depthBoundsTestEnable ) },
-                { "minDepthBounds", state.minDepthBounds },
-                { "maxDepthBounds", state.maxDepthBounds },
-                { "stencilTestEnable", static_cast<bool>( state.stencilTestEnable ) },
-                { "front", {
-                    { "failOp", state.front.failOp },
-                    { "passOp", state.front.passOp },
-                    { "depthFailOp", state.front.depthFailOp },
-                    { "compareOp", m_pStringSerializer->GetCompareOpName( state.front.compareOp ) },
-                    { "compareMask", fmt::format( "0x{:02X}", state.front.compareMask ) },
-                    { "writeMask", fmt::format( "0x{:02X}", state.front.writeMask ) },
-                    { "reference", fmt::format( "0x{:02X}", state.front.reference ) } } },
-                { "back", {
-                    { "failOp", state.back.failOp },
-                    { "passOp", state.back.passOp },
-                    { "depthFailOp", state.back.depthFailOp },
-                    { "compareOp", m_pStringSerializer->GetCompareOpName( state.back.compareOp ) },
-                    { "compareMask", fmt::format( "0x{:02X}", state.back.compareMask ) },
-                    { "writeMask", fmt::format( "0x{:02X}", state.back.writeMask ) },
-                    { "reference", fmt::format( "0x{:02X}", state.back.reference ) } } }
-            };
+            fprintf( pFile,
+                "{\"depthTestEnable\":%s,"
+                "\"depthWriteEnable\":%s,"
+                "\"depthCompareOp\":\"%s\","
+                "\"depthBoundsTestEnable\":%s,"
+                "\"minDepthBounds\":%f,"
+                "\"maxDepthBounds\":%f,"
+                "\"stencilTestEnable\":%s,",
+                state.depthTestEnable ? "true" : "false",
+                state.depthWriteEnable ? "true" : "false",
+                m_pStringSerializer->GetCompareOpName( state.depthCompareOp ).c_str(),
+                state.depthBoundsTestEnable ? "true" : "false",
+                state.minDepthBounds,
+                state.maxDepthBounds,
+                state.stencilTestEnable ? "true" : "false" );
+
+            fprintf( pFile,
+                "\"front\":{"
+                "\"failOp\":%" PRIu32 ","
+                "\"passOp\":%" PRIu32 ","
+                "\"depthFailOp\":%" PRIu32 ","
+                "\"compareOp\":\"%s\","
+                "\"compareMask\":\"0x%02X\","
+                "\"writeMask\":\"0x%02X\","
+                "\"reference\":\"0x%02X\"},",
+                state.front.failOp,
+                state.front.passOp,
+                state.front.depthFailOp,
+                m_pStringSerializer->GetCompareOpName( state.front.compareOp ).c_str(),
+                state.front.compareMask,
+                state.front.writeMask,
+                state.front.reference );
+
+            fprintf( pFile,
+                "\"back\":{"
+                "\"failOp\":%" PRIu32 ","
+                "\"passOp\":%" PRIu32 ","
+                "\"depthFailOp\":%" PRIu32 ","
+                "\"compareOp\":\"%s\","
+                "\"compareMask\":\"0x%02X\","
+                "\"writeMask\":\"0x%02X\","
+                "\"reference\":\"0x%02X\"}",
+                state.back.failOp,
+                state.back.passOp,
+                state.back.depthFailOp,
+                m_pStringSerializer->GetCompareOpName( state.back.compareOp ).c_str(),
+                state.back.compareMask,
+                state.back.writeMask,
+                state.back.reference );
+
+            fputs( "},", pFile );
+        }
+        else
+        {
+            fputs( "null,", pFile );
         }
 
         // VkPipelineColorBlendStateCreateInfo
+        fputs( "\"colorBlendState\":", pFile );
         if( createInfo.pColorBlendState )
         {
             const auto& state = *createInfo.pColorBlendState;
-            args["colorBlendState"] = {
-                { "logicOpEnable", static_cast<bool>( state.logicOpEnable ) },
-                { "logicOp", m_pStringSerializer->GetLogicOpName( state.logicOp ) },
-                { "blendConstants", state.blendConstants },
-                { "attachments", nullptr }
-            };
+            fprintf( pFile,
+                "{\"logicOpEnable\":%s,"
+                "\"logicOp\":\"%s\","
+                "\"blendConstants\":[%f,%f,%f,%f],"
+                "\"attachments\":",
+                state.logicOpEnable ? "true" : "false",
+                m_pStringSerializer->GetLogicOpName( state.logicOp ).c_str(),
+                state.blendConstants[0],
+                state.blendConstants[1],
+                state.blendConstants[2],
+                state.blendConstants[3] );
 
             if( state.pAttachments )
             {
-                auto& attachmentsArgs = args["colorBlendState"]["attachments"] = nlohmann::json::array();
+                fputc( '[', pFile );
                 for( uint32_t i = 0; i < state.attachmentCount; ++i )
                 {
                     const auto& attachment = state.pAttachments[i];
-                    attachmentsArgs.push_back( {
-                        { "blendEnable", static_cast<bool>( attachment.blendEnable ) },
-                        { "srcColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ) },
-                        { "dstColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ) },
-                        { "colorBlendOp", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ) },
-                        { "srcAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcAlphaBlendFactor ) },
-                        { "dstAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ) },
-                        { "alphaBlendOp", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ) },
-                        { "colorWriteMask", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ) } } );
+                    if( i > 0 ) fputc( ',', pFile );
+                    fprintf( pFile,
+                        "{\"blendEnable\":%s,"
+                        "\"srcColorBlendFactor\":\"%s\","
+                        "\"dstColorBlendFactor\":\"%s\","
+                        "\"colorBlendOp\":\"%s\","
+                        "\"srcAlphaBlendFactor\":\"%s\","
+                        "\"dstAlphaBlendFactor\":\"%s\","
+                        "\"alphaBlendOp\":\"%s\","
+                        "\"colorWriteMask\":\"%s\"}",
+                        attachment.blendEnable ? "true" : "false",
+                        m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ).c_str(),
+                        m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ).c_str(),
+                        m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ).c_str(),
+                        m_pStringSerializer->GetBlendFactorName( attachment.srcAlphaBlendFactor ).c_str(),
+                        m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ).c_str(),
+                        m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ).c_str(),
+                        m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ).c_str() );
                 }
+                fputc( ']', pFile );
             }
+            else
+            {
+                fputs( "null", pFile );
+            }
+
+            fputs( "},", pFile );
+        }
+        else
+        {
+            fputs( "null,", pFile );
         }
 
         // VkPipelineDynamicStateCreateInfo
+        fputs( "\"dynamicStates\":", pFile );
         if( createInfo.pDynamicState )
         {
+            fputc( '[', pFile );
             const auto& state = *createInfo.pDynamicState;
             for( uint32_t i = 0; i < state.dynamicStateCount; ++i )
             {
-                args["dynamicStates"].push_back(
-                    m_pStringSerializer->GetDynamicStateName( state.pDynamicStates[i] ) );
+                if( i > 0 ) fputc( ',', pFile );
+                fprintf( pFile,
+                    "\"%s\"",
+                    m_pStringSerializer->GetDynamicStateName( state.pDynamicStates[i] ).c_str() );
             }
+            fputc( ']', pFile );
         }
-
-        return args;
+        else
+        {
+            fputs( "null", pFile );
+        }
     }
 
     /*************************************************************************\
@@ -795,13 +1105,9 @@ namespace Profiler
         Serialize compute pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetComputePipelineCreateInfoArgs( const VkComputePipelineCreateInfo& createInfo ) const
+    void DeviceProfilerJsonSerializer::WriteComputePipelineCreateInfoArgs( FILE* pFile, const VkComputePipelineCreateInfo& createInfo ) const
     {
-        nlohmann::json args = {};
-
         // No additional state to serialize for compute pipelines yet.
-
-        return args;
     }
 
     /*************************************************************************\
@@ -813,34 +1119,45 @@ namespace Profiler
         Serialize ray-tracing pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetRayTracingPipelineCreateInfoArgs( const VkRayTracingPipelineCreateInfoKHR& createInfo ) const
+    void DeviceProfilerJsonSerializer::WriteRayTracingPipelineCreateInfoArgs( FILE* pFile, const VkRayTracingPipelineCreateInfoKHR& createInfo ) const
     {
-        nlohmann::json args = {};
-        args["maxPipelineRayRecursionDepth"] = createInfo.maxPipelineRayRecursionDepth;
-        args["libraryInterface"] = nullptr;
-        args["dynamicStates"] = nlohmann::json::array();
+        fprintf( pFile,
+            "\"maxPipelineRayRecursionDepth\":%" PRIu32 ","
+            "\"libraryInterface\":",
+            createInfo.maxPipelineRayRecursionDepth );
 
         // VkRayTracingPipelineInterfaceCreateInfoKHR
         if( createInfo.pLibraryInterface )
         {
             const auto& state = *createInfo.pLibraryInterface;
-            args["libraryInterface"] = {
-                { "maxPipelineRayPayloadSize", state.maxPipelineRayPayloadSize },
-                { "maxPipelineRayHitAttributeSize", state.maxPipelineRayHitAttributeSize }
-            };
+            fprintf( pFile,
+                "{\"maxPipelineRayPayloadSize\":%" PRIu32 ","
+                "\"maxPipelineRayHitAttributeSize\":%" PRIu32 "},",
+                state.maxPipelineRayPayloadSize,
+                state.maxPipelineRayHitAttributeSize );
         }
+        else
+        {
+            fputs( "null,", pFile );
+        }
+
+        fputs( "\"dynamicStates\":", pFile );
 
         // VkPipelineDynamicStateCreateInfo
         if( createInfo.pDynamicState )
         {
+            fputc( '[', pFile );
             const auto& state = *createInfo.pDynamicState;
             for( uint32_t i = 0; i < state.dynamicStateCount; ++i )
             {
-                args["dynamicStates"].push_back(
-                    m_pStringSerializer->GetDynamicStateName( state.pDynamicStates[i] ) );
+                if( i > 0 ) fputc( ',', pFile );
+                fprintf( pFile, "\"%s\"", m_pStringSerializer->GetDynamicStateName( state.pDynamicStates[i] ).c_str() );
             }
+            fputc( ']', pFile );
         }
-
-        return args;
+        else
+        {
+            fputs( "null", pFile );
+        }
     }
 }
