@@ -20,7 +20,7 @@
 
 #pragma once
 #include <vulkan/vulkan.h>
-#include <nlohmann/json.hpp>
+#include <simdjson.h>
 
 namespace Profiler
 {
@@ -38,17 +38,17 @@ namespace Profiler
     public:
         DeviceProfilerJsonSerializer( const class DeviceProfilerStringSerializer* );
 
-        nlohmann::json GetCommandArgs( const struct DeviceProfilerDrawcall& ) const;
-        nlohmann::json GetPipelineArgs( const struct DeviceProfilerPipeline& ) const;
+        void WriteCommandArgs( simdjson::builder::string_builder&, const struct DeviceProfilerDrawcall& ) const;
+        void WritePipelineArgs( simdjson::builder::string_builder&, const struct DeviceProfilerPipeline& ) const;
 
     private:
         const class DeviceProfilerStringSerializer* m_pStringSerializer;
 
-        nlohmann::json GetColorClearValue( const VkClearColorValue& ) const;
-        nlohmann::json GetDepthStencilClearValue( const VkClearDepthStencilValue& ) const;
-        nlohmann::json GetShaderStageArgs( const struct ProfilerShader& ) const;
-        nlohmann::json GetGraphicsPipelineCreateInfoArgs( const VkGraphicsPipelineCreateInfo& ) const;
-        nlohmann::json GetComputePipelineCreateInfoArgs( const VkComputePipelineCreateInfo& ) const;
-        nlohmann::json GetRayTracingPipelineCreateInfoArgs( const VkRayTracingPipelineCreateInfoKHR& ) const;
+        void WriteColorClearValue( simdjson::builder::string_builder&, const VkClearColorValue& ) const;
+        void WriteDepthStencilClearValue( simdjson::builder::string_builder&, const VkClearDepthStencilValue& ) const;
+        void WriteShaderStageArgs( simdjson::builder::string_builder&, const struct ProfilerShader& ) const;
+        void WriteGraphicsPipelineCreateInfoArgs( simdjson::builder::string_builder&, const VkGraphicsPipelineCreateInfo&, bool ) const;
+        void WriteComputePipelineCreateInfoArgs( simdjson::builder::string_builder&, const VkComputePipelineCreateInfo&, bool ) const;
+        void WriteRayTracingPipelineCreateInfoArgs( simdjson::builder::string_builder&, const VkRayTracingPipelineCreateInfoKHR&, bool ) const;
     };
 }

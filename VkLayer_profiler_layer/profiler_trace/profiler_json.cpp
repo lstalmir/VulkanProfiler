@@ -50,8 +50,10 @@ namespace Profiler
         Serialize command arguments into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetCommandArgs( const DeviceProfilerDrawcall& drawcall ) const
+    void DeviceProfilerJsonSerializer::WriteCommandArgs( simdjson::builder::string_builder& builder, const DeviceProfilerDrawcall& drawcall ) const
     {
+        builder.start_object();
+
         switch( drawcall.m_Type )
         {
         default:
@@ -59,358 +61,494 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eInsertDebugLabel:
         case DeviceProfilerDrawcallType::eBeginDebugLabel:
         case DeviceProfilerDrawcallType::eEndDebugLabel:
-            return {};
+            break;
 
         case DeviceProfilerDrawcallType::eDraw:
-            return {
-                { "vertexCount", drawcall.m_Payload.m_Draw.m_VertexCount },
-                { "instanceCount", drawcall.m_Payload.m_Draw.m_InstanceCount },
-                { "firstVertex", drawcall.m_Payload.m_Draw.m_FirstVertex },
-                { "firstInstance", drawcall.m_Payload.m_Draw.m_FirstInstance } };
+            builder.append_key_value( "vertexCount", drawcall.m_Payload.m_Draw.m_VertexCount );
+            builder.append_comma();
+            builder.append_key_value( "instanceCount", drawcall.m_Payload.m_Draw.m_InstanceCount );
+            builder.append_comma();
+            builder.append_key_value( "firstVertex", drawcall.m_Payload.m_Draw.m_FirstVertex );
+            builder.append_comma();
+            builder.append_key_value( "firstInstance", drawcall.m_Payload.m_Draw.m_FirstInstance );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndexed:
-            return {
-                { "indexCount", drawcall.m_Payload.m_DrawIndexed.m_IndexCount },
-                { "instanceCount", drawcall.m_Payload.m_DrawIndexed.m_InstanceCount },
-                { "firstIndex", drawcall.m_Payload.m_DrawIndexed.m_FirstIndex },
-                { "vertexOffset", drawcall.m_Payload.m_DrawIndexed.m_VertexOffset },
-                { "firstInstance", drawcall.m_Payload.m_DrawIndexed.m_FirstInstance } };
+            builder.append_key_value( "indexCount", drawcall.m_Payload.m_DrawIndexed.m_IndexCount );
+            builder.append_comma();
+            builder.append_key_value( "instanceCount", drawcall.m_Payload.m_DrawIndexed.m_InstanceCount );
+            builder.append_comma();
+            builder.append_key_value( "firstIndex", drawcall.m_Payload.m_DrawIndexed.m_FirstIndex );
+            builder.append_comma();
+            builder.append_key_value( "vertexOffset", drawcall.m_Payload.m_DrawIndexed.m_VertexOffset );
+            builder.append_comma();
+            builder.append_key_value( "firstInstance", drawcall.m_Payload.m_DrawIndexed.m_FirstInstance );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndirect.m_Stride } };
+            builder.append_key_value( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirect.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "offset", drawcall.m_Payload.m_DrawIndirect.m_Offset );
+            builder.append_comma();
+            builder.append_key_value( "drawCount", drawcall.m_Payload.m_DrawIndirect.m_DrawCount );
+            builder.append_comma();
+            builder.append_key_value( "stride", drawcall.m_Payload.m_DrawIndirect.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride } };
+            builder.append_key_value( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "offset", drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset );
+            builder.append_comma();
+            builder.append_key_value( "drawCount", drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount );
+            builder.append_comma();
+            builder.append_key_value( "stride", drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndirectCount.m_Stride } };
+            builder.append_key_value( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "offset", drawcall.m_Payload.m_DrawIndirectCount.m_Offset );
+            builder.append_comma();
+            builder.append_key_value( "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer ) );
+            builder.append_comma();
+            builder.append_key_value( "countOffset", drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset );
+            builder.append_comma();
+            builder.append_key_value( "maxDrawCount", drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount );
+            builder.append_comma();
+            builder.append_key_value( "stride", drawcall.m_Payload.m_DrawIndirectCount.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Stride } };
+            builder.append_key_value( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "offset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Offset );
+            builder.append_comma();
+            builder.append_key_value( "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer ) );
+            builder.append_comma();
+            builder.append_key_value( "countOffset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountOffset );
+            builder.append_comma();
+            builder.append_key_value( "maxDrawCount", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_MaxDrawCount );
+            builder.append_comma();
+            builder.append_key_value( "stride", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasks:
-            return {
-                { "groupCountX", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountX },
-                { "groupCountY", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountY },
-                { "groupCountZ", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountZ }
-            };
+            builder.append_key_value( "groupCountX", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountX );
+            builder.append_comma();
+            builder.append_key_value( "groupCountY", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountY );
+            builder.append_comma();
+            builder.append_key_value( "groupCountZ", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountZ );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Stride }
-            };
+            builder.append_key_value( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "offset", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Offset );
+            builder.append_comma();
+            builder.append_key_value( "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_DrawCount );
+            builder.append_comma();
+            builder.append_key_value( "stride", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride }
-            };
+            builder.append_key_value( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Offset );
+            builder.append_comma();
+            builder.append_key_value( "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountBuffer ) );
+            builder.append_comma();
+            builder.append_key_value( "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountOffset );
+            builder.append_comma();
+            builder.append_key_value( "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_MaxDrawCount );
+            builder.append_comma();
+            builder.append_key_value( "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
-            return {
-                { "taskCount", drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount },
-                { "firstTask", drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask }
-            };
+            builder.append_key_value( "taskCount", drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount );
+            builder.append_comma();
+            builder.append_key_value( "firstTask", drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride }
-            };
+            builder.append_key_value( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset );
+            builder.append_comma();
+            builder.append_key_value( "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount );
+            builder.append_comma();
+            builder.append_key_value( "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride }
-            };
+            builder.append_key_value( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset );
+            builder.append_comma();
+            builder.append_key_value( "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ) );
+            builder.append_comma();
+            builder.append_key_value( "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset );
+            builder.append_comma();
+            builder.append_key_value( "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount );
+            builder.append_comma();
+            builder.append_key_value( "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMulti:
-        {
-            std::vector<nlohmann::json> vertexInfos;
+            builder.append_key_value( "drawCount", drawcall.m_Payload.m_DrawMulti.m_DrawCount );
+            builder.append_comma();
+            builder.append_key_value( "instanceCount", drawcall.m_Payload.m_DrawMulti.m_InstanceCount );
+            builder.append_comma();
+            builder.append_key_value( "firstInstance", drawcall.m_Payload.m_DrawMulti.m_FirstInstance );
+            builder.append_comma();
+            builder.append_key_value( "stride", drawcall.m_Payload.m_DrawMulti.m_Stride );
+            builder.append_comma();
+
+            builder.escape_and_append_with_quotes( "vertexInfos" );
+            builder.append_colon();
+            builder.start_array();
 
             for( uint32_t i = 0; i < drawcall.m_Payload.m_DrawMulti.m_DrawCount; i++ )
             {
+                if( i > 0 ) builder.append_comma();
+
                 const VkMultiDrawInfoEXT& vertexInfo = drawcall.m_Payload.m_DrawMulti.m_pVertexInfo[i];
-                vertexInfos.push_back( {
-                    { "firstVertex", vertexInfo.firstVertex },
-                    { "vertexCount", vertexInfo.vertexCount }
-                } );
+                builder.start_object();
+                builder.append_key_value( "firstVertex", vertexInfo.firstVertex );
+                builder.append_comma();
+                builder.append_key_value( "vertexCount", vertexInfo.vertexCount );
+                builder.end_object();
             }
 
-            return {
-                { "drawCount", drawcall.m_Payload.m_DrawMulti.m_DrawCount },
-                { "instanceCount", drawcall.m_Payload.m_DrawMulti.m_InstanceCount },
-                { "firstInstance", drawcall.m_Payload.m_DrawMulti.m_FirstInstance },
-                { "stride", drawcall.m_Payload.m_DrawMulti.m_Stride },
-                { "vertexInfos", vertexInfos }
-            };
-        }
+            builder.end_array();
+            break;
         
         case DeviceProfilerDrawcallType::eDrawMultiIndexed:
-        {
-            std::vector<nlohmann::json> indexInfos;
+            builder.append_key_value( "drawCount", drawcall.m_Payload.m_DrawMultiIndexed.m_DrawCount );
+            builder.append_comma();
+            builder.append_key_value( "instanceCount", drawcall.m_Payload.m_DrawMultiIndexed.m_InstanceCount );
+            builder.append_comma();
+            builder.append_key_value( "firstInstance", drawcall.m_Payload.m_DrawMultiIndexed.m_FirstInstance );
+            builder.append_comma();
+            builder.append_key_value( "stride", drawcall.m_Payload.m_DrawMultiIndexed.m_Stride );
+            builder.append_comma();
 
-            for( uint32_t i = 0; i < drawcall.m_Payload.m_DrawMulti.m_DrawCount; i++ )
+            builder.escape_and_append_with_quotes( "indexInfos" );
+            builder.append_colon();
+            builder.start_array();
+
+            for( uint32_t i = 0; i < drawcall.m_Payload.m_DrawMultiIndexed.m_DrawCount; i++ )
             {
+                if( i > 0 ) builder.append_comma();
+
                 const VkMultiDrawIndexedInfoEXT& indexInfo = drawcall.m_Payload.m_DrawMultiIndexed.m_pIndexInfo[i];
-                indexInfos.push_back( {
-                    { "firstIndex", indexInfo.firstIndex },
-                    { "indexCount", indexInfo.indexCount },
-                    { "vertexOffset", indexInfo.vertexOffset }
-                } );
+                builder.start_object();
+                builder.append_key_value( "firstIndex", indexInfo.firstIndex );
+                builder.append_comma();
+                builder.append_key_value( "indexCount", indexInfo.indexCount );
+                builder.append_comma();
+                builder.append_key_value( "vertexOffset", indexInfo.vertexOffset );
+                builder.end_object();
             }
 
-            return {
-                { "drawCount", drawcall.m_Payload.m_DrawMultiIndexed.m_DrawCount },
-                { "instanceCount", drawcall.m_Payload.m_DrawMultiIndexed.m_InstanceCount },
-                { "firstInstance", drawcall.m_Payload.m_DrawMultiIndexed.m_FirstInstance },
-                { "stride", drawcall.m_Payload.m_DrawMultiIndexed.m_Stride },
-                { "indexInfos", indexInfos }
-            };
-        }
+            builder.end_array();
+            break;
 
         case DeviceProfilerDrawcallType::eDispatch:
-            return {
-                { "groupCountX", drawcall.m_Payload.m_Dispatch.m_GroupCountX },
-                { "groupCountY", drawcall.m_Payload.m_Dispatch.m_GroupCountY },
-                { "groupCountZ", drawcall.m_Payload.m_Dispatch.m_GroupCountZ } };
+            builder.append_key_value( "groupCountX", drawcall.m_Payload.m_Dispatch.m_GroupCountX );
+            builder.append_comma();
+            builder.append_key_value( "groupCountY", drawcall.m_Payload.m_Dispatch.m_GroupCountY );
+            builder.append_comma();
+            builder.append_key_value( "groupCountZ", drawcall.m_Payload.m_Dispatch.m_GroupCountZ );
+            break;
 
         case DeviceProfilerDrawcallType::eDispatchIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DispatchIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DispatchIndirect.m_Offset } };
+            builder.append_key_value( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DispatchIndirect.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "offset", drawcall.m_Payload.m_DispatchIndirect.m_Offset );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyBuffer:
-            return {
-                { "srcBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer ) },
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_DstBuffer ) } };
+            builder.append_key_value( "srcBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer ) );
+            builder.append_comma();
+            builder.append_key_value( "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_DstBuffer ) );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyBufferToImage:
-            return {
-                { "srcBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_DstImage ) } };
+            builder.append_key_value( "srcBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer ) );
+            builder.append_comma();
+            builder.append_key_value( "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_DstImage ) );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyImage:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_SrcImage ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_DstImage ) } };
+            builder.append_key_value( "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_SrcImage ) );
+            builder.append_comma();
+            builder.append_key_value( "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_DstImage ) );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyImageToBuffer:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage ) },
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer ) } };
+            builder.append_key_value( "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage ) );
+            builder.append_comma();
+            builder.append_key_value( "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer ) );
+            break;
 
         case DeviceProfilerDrawcallType::eClearAttachments:
-            return {
-                { "attachmentCount", drawcall.m_Payload.m_ClearAttachments.m_Count } };
+            builder.append_key_value( "attachmentCount", drawcall.m_Payload.m_ClearAttachments.m_Count );
+            break;
 
         case DeviceProfilerDrawcallType::eClearColorImage:
-            return {
-                { "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearColorImage.m_Image ) },
-                { "value", GetColorClearValue( drawcall.m_Payload.m_ClearColorImage.m_Value ) } };
+            builder.append_key_value( "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearColorImage.m_Image ) );
+            builder.append_comma();
+            builder.escape_and_append_with_quotes( "value" );
+            builder.append_colon();
+            WriteColorClearValue( builder, drawcall.m_Payload.m_ClearColorImage.m_Value );
+            break;
 
         case DeviceProfilerDrawcallType::eClearDepthStencilImage:
-            return {
-                { "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearDepthStencilImage.m_Image ) },
-                { "value", GetDepthStencilClearValue( drawcall.m_Payload.m_ClearDepthStencilImage.m_Value ) } };
+            builder.append_key_value( "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearDepthStencilImage.m_Image ) );
+            builder.append_comma();
+            builder.escape_and_append_with_quotes( "value" );
+            builder.append_colon();
+            WriteDepthStencilClearValue( builder, drawcall.m_Payload.m_ClearDepthStencilImage.m_Value );
+            break;
 
         case DeviceProfilerDrawcallType::eResolveImage:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_SrcImage ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_DstImage ) } };
+            builder.append_key_value( "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_SrcImage ) );
+            builder.append_comma();
+            builder.append_key_value( "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_DstImage ) );
+            break;
 
         case DeviceProfilerDrawcallType::eBlitImage:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_SrcImage ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_DstImage ) } };
+            builder.append_key_value( "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_SrcImage ) );
+            builder.append_comma();
+            builder.append_key_value( "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_DstImage ) );
+            break;
 
         case DeviceProfilerDrawcallType::eFillBuffer:
-            return {
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_FillBuffer.m_Buffer ) },
-                { "dstOffset", drawcall.m_Payload.m_FillBuffer.m_Offset },
-                { "size", drawcall.m_Payload.m_FillBuffer.m_Size },
-                { "data", drawcall.m_Payload.m_FillBuffer.m_Data } };
+            builder.append_key_value( "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_FillBuffer.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "dstOffset", drawcall.m_Payload.m_FillBuffer.m_Offset );
+            builder.append_comma();
+            builder.append_key_value( "size", drawcall.m_Payload.m_FillBuffer.m_Size );
+            builder.append_comma();
+            builder.append_key_value( "data", drawcall.m_Payload.m_FillBuffer.m_Data );
+            break;
 
         case DeviceProfilerDrawcallType::eUpdateBuffer:
-            return {
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_UpdateBuffer.m_Buffer ) },
-                { "dstOffset", drawcall.m_Payload.m_UpdateBuffer.m_Offset },
-                { "dataSize", drawcall.m_Payload.m_UpdateBuffer.m_Size } };
+            builder.append_key_value( "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_UpdateBuffer.m_Buffer ) );
+            builder.append_comma();
+            builder.append_key_value( "dstOffset", drawcall.m_Payload.m_UpdateBuffer.m_Offset );
+            builder.append_comma();
+            builder.append_key_value( "dataSize", drawcall.m_Payload.m_UpdateBuffer.m_Size );
+            break;
 
         case DeviceProfilerDrawcallType::eTraceRaysKHR:
-            return {
-                { "width", drawcall.m_Payload.m_TraceRays.m_Width },
-                { "height", drawcall.m_Payload.m_TraceRays.m_Height },
-                { "depth", drawcall.m_Payload.m_TraceRays.m_Depth } };
+            builder.append_key_value( "width", drawcall.m_Payload.m_TraceRays.m_Width );
+            builder.append_comma();
+            builder.append_key_value( "height", drawcall.m_Payload.m_TraceRays.m_Height );
+            builder.append_comma();
+            builder.append_key_value( "depth", drawcall.m_Payload.m_TraceRays.m_Depth );
+            break;
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
-            return {
-                { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress } };
+            builder.append_key_value( "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress );
+            break;
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
-            return {
-                { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress } };
+            builder.append_key_value( "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress );
+            break;
 
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
         {
             const uint32_t infoCount = drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
 
-            std::vector<nlohmann::json> infos;
-            infos.reserve( infoCount );
+            builder.append_key_value( "infoCount", infoCount );
+            builder.append_comma();
+
+            builder.escape_and_append_with_quotes( "infos" );
+            builder.append_colon();
+            builder.start_array();
 
             for( uint32_t i = 0; i < infoCount; ++i )
             {
-                const auto& info = drawcall.m_Payload.m_BuildAccelerationStructures.m_pInfos[ i ];
+                const auto& info = drawcall.m_Payload.m_BuildAccelerationStructures.m_pInfos[i];
 
-                std::vector<nlohmann::json> geometries;
+                if( i > 0 ) builder.append_comma();
+                builder.start_object();
+                builder.append_key_value( "type", m_pStringSerializer->GetAccelerationStructureTypeName( info.type ) );
+                builder.append_comma();
+                builder.append_key_value( "flags", m_pStringSerializer->GetBuildAccelerationStructureFlagNames( info.flags ) );
+                builder.append_comma();
+                builder.append_key_value( "mode", m_pStringSerializer->GetBuildAccelerationStructureModeName( info.mode ) );
+                builder.append_comma();
+                builder.append_key_value( "src", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.srcAccelerationStructure ) ) );
+                builder.append_comma();
+                builder.append_key_value( "dst", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.dstAccelerationStructure ) ) );
+                builder.append_comma();
+                builder.append_key_value( "geometryCount", info.geometryCount );
+                builder.append_comma();
+
+                builder.escape_and_append_with_quotes( "geometries" );
+                builder.append_colon();
+
                 if( info.pGeometries )
                 {
-                    geometries.reserve( info.geometryCount );
+                    builder.start_array();
+
                     for( uint32_t j = 0; j < info.geometryCount; ++j )
                     {
                         const auto& geometry = info.pGeometries[ j ];
-                        nlohmann::json geometryData;
+
+                        if( j > 0 ) builder.append_comma();
+                        builder.start_object();
+
+                        builder.append_key_value( "type", m_pStringSerializer->GetGeometryTypeName( geometry.geometryType ) );
+                        builder.append_comma();
+                        builder.append_key_value( "flags", m_pStringSerializer->GetGeometryFlagNames( geometry.flags ) );
+                        builder.append_comma();
+
+                        builder.escape_and_append_with_quotes( "data" );
+                        builder.append_colon();
+                        builder.start_object();
 
                         switch( geometry.geometryType )
                         {
                         case VK_GEOMETRY_TYPE_TRIANGLES_KHR:
-                            geometryData = {
-                                { "vertexFormat", m_pStringSerializer->GetFormatName( geometry.geometry.triangles.vertexFormat ) },
-                                { "vertexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.vertexData.hostAddress ) },
-                                { "vertexStride", geometry.geometry.triangles.vertexStride },
-                                { "maxVertex", geometry.geometry.triangles.maxVertex },
-                                { "indexType", m_pStringSerializer->GetIndexTypeName( geometry.geometry.triangles.indexType ) },
-                                { "indexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.indexData.hostAddress ) },
-                                { "transformData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.transformData.hostAddress ) } };
+                            builder.append_key_value( "vertexFormat", m_pStringSerializer->GetFormatName( geometry.geometry.triangles.vertexFormat ) );
+                            builder.append_comma();
+                            builder.append_key_value( "vertexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.vertexData.hostAddress ) );
+                            builder.append_comma();
+                            builder.append_key_value( "vertexStride", geometry.geometry.triangles.vertexStride );
+                            builder.append_comma();
+                            builder.append_key_value( "maxVertex", geometry.geometry.triangles.maxVertex );
+                            builder.append_comma();
+                            builder.append_key_value( "indexType", m_pStringSerializer->GetIndexTypeName( geometry.geometry.triangles.indexType ) );
+                            builder.append_comma();
+                            builder.append_key_value( "indexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.indexData.hostAddress ) );
+                            builder.append_comma();
+                            builder.append_key_value( "transformData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.transformData.hostAddress ) );
                             break;
 
                         case VK_GEOMETRY_TYPE_AABBS_KHR:
-                            geometryData = {
-                                { "data", m_pStringSerializer->GetPointer( geometry.geometry.aabbs.data.hostAddress ) },
-                                { "stride", geometry.geometry.aabbs.stride } };
+                            builder.append_key_value( "data", m_pStringSerializer->GetPointer( geometry.geometry.aabbs.data.hostAddress ) );
+                            builder.append_comma();
+                            builder.append_key_value( "stride", geometry.geometry.aabbs.stride );
                             break;
 
                         case VK_GEOMETRY_TYPE_INSTANCES_KHR:
-                            geometryData = {
-                                { "arrayOfPointers", static_cast<bool>( geometry.geometry.instances.arrayOfPointers ) },
-                                { "data", m_pStringSerializer->GetPointer( geometry.geometry.instances.data.hostAddress ) } };
+                            builder.append_key_value( "arrayOfPointers", static_cast<bool>( geometry.geometry.instances.arrayOfPointers ) );
+                            builder.append_comma();
+                            builder.append_key_value( "data", m_pStringSerializer->GetPointer( geometry.geometry.instances.data.hostAddress ) );
                             break;
                         }
 
-                        nlohmann::json geometryRange;
+                        builder.end_object();
+                        builder.append_comma();
+
+                        builder.escape_and_append_with_quotes( "range" );
+                        builder.append_colon();
+                        builder.start_object();
+
                         if( drawcall.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
                         {
                             const auto& range = drawcall.m_Payload.m_BuildAccelerationStructures.m_ppRanges[ i ][ j ];
-                            geometryRange = {
-                                { "primitiveCount", range.primitiveCount },
-                                { "primitiveOffset", range.primitiveOffset },
-                                { "firstVertex", range.firstVertex },
-                                { "transformOffset", range.transformOffset } };
+                            builder.append_key_value( "primitiveCount", range.primitiveCount );
+                            builder.append_comma();
+                            builder.append_key_value( "primitiveOffset", range.primitiveOffset );
+                            builder.append_comma();
+                            builder.append_key_value( "firstVertex", range.firstVertex );
+                            builder.append_comma();
+                            builder.append_key_value( "transformOffset", range.transformOffset );
                         }
                         else //( drawcall.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR )
                         {
-                            geometryRange = {
-                                { "maxPrimitiveCount", drawcall.m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts[ i ][ j ] } };
+                            builder.append_key_value( "maxPrimitiveCount", drawcall.m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts[ i ][ j ] );
                         }
 
-                        geometries.push_back({
-                            { "type", m_pStringSerializer->GetGeometryTypeName( geometry.geometryType ) },
-                            { "flags", m_pStringSerializer->GetGeometryFlagNames( geometry.flags ) },
-                            { "data", geometryData },
-                            { "range", geometryRange } });
+                        builder.end_object();
                     }
+
+                    builder.end_array();
+                }
+                else
+                {
+                    builder.append_null();
                 }
 
-                infos.push_back({
-                    { "type", m_pStringSerializer->GetAccelerationStructureTypeName( info.type ) },
-                    { "flags", m_pStringSerializer->GetBuildAccelerationStructureFlagNames( info.flags ) },
-                    { "mode", m_pStringSerializer->GetBuildAccelerationStructureModeName( info.mode ) },
-                    { "src", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.srcAccelerationStructure ) ) },
-                    { "dst", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.dstAccelerationStructure ) ) },
-                    { "geometryCount", info.geometryCount },
-                    { "geometries", geometries } });
+                builder.end_object();
             }
 
-            return {
-                { "infoCount", infoCount },
-                { "infos", infos } };
+            builder.end_array();
+            break;
         }
 
         case DeviceProfilerDrawcallType::eBuildMicromapsEXT:
         {
             const uint32_t infoCount = drawcall.m_Payload.m_BuildMicromaps.m_InfoCount;
 
-            std::vector<nlohmann::json> infos;
-            infos.reserve( infoCount );
+            builder.append_key_value( "infoCount", infoCount );
+            builder.append_comma();
+
+            builder.escape_and_append_with_quotes( "infos" );
+            builder.append_colon();
+            builder.start_array();
 
             for( uint32_t i = 0; i < infoCount; ++i )
             {
                 const auto& info = drawcall.m_Payload.m_BuildMicromaps.m_pInfos[i];
 
-                std::vector<nlohmann::json> usageCounts;
-                usageCounts.reserve( info.usageCountsCount );
+                if( i > 0 ) builder.append_comma();
+                builder.start_object();
+                builder.append_key_value( "type", m_pStringSerializer->GetMicromapTypeName( info.type ) );
+                builder.append_comma();
+                builder.append_key_value( "flags", m_pStringSerializer->GetBuildMicromapFlagNames( info.flags ) );
+                builder.append_comma();
+                builder.append_key_value( "mode", m_pStringSerializer->GetBuildMicromapModeName( info.mode ) );
+                builder.append_comma();
+                builder.append_key_value( "dst", m_pStringSerializer->GetName( VkMicromapEXTHandle( info.dstMicromap ) ) );
+                builder.append_comma();
+                builder.append_key_value( "usageCountsCount", info.usageCountsCount );
+                builder.append_comma();
+
+                builder.escape_and_append_with_quotes( "usageCounts" );
+                builder.append_colon();
+                builder.start_array();
 
                 for( uint32_t j = 0; j < info.usageCountsCount; ++j )
                 {
                     const auto& usageCount = info.pUsageCounts[j];
-                    usageCounts.push_back( {
-                        { "count", usageCount.count },
-                        { "format", usageCount.format },
-                        { "subdivisionLevel", usageCount.subdivisionLevel } } );
+
+                    if( j > 0 ) builder.append_comma();
+                    builder.start_object();
+                    builder.append_key_value( "count", usageCount.count );
+                    builder.append_comma();
+                    builder.append_key_value( "format", usageCount.format );
+                    builder.append_comma();
+                    builder.append_key_value( "subdivisionLevel", usageCount.subdivisionLevel );
+                    builder.end_object();
                 }
 
-                infos.push_back( {
-                    { "type", m_pStringSerializer->GetMicromapTypeName( info.type ) },
-                    { "flags", m_pStringSerializer->GetBuildMicromapFlagNames( info.flags ) },
-                    { "mode", m_pStringSerializer->GetBuildMicromapModeName( info.mode ) },
-                    { "dst", m_pStringSerializer->GetName( VkMicromapEXTHandle( info.dstMicromap ) ) },
-                    { "usageCountsCount", info.usageCountsCount },
-                    { "usageCounts", usageCounts },
-                    { "data", m_pStringSerializer->GetPointer( info.data.hostAddress ) },
-                    { "scratchData", m_pStringSerializer->GetPointer( info.scratchData.hostAddress ) },
-                    { "triangleArray", m_pStringSerializer->GetPointer( info.triangleArray.hostAddress ) },
-                    { "triangleArrayStride", info.triangleArrayStride } } );
+                builder.end_array();
+                builder.append_comma();
+
+                builder.append_key_value( "data", m_pStringSerializer->GetPointer( info.data.hostAddress ) );
+                builder.append_comma();
+                builder.append_key_value( "scratchData", m_pStringSerializer->GetPointer( info.scratchData.hostAddress ) );
+                builder.append_comma();
+                builder.append_key_value( "triangleArray", m_pStringSerializer->GetPointer( info.triangleArray.hostAddress ) );
+                builder.append_comma();
+                builder.append_key_value( "triangleArrayStride", info.triangleArrayStride );
+                builder.end_object();
             }
 
-            return {
-                { "infoCount", infoCount },
-                { "infos", infos } };
+            builder.end_array();
+            break;
         }
         }
+
+        builder.end_object();
     }
 
     /*************************************************************************\
@@ -422,19 +560,29 @@ namespace Profiler
         Serialize pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetPipelineArgs( const DeviceProfilerPipeline& pipeline ) const
+    void DeviceProfilerJsonSerializer::WritePipelineArgs( simdjson::builder::string_builder& builder, const DeviceProfilerPipeline& pipeline ) const
     {
-        nlohmann::json args = {};
+        bool firstArg = true;
+
+        builder.start_object();
 
         // Append shader stages info.
         if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
         {
-            nlohmann::json& shaderStages = args["shaders"];
+            builder.escape_and_append_with_quotes( "shaders" );
+            builder.append_colon();
+            builder.start_array();
 
+            bool firstShader = true;
             for( const ProfilerShader& shader : pipeline.m_ShaderTuple.m_Shaders )
             {
-                shaderStages.push_back( GetShaderStageArgs( shader ) );
+                if( !firstShader ) builder.append_comma();
+                WriteShaderStageArgs( builder, shader );
+                firstShader = false;
             }
+
+            builder.end_array();
+            firstArg = false;
         }
 
         // Append pipeline create info details.
@@ -444,26 +592,26 @@ namespace Profiler
             {
             case DeviceProfilerPipelineType::eGraphics:
             {
-                args.update( GetGraphicsPipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo ) );
+                WriteGraphicsPipelineCreateInfoArgs( builder,
+                    pipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo, firstArg );
                 break;
             }
             case DeviceProfilerPipelineType::eCompute:
             {
-                args.update( GetComputePipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_ComputePipelineCreateInfo ) );
+                WriteComputePipelineCreateInfoArgs( builder,
+                    pipeline.m_pCreateInfo->m_ComputePipelineCreateInfo, firstArg );
                 break;
             }
             case DeviceProfilerPipelineType::eRayTracingKHR:
             {
-                args.update( GetRayTracingPipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR ) );
+                WriteRayTracingPipelineCreateInfoArgs( builder,
+                    pipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR, firstArg );
                 break;
             }
             }
         }
 
-        return args;
+        builder.end_object();
     }
 
     /*************************************************************************\
@@ -475,24 +623,54 @@ namespace Profiler
         Serialize VkClearColorValue struct into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetColorClearValue( const VkClearColorValue& value ) const
+    void DeviceProfilerJsonSerializer::WriteColorClearValue( simdjson::builder::string_builder& builder, const VkClearColorValue& value ) const
     {
-        return { "VkClearColorValue", {
-            { "float32", {
-                value.float32[ 0 ],
-                value.float32[ 1 ],
-                value.float32[ 2 ],
-                value.float32[ 3 ] } },
-            { "int32", {
-                value.int32[ 0 ],
-                value.int32[ 1 ],
-                value.int32[ 2 ],
-                value.int32[ 3 ] } },
-            { "uint32", {
-                value.uint32[ 0 ],
-                value.uint32[ 1 ],
-                value.uint32[ 2 ],
-                value.uint32[ 3 ] } } } };
+        builder.start_object();
+
+        builder.escape_and_append_with_quotes( "VkClearColorValue" );
+        builder.append_colon();
+        builder.start_object();
+
+        builder.escape_and_append_with_quotes( "float32" );
+        builder.append_colon();
+        builder.start_array();
+
+        for( int i = 0; i < 4; ++i )
+        {
+            if( i > 0 ) builder.append_comma();
+            builder.append( value.float32[i] );
+        }
+
+        builder.end_array();
+        builder.append_comma();
+
+        builder.escape_and_append_with_quotes( "int32" );
+        builder.append_colon();
+        builder.start_array();
+
+        for( int i = 0; i < 4; ++i )
+        {
+            if( i > 0 ) builder.append_comma();
+            builder.append( value.int32[i] );
+        }
+
+        builder.end_array();
+        builder.append_comma();
+
+        builder.escape_and_append_with_quotes( "uint32" );
+        builder.append_colon();
+        builder.start_array();
+
+        for( int i = 0; i < 4; ++i )
+        {
+            if( i > 0 ) builder.append_comma();
+            builder.append( value.uint32[i] );
+        }
+
+        builder.end_array();
+        builder.end_object();
+
+        builder.end_object();
     }
 
     /*************************************************************************\
@@ -504,11 +682,21 @@ namespace Profiler
         Serialize VkClearDepthStencilValue struct into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetDepthStencilClearValue( const VkClearDepthStencilValue& value ) const
+    void DeviceProfilerJsonSerializer::WriteDepthStencilClearValue( simdjson::builder::string_builder& builder, const VkClearDepthStencilValue& value ) const
     {
-        return { "VkClearDepthStencilValue", {
-            { "depth", value.depth },
-            { "stencil", value.stencil } } };
+        builder.start_object();
+
+        builder.escape_and_append_with_quotes( "VkClearDepthStencilValue" );
+        builder.append_colon();
+        builder.start_object();
+
+        builder.append_key_value( "depth", value.depth );
+        builder.append_comma();
+        builder.append_key_value( "stencil", value.stencil );
+
+        builder.end_object();
+
+        builder.end_object();
     }
 
     /*************************************************************************\
@@ -520,12 +708,13 @@ namespace Profiler
         Serialize shader stage into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetShaderStageArgs( const ProfilerShader& shader ) const
+    void DeviceProfilerJsonSerializer::WriteShaderStageArgs( simdjson::builder::string_builder& builder, const ProfilerShader& shader ) const
     {
-        nlohmann::json shaderStage = {
-            { "stage", m_pStringSerializer->GetShaderStageName( shader.m_Stage ) },
-            { "entryPoint", shader.m_EntryPoint }
-        };
+        builder.start_object();
+
+        builder.append_key_value( "stage", m_pStringSerializer->GetShaderStageName( shader.m_Stage ) );
+        builder.append_comma();
+        builder.append_key_value( "entryPoint", shader.m_EntryPoint );
 
         if( shader.m_pShaderModule )
         {
@@ -551,10 +740,11 @@ namespace Profiler
                 }
             }
 
-            shaderStage["shaderIdentifier"] = shaderIdentifier;
+            builder.append_comma();
+            builder.append_key_value( "shaderIdentifier", shaderIdentifier );
         }
 
-        return shaderStage;
+        builder.end_object();
     }
 
     /*************************************************************************\
@@ -566,224 +756,444 @@ namespace Profiler
         Serialize graphics pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetGraphicsPipelineCreateInfoArgs( const VkGraphicsPipelineCreateInfo& createInfo ) const
+    void DeviceProfilerJsonSerializer::WriteGraphicsPipelineCreateInfoArgs( simdjson::builder::string_builder& builder, const VkGraphicsPipelineCreateInfo& createInfo, bool firstArg ) const
     {
-        nlohmann::json args = {};
-        args["vertexInputState"] = nullptr;
-        args["inputAssemblyState"] = nullptr;
-        args["tessellationState"] = nullptr;
-        args["viewportState"] = nullptr;
-        args["rasterizationState"] = nullptr;
-        args["multisampleState"] = nullptr;
-        args["depthStencilState"] = nullptr;
-        args["colorBlendState"] = nullptr;
-        args["dynamicStates"] = nlohmann::json::array();
-
         // VkPipelineVertexInputStateCreateInfo
+        if( !firstArg ) builder.append_comma();
+        builder.escape_and_append_with_quotes( "vertexInputState" );
+        builder.append_colon();
+
         if( createInfo.pVertexInputState )
         {
             const auto& state = *createInfo.pVertexInputState;
-            args["vertexInputState"] = {
-                { "attributeCount", state.vertexAttributeDescriptionCount },
-                { "attributes", nullptr },
-                { "bindingCount", state.vertexBindingDescriptionCount },
-                { "bindings", nullptr }
-            };
+
+            builder.start_object();
+
+            builder.append_key_value( "attributeCount", state.vertexAttributeDescriptionCount );
+            builder.append_comma();
+            builder.append_key_value( "bindingCount", state.vertexBindingDescriptionCount );
+            builder.append_comma();
+
+            builder.escape_and_append_with_quotes( "attributes" );
+            builder.append_colon();
 
             if( state.pVertexAttributeDescriptions )
             {
-                auto& attributesArgs = args["vertexInputState"]["attributes"] = nlohmann::json::array();
+                builder.start_array();
+
                 for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
                 {
                     const auto& attribute = state.pVertexAttributeDescriptions[i];
-                    attributesArgs.push_back( {
-                        { "location", attribute.location },
-                        { "binding", attribute.binding },
-                        { "format", m_pStringSerializer->GetFormatName( attribute.format ) },
-                        { "offset", attribute.offset } } );
+
+                    if( i > 0 ) builder.append_comma();
+                    builder.start_object();
+                    builder.append_key_value( "location", attribute.location );
+                    builder.append_comma();
+                    builder.append_key_value( "binding", attribute.binding );
+                    builder.append_comma();
+                    builder.append_key_value( "format", m_pStringSerializer->GetFormatName( attribute.format ) );
+                    builder.append_comma();
+                    builder.append_key_value( "offset", attribute.offset );
+                    builder.end_object();
                 }
+
+                builder.end_array();
             }
+            else
+            {
+                builder.append_null();
+            }
+
+            builder.append_comma();
+            builder.escape_and_append_with_quotes( "bindings" );
+            builder.append_colon();
 
             if( state.pVertexBindingDescriptions )
             {
-                auto& bindingsArgs = args["vertexInputState"]["bindings"] = nlohmann::json::array();
+                builder.start_array();
+
                 for( uint32_t i = 0; i < state.vertexBindingDescriptionCount; ++i )
                 {
                     const auto& binding = state.pVertexBindingDescriptions[i];
-                    bindingsArgs.push_back( {
-                        { "binding", binding.binding },
-                        { "stride", binding.stride },
-                        { "inputRate", m_pStringSerializer->GetVertexInputRateName( binding.inputRate ) } } );
+
+                    if( i > 0 ) builder.append_comma();
+                    builder.start_object();
+                    builder.append_key_value( "binding", binding.binding );
+                    builder.append_comma();
+                    builder.append_key_value( "stride", binding.stride );
+                    builder.append_comma();
+                    builder.append_key_value( "inputRate", m_pStringSerializer->GetVertexInputRateName( binding.inputRate ) );
+                    builder.end_object();
                 }
+
+                builder.end_array();
             }
+            else
+            {
+                builder.append_null();
+            }
+
+            builder.end_object();
+        }
+        else
+        {
+            builder.append_null();
         }
 
+
         // VkPipelineInputAssemblyStateCreateInfo
+        builder.append_comma();
+        builder.escape_and_append_with_quotes( "inputAssemblyState" );
+        builder.append_colon();
+
         if( createInfo.pInputAssemblyState )
         {
             const auto& state = *createInfo.pInputAssemblyState;
-            args["inputAssemblyState"] = {
-                { "topology", m_pStringSerializer->GetPrimitiveTopologyName( state.topology ) },
-                { "primitiveRestartEnable", static_cast<bool>( state.primitiveRestartEnable ) }
-            };
+
+            builder.start_object();
+            builder.append_key_value( "topology", m_pStringSerializer->GetPrimitiveTopologyName( state.topology ) );
+            builder.append_comma();
+            builder.append_key_value( "primitiveRestartEnable", static_cast<bool>( state.primitiveRestartEnable ) );
+            builder.end_object();
+        }
+        else
+        {
+            builder.append_null();
         }
 
         // VkPipelineTessellationStateCreateInfo
+        builder.append_comma();
+        builder.escape_and_append_with_quotes( "tessellationState" );
+        builder.append_colon();
+
         if( createInfo.pTessellationState )
         {
             const auto& state = *createInfo.pTessellationState;
-            args["tessellationState"] = {
-                { "patchControlPoints", state.patchControlPoints }
-            };
+
+            builder.start_object();
+            builder.append_key_value( "patchControlPoints", state.patchControlPoints );
+            builder.end_object();
+        }
+        else
+        {
+            builder.append_null();
         }
 
         // VkPipelineViewportStateCreateInfo
+        builder.append_comma();
+        builder.escape_and_append_with_quotes( "viewportState" );
+        builder.append_colon();
+
         if( createInfo.pViewportState )
         {
             const auto& state = *createInfo.pViewportState;
-            args["viewportState"] = {
-                { "viewportCount", state.viewportCount },
-                { "viewports", nullptr },
-                { "scissorCount", state.scissorCount },
-                { "scissors", nullptr }
-            };
+
+            builder.start_object();
+
+            builder.append_key_value( "viewportCount", state.viewportCount );
+            builder.append_comma();
+            builder.append_key_value( "scissorCount", state.scissorCount );
+            builder.append_comma();
+
+            builder.escape_and_append_with_quotes( "viewports" );
+            builder.append_colon();
 
             if( state.pViewports )
             {
-                auto& viewportsArgs = args["viewportState"]["viewports"] = nlohmann::json::array();
+                builder.start_array();
+
                 for( uint32_t i = 0; i < state.viewportCount; ++i )
                 {
                     const auto& viewport = state.pViewports[i];
-                    viewportsArgs.push_back( {
-                        { "x", viewport.x },
-                        { "y", viewport.y },
-                        { "width", viewport.width },
-                        { "height", viewport.height },
-                        { "minDepth", viewport.minDepth },
-                        { "maxDepth", viewport.maxDepth } } );
+
+                    if( i > 0 ) builder.append_comma();
+                    builder.start_object();
+                    builder.append_key_value( "x", viewport.x );
+                    builder.append_comma();
+                    builder.append_key_value( "y", viewport.y );
+                    builder.append_comma();
+                    builder.append_key_value( "width", viewport.width );
+                    builder.append_comma();
+                    builder.append_key_value( "height", viewport.height );
+                    builder.append_comma();
+                    builder.append_key_value( "minDepth", viewport.minDepth );
+                    builder.append_comma();
+                    builder.append_key_value( "maxDepth", viewport.maxDepth );
+                    builder.end_object();
                 }
+
+                builder.end_array();
             }
+            else
+            {
+                builder.append_null();
+            }
+
+            builder.append_comma();
+            builder.escape_and_append_with_quotes( "scissors" );
+            builder.append_colon();
 
             if( state.pScissors )
             {
-                auto& scissorsArgs = args["viewportState"]["scissors"] = nlohmann::json::array();
+                builder.start_array();
+
                 for( uint32_t i = 0; i < state.scissorCount; ++i )
                 {
                     const auto& scissor = state.pScissors[i];
-                    scissorsArgs.push_back( {
-                        { "offsetX", scissor.offset.x },
-                        { "offsetY", scissor.offset.y },
-                        { "extentWidth", scissor.extent.width },
-                        { "extentHeight", scissor.extent.height } } );
+
+                    if( i > 0 ) builder.append_comma();
+                    builder.start_object();
+                    builder.append_key_value( "offsetX", scissor.offset.x );
+                    builder.append_comma();
+                    builder.append_key_value( "offsetY", scissor.offset.y );
+                    builder.append_comma();
+                    builder.append_key_value( "extentWidth", scissor.extent.width );
+                    builder.append_comma();
+                    builder.append_key_value( "extentHeight", scissor.extent.height );
+                    builder.end_object();
                 }
+
+                builder.end_array();
             }
+            else
+            {
+                builder.append_null();
+            }
+
+            builder.end_object();
+        }
+        else
+        {
+            builder.append_null();
         }
 
         // VkPipelineRasterizationStateCreateInfo
+        builder.append_comma();
+        builder.escape_and_append_with_quotes( "rasterizationState" );
+        builder.append_colon();
+
         if( createInfo.pRasterizationState )
         {
             const auto& state = *createInfo.pRasterizationState;
-            args["rasterizationState"] = {
-                { "depthClampEnable", static_cast<bool>( state.depthClampEnable ) },
-                { "rasterizerDiscardEnable", static_cast<bool>( state.rasterizerDiscardEnable ) },
-                { "polygonMode", m_pStringSerializer->GetPolygonModeName( state.polygonMode ) },
-                { "cullMode", m_pStringSerializer->GetCullModeName( state.cullMode ) },
-                { "frontFace", m_pStringSerializer->GetFrontFaceName( state.frontFace ) },
-                { "depthBiasEnable", static_cast<bool>( state.depthBiasEnable ) },
-                { "depthBiasConstantFactor", state.depthBiasConstantFactor },
-                { "depthBiasClamp", state.depthBiasClamp },
-                { "depthBiasSlopeFactor", state.depthBiasSlopeFactor },
-                { "lineWidth", state.lineWidth }
-            };
+
+            builder.start_object();
+            builder.append_key_value( "depthClampEnable", static_cast<bool>( state.depthClampEnable ) );
+            builder.append_comma();
+            builder.append_key_value( "rasterizerDiscardEnable", static_cast<bool>( state.rasterizerDiscardEnable ) );
+            builder.append_comma();
+            builder.append_key_value( "polygonMode", m_pStringSerializer->GetPolygonModeName( state.polygonMode ) );
+            builder.append_comma();
+            builder.append_key_value( "cullMode", m_pStringSerializer->GetCullModeName( state.cullMode ) );
+            builder.append_comma();
+            builder.append_key_value( "frontFace", m_pStringSerializer->GetFrontFaceName( state.frontFace ) );
+            builder.append_comma();
+            builder.append_key_value( "depthBiasEnable", static_cast<bool>( state.depthBiasEnable ) );
+            builder.append_comma();
+            builder.append_key_value( "depthBiasConstantFactor", state.depthBiasConstantFactor );
+            builder.append_comma();
+            builder.append_key_value( "depthBiasClamp", state.depthBiasClamp );
+            builder.append_comma();
+            builder.append_key_value( "depthBiasSlopeFactor", state.depthBiasSlopeFactor );
+            builder.append_comma();
+            builder.append_key_value( "lineWidth", state.lineWidth );
+            builder.end_object();
+        }
+        else
+        {
+            builder.append_null();
         }
 
         // VkPipelineMultisampleStateCreateInfo
+        builder.append_comma();
+        builder.escape_and_append_with_quotes( "multisampleState" );
+        builder.append_colon();
+
         if( createInfo.pMultisampleState )
         {
             const auto& state = *createInfo.pMultisampleState;
-            args["multisampleState"] = {
-                { "rasterizationSamples", state.rasterizationSamples },
-                { "sampleShadingEnable", static_cast<bool>( state.sampleShadingEnable ) },
-                { "minSampleShading", state.minSampleShading },
-                { "sampleMask", fmt::format( "0x{:08X}", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF ) },
-                { "alphaToCoverateEnable", static_cast<bool>( state.alphaToCoverageEnable ) },
-                { "alphaToOneEnable", static_cast<bool>( state.alphaToOneEnable ) }
-            };
+
+            builder.start_object();
+            builder.append_key_value( "rasterizationSamples", static_cast<uint32_t>( state.rasterizationSamples ) );
+            builder.append_comma();
+            builder.append_key_value( "sampleShadingEnable", static_cast<bool>( state.sampleShadingEnable ) );
+            builder.append_comma();
+            builder.append_key_value( "minSampleShading", state.minSampleShading );
+            builder.append_comma();
+            builder.append_key_value( "sampleMask", fmt::format( "0x{:08X}", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF ) );
+            builder.append_comma();
+            builder.append_key_value( "alphaToCoverateEnable", static_cast<bool>( state.alphaToCoverageEnable ) );
+            builder.append_comma();
+            builder.append_key_value( "alphaToOneEnable", static_cast<bool>( state.alphaToOneEnable ) );
+            builder.end_object();
+        }
+        else
+        {
+            builder.append_null();
         }
 
         // VkPipelineDepthStencilStateCreateInfo
+        builder.append_comma();
+        builder.escape_and_append_with_quotes( "depthStencilState" );
+        builder.append_colon();
+
         if( createInfo.pDepthStencilState )
         {
             const auto& state = *createInfo.pDepthStencilState;
-            args["depthStencilState"] = {
-                { "depthTestEnable", static_cast<bool>( state.depthTestEnable ) },
-                { "depthWriteEnable", static_cast<bool>( state.depthWriteEnable ) },
-                { "depthCompareOp", m_pStringSerializer->GetCompareOpName( state.depthCompareOp ) },
-                { "depthBoundsTestEnable", static_cast<bool>( state.depthBoundsTestEnable ) },
-                { "minDepthBounds", state.minDepthBounds },
-                { "maxDepthBounds", state.maxDepthBounds },
-                { "stencilTestEnable", static_cast<bool>( state.stencilTestEnable ) },
-                { "front", {
-                    { "failOp", state.front.failOp },
-                    { "passOp", state.front.passOp },
-                    { "depthFailOp", state.front.depthFailOp },
-                    { "compareOp", m_pStringSerializer->GetCompareOpName( state.front.compareOp ) },
-                    { "compareMask", fmt::format( "0x{:02X}", state.front.compareMask ) },
-                    { "writeMask", fmt::format( "0x{:02X}", state.front.writeMask ) },
-                    { "reference", fmt::format( "0x{:02X}", state.front.reference ) } } },
-                { "back", {
-                    { "failOp", state.back.failOp },
-                    { "passOp", state.back.passOp },
-                    { "depthFailOp", state.back.depthFailOp },
-                    { "compareOp", m_pStringSerializer->GetCompareOpName( state.back.compareOp ) },
-                    { "compareMask", fmt::format( "0x{:02X}", state.back.compareMask ) },
-                    { "writeMask", fmt::format( "0x{:02X}", state.back.writeMask ) },
-                    { "reference", fmt::format( "0x{:02X}", state.back.reference ) } } }
-            };
+
+            builder.start_object();
+            builder.append_key_value( "depthTestEnable", static_cast<bool>( state.depthTestEnable ) );
+            builder.append_comma();
+            builder.append_key_value( "depthWriteEnable", static_cast<bool>( state.depthWriteEnable ) );
+            builder.append_comma();
+            builder.append_key_value( "depthCompareOp", m_pStringSerializer->GetCompareOpName( state.depthCompareOp ) );
+            builder.append_comma();
+            builder.append_key_value( "depthBoundsTestEnable", static_cast<bool>( state.depthBoundsTestEnable ) );
+            builder.append_comma();
+            builder.append_key_value( "minDepthBounds", state.minDepthBounds );
+            builder.append_comma();
+            builder.append_key_value( "maxDepthBounds", state.maxDepthBounds );
+            builder.append_comma();
+            builder.append_key_value( "stencilTestEnable", static_cast<bool>( state.stencilTestEnable ) );
+            builder.append_comma();
+
+            builder.escape_and_append_with_quotes( "front" );
+            builder.append_colon();
+
+            builder.start_object();
+            builder.append_key_value( "failOp", static_cast<uint32_t>( state.front.failOp ) );
+            builder.append_comma();
+            builder.append_key_value( "passOp", static_cast<uint32_t>( state.front.passOp ) );
+            builder.append_comma();
+            builder.append_key_value( "depthFailOp", static_cast<uint32_t>( state.front.depthFailOp ) );
+            builder.append_comma();
+            builder.append_key_value( "compareOp", m_pStringSerializer->GetCompareOpName( state.front.compareOp ) );
+            builder.append_comma();
+            builder.append_key_value( "compareMask", fmt::format( "0x{:02X}", state.front.compareMask ) );
+            builder.append_comma();
+            builder.append_key_value( "writeMask", fmt::format( "0x{:02X}", state.front.writeMask ) );
+            builder.append_comma();
+            builder.append_key_value( "reference", fmt::format( "0x{:02X}", state.front.reference ) );
+            builder.end_object();
+            builder.append_comma();
+
+            builder.escape_and_append_with_quotes( "back" );
+            builder.append_colon();
+
+            builder.start_object();
+            builder.append_key_value( "failOp", static_cast<uint32_t>( state.back.failOp ) );
+            builder.append_comma();
+            builder.append_key_value( "passOp", static_cast<uint32_t>( state.back.passOp ) );
+            builder.append_comma();
+            builder.append_key_value( "depthFailOp", static_cast<uint32_t>( state.back.depthFailOp ) );
+            builder.append_comma();
+            builder.append_key_value( "compareOp", m_pStringSerializer->GetCompareOpName( state.back.compareOp ) );
+            builder.append_comma();
+            builder.append_key_value( "compareMask", fmt::format( "0x{:02X}", state.back.compareMask ) );
+            builder.append_comma();
+            builder.append_key_value( "writeMask", fmt::format( "0x{:02X}", state.back.writeMask ) );
+            builder.append_comma();
+            builder.append_key_value( "reference", fmt::format( "0x{:02X}", state.back.reference ) );
+            builder.end_object();
+
+            builder.end_object();
+        }
+        else
+        {
+            builder.append_null();
         }
 
         // VkPipelineColorBlendStateCreateInfo
+        builder.append_comma();
+        builder.escape_and_append_with_quotes( "colorBlendState" );
+        builder.append_colon();
+
         if( createInfo.pColorBlendState )
         {
             const auto& state = *createInfo.pColorBlendState;
-            args["colorBlendState"] = {
-                { "logicOpEnable", static_cast<bool>( state.logicOpEnable ) },
-                { "logicOp", m_pStringSerializer->GetLogicOpName( state.logicOp ) },
-                { "blendConstants", state.blendConstants },
-                { "attachments", nullptr }
-            };
+
+            builder.start_object();
+            builder.append_key_value( "logicOpEnable", static_cast<bool>( state.logicOpEnable ) );
+            builder.append_comma();
+            builder.append_key_value( "logicOp", m_pStringSerializer->GetLogicOpName( state.logicOp ) );
+            builder.append_comma();
+
+            builder.escape_and_append_with_quotes( "blendConstants" );
+            builder.append_colon();
+            builder.start_array();
+
+            for( int i = 0; i < 4; ++i )
+            {
+                if( i > 0 ) builder.append_comma();
+                builder.append( state.blendConstants[i] );
+            }
+
+            builder.end_array();
+            builder.append_comma();
+
+            builder.escape_and_append_with_quotes( "attachments" );
+            builder.append_colon();
 
             if( state.pAttachments )
             {
-                auto& attachmentsArgs = args["colorBlendState"]["attachments"] = nlohmann::json::array();
+                builder.start_array();
+
                 for( uint32_t i = 0; i < state.attachmentCount; ++i )
                 {
                     const auto& attachment = state.pAttachments[i];
-                    attachmentsArgs.push_back( {
-                        { "blendEnable", static_cast<bool>( attachment.blendEnable ) },
-                        { "srcColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ) },
-                        { "dstColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ) },
-                        { "colorBlendOp", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ) },
-                        { "srcAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcAlphaBlendFactor ) },
-                        { "dstAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ) },
-                        { "alphaBlendOp", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ) },
-                        { "colorWriteMask", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ) } } );
+
+                    if( i > 0 ) builder.append_comma();
+                    builder.start_object();
+                    builder.append_key_value( "blendEnable", static_cast<bool>( attachment.blendEnable ) );
+                    builder.append_comma();
+                    builder.append_key_value( "srcColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ) );
+                    builder.append_comma();
+                    builder.append_key_value( "dstColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ) );
+                    builder.append_comma();
+                    builder.append_key_value( "colorBlendOp", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ) );
+                    builder.append_comma();
+                    builder.append_key_value( "srcAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcAlphaBlendFactor ) );
+                    builder.append_comma();
+                    builder.append_key_value( "dstAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ) );
+                    builder.append_comma();
+                    builder.append_key_value( "alphaBlendOp", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ) );
+                    builder.append_comma();
+                    builder.append_key_value( "colorWriteMask", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ) );
+                    builder.end_object();
                 }
+
+                builder.end_array();
             }
+            else
+            {
+                builder.append_null();
+            }
+
+            builder.end_object();
+        }
+        else
+        {
+            builder.append_null();
         }
 
         // VkPipelineDynamicStateCreateInfo
+        builder.append_comma();
+        builder.escape_and_append_with_quotes( "dynamicStates" );
+        builder.append_colon();
+
         if( createInfo.pDynamicState )
         {
+            builder.start_array();
+
             const auto& state = *createInfo.pDynamicState;
             for( uint32_t i = 0; i < state.dynamicStateCount; ++i )
             {
-                args["dynamicStates"].push_back(
+                if( i > 0 ) builder.append_comma();
+                builder.escape_and_append_with_quotes(
                     m_pStringSerializer->GetDynamicStateName( state.pDynamicStates[i] ) );
             }
-        }
 
-        return args;
+            builder.end_array();
+        }
     }
 
     /*************************************************************************\
@@ -795,13 +1205,9 @@ namespace Profiler
         Serialize compute pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetComputePipelineCreateInfoArgs( const VkComputePipelineCreateInfo& createInfo ) const
+    void DeviceProfilerJsonSerializer::WriteComputePipelineCreateInfoArgs( simdjson::builder::string_builder& builder, const VkComputePipelineCreateInfo& createInfo, bool firstArg ) const
     {
-        nlohmann::json args = {};
-
         // No additional state to serialize for compute pipelines yet.
-
-        return args;
     }
 
     /*************************************************************************\
@@ -813,34 +1219,45 @@ namespace Profiler
         Serialize ray-tracing pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetRayTracingPipelineCreateInfoArgs( const VkRayTracingPipelineCreateInfoKHR& createInfo ) const
+    void DeviceProfilerJsonSerializer::WriteRayTracingPipelineCreateInfoArgs( simdjson::builder::string_builder& builder, const VkRayTracingPipelineCreateInfoKHR& createInfo, bool firstArg ) const
     {
-        nlohmann::json args = {};
-        args["maxPipelineRayRecursionDepth"] = createInfo.maxPipelineRayRecursionDepth;
-        args["libraryInterface"] = nullptr;
-        args["dynamicStates"] = nlohmann::json::array();
+        if( !firstArg ) builder.append_comma();
+
+        builder.append_key_value( "maxPipelineRayRecursionDepth", createInfo.maxPipelineRayRecursionDepth );
+        builder.append_comma();
 
         // VkRayTracingPipelineInterfaceCreateInfoKHR
+        builder.escape_and_append_with_quotes( "libraryInterface" );
+        builder.append_colon();
+
         if( createInfo.pLibraryInterface )
         {
             const auto& state = *createInfo.pLibraryInterface;
-            args["libraryInterface"] = {
-                { "maxPipelineRayPayloadSize", state.maxPipelineRayPayloadSize },
-                { "maxPipelineRayHitAttributeSize", state.maxPipelineRayHitAttributeSize }
-            };
+            builder.start_object();
+            builder.append_key_value( "maxPipelineRayPayloadSize", state.maxPipelineRayPayloadSize );
+            builder.append_comma();
+            builder.append_key_value( "maxPipelineRayHitAttributeSize", state.maxPipelineRayHitAttributeSize );
+            builder.end_object();
         }
 
         // VkPipelineDynamicStateCreateInfo
+        builder.append_comma();
+        builder.escape_and_append_with_quotes( "dynamicStates" );
+        builder.append_colon();
+
         if( createInfo.pDynamicState )
         {
+            builder.start_array();
+
             const auto& state = *createInfo.pDynamicState;
             for( uint32_t i = 0; i < state.dynamicStateCount; ++i )
             {
-                args["dynamicStates"].push_back(
+                if( i > 0 ) builder.append_comma();
+                builder.escape_and_append_with_quotes(
                     m_pStringSerializer->GetDynamicStateName( state.pDynamicStates[i] ) );
             }
-        }
 
-        return args;
+            builder.end_array();
+        }
     }
 }

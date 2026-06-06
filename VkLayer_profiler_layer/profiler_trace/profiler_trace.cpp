@@ -117,13 +117,16 @@ namespace Profiler
         , m_OutputFileEmpty( true )
         , m_pData( nullptr )
         , m_CommandQueue( VK_NULL_HANDLE )
-        , m_Events()
+        , m_JsonBuilder()
         , m_DebugLabelStackDepth( 0 )
         , m_HostTimeDomain( OSGetDefaultTimeDomain() )
         , m_HostCalibratedTimestamp( 0 )
         , m_DeviceCalibratedTimestamp( 0 )
         , m_HostTimestampFrequency( OSGetTimestampFrequency( m_HostTimeDomain ) )
         , m_GpuTimestampPeriod( Nanoseconds( m_Frontend.GetPhysicalDeviceProperties().limits.timestampPeriod ) )
+        , m_SerializationTime( 0 )
+        , m_FramesSerialized( 0 )
+        , m_EventsSerialized( 0 )
     {
     }
 
@@ -227,6 +230,11 @@ namespace Profiler
             }
         }
 
+        printf( "VK Profiler: Serialization time: %.5f ms, Frames: %llu, Events: %llu\n",
+            m_SerializationTime.count(),
+            m_FramesSerialized,
+            m_EventsSerialized );
+
         return true;
     }
 
@@ -240,7 +248,7 @@ namespace Profiler
     \*************************************************************************/
     bool DeviceProfilerTraceSerializer::AppendEventsToOutputFile()
     {
-        if( m_Events.empty() || m_OutputFile.fail() )
+        if( m_OutputFile.fail() )
         {
             // Silently ignore the attempt if an error occurred previously or there are no events to write.
             return false;
@@ -261,10 +269,7 @@ namespace Profiler
                 m_OutputFile << lf;
             }
 
-            for( const json& event : m_Events )
-            {
-                m_OutputFile << event << eol;
-            }
+            m_OutputFile << m_JsonBuilder.c_str() << std::flush;
 
             // Remove the last comma and insert end of array and end of object
             m_OutputFile.seekp( -eol_len, std::ios::end );
@@ -307,13 +312,15 @@ namespace Profiler
         // Setup state for serialization
         m_pData = &data;
 
+        auto begin = std::chrono::high_resolution_clock::now();
+
         SetupTimestampNormalizationConstants();
 
         const Milliseconds frameGpuBeginTimestamp = GetNormalizedGpuTimestamp( data.m_BeginTimestamp );
         const Milliseconds frameGpuEndTimestamp = GetNormalizedGpuTimestamp( data.m_EndTimestamp );
 
         std::string frameName = "Frame #" + std::to_string( data.m_CPU.m_FrameIndex );
-        m_Events.push_back( TraceEvent(
+        AppendEvent( TraceEvent(
             TraceEvent::Phase::eDurationBegin,
             frameName,
             "Frames",
@@ -326,7 +333,7 @@ namespace Profiler
             m_CommandQueue = submitBatchData.m_Handle;
 
             // Insert queue submission event
-            m_Events.push_back( ApiTraceEvent(
+            AppendEvent( ApiTraceEvent(
                 TraceEvent::Phase::eInstant,
                 "vkQueueSubmit",
                 submitBatchData.m_ThreadId,
@@ -337,7 +344,7 @@ namespace Profiler
                 #if ENABLE_FLOW_EVENTS
                 for( const auto& waitSemaphore : submitData.m_WaitSemaphores )
                 {
-                    m_Events.push_back( TraceEvent(
+                    AppendEvent( TraceEvent(
                         TraceEvent::Phase::eFlowEnd,
                         m_pStringSerializer->GetName( waitSemaphore ),
                         "Synchronization",
@@ -354,7 +361,7 @@ namespace Profiler
                 #if ENABLE_FLOW_EVENTS
                 for( const auto& signalSemaphpre : submitData.m_SignalSemaphores )
                 {
-                    m_Events.push_back( TraceEvent(
+                    AppendEvent( TraceEvent(
                         TraceEvent::Phase::eFlowStart,
                         m_pStringSerializer->GetName( signalSemaphpre ),
                         "Synchronization",
@@ -368,7 +375,7 @@ namespace Profiler
         if( data.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT )
         {
             // Insert present event
-            m_Events.push_back( ApiTraceEvent(
+            AppendEvent( ApiTraceEvent(
                 TraceEvent::Phase::eInstant,
                 "vkQueuePresentKHR",
                 data.m_CPU.m_ThreadId,
@@ -397,7 +404,7 @@ namespace Profiler
                         data.m_PerformanceCounters.m_StreamResults[j].m_Samples[i];
                 }
 
-                m_Events.push_back( TraceCounterEvent(
+                AppendEvent( TraceCounterEvent(
                     GetNormalizedGpuTimestamp( data.m_PerformanceCounters.m_StreamTimestamps[i] ),
                     m_CommandQueue,
                     performanceCountersCount,
@@ -406,7 +413,7 @@ namespace Profiler
             }
 
             Fill( performanceCounterSamples, VkProfilerPerformanceCounterResultEXT{} );
-            m_Events.push_back( TraceCounterEvent(
+            AppendEvent( TraceCounterEvent(
                 frameGpuEndTimestamp,
                 m_CommandQueue,
                 performanceCountersCount,
@@ -414,7 +421,7 @@ namespace Profiler
                 performanceCounterSamples.data() ) );
         }
 
-        m_Events.push_back( TraceEvent(
+        AppendEvent( TraceEvent(
             TraceEvent::Phase::eDurationEnd,
             frameName,
             "Frames",
@@ -427,7 +434,13 @@ namespace Profiler
         // Write the serialized events to the output file
         bool result = AppendEventsToOutputFile();
 
-        m_Events.clear();
+        // Serialization debug
+        auto end = std::chrono::high_resolution_clock::now();
+        auto dur = Milliseconds( end - begin );
+        m_SerializationTime += dur;
+        m_FramesSerialized += 1;
+
+        m_JsonBuilder.clear();
         m_pData = nullptr;
 
         return result;
@@ -580,7 +593,7 @@ namespace Profiler
         const std::string eventName = m_pStringSerializer->GetName( data );
 
         // Begin
-        m_Events.push_back( TraceEvent(
+        AppendEvent( TraceEvent(
             TraceEvent::Phase::eDurationBegin,
             eventName,
             "Command buffers",
@@ -599,7 +612,7 @@ namespace Profiler
                 performanceCounterCount,
                 performanceCounterProperties.data() );
 
-            m_Events.push_back( TraceCounterEvent(
+            AppendEvent( TraceCounterEvent(
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue,
                 performanceCounterProperties.size(),
@@ -619,7 +632,7 @@ namespace Profiler
         // Clear performance counters before the next command buffer
         if( performanceCounterCount )
         {
-            m_Events.push_back( TraceCounterEvent(
+            AppendEvent( TraceCounterEvent(
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
                 m_CommandQueue,
                 performanceCounterProperties.size(),
@@ -628,7 +641,7 @@ namespace Profiler
         }
 
         // End
-        m_Events.push_back( TraceEvent(
+        AppendEvent( TraceEvent(
             TraceEvent::Phase::eDurationEnd,
             eventName,
             "Command buffers",
@@ -653,7 +666,7 @@ namespace Profiler
         if( isValidRenderPass )
         {
             // Begin
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Render passes",
@@ -666,14 +679,14 @@ namespace Profiler
                 const std::string beginEventName = m_pStringSerializer->GetName( data.m_Begin, data.m_Dynamic );
 
                 // vkCmdBeginRenderPass
-                m_Events.push_back( TraceEvent(
+                AppendEvent( TraceEvent(
                     TraceEvent::Phase::eDurationBegin,
                     beginEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_Begin.m_BeginTimestamp.m_Value ),
                     m_CommandQueue ) );
 
-                m_Events.push_back( TraceEvent(
+                AppendEvent( TraceEvent(
                     TraceEvent::Phase::eDurationEnd,
                     beginEventName,
                     "Drawcalls",
@@ -696,14 +709,14 @@ namespace Profiler
                 const std::string endEventName = m_pStringSerializer->GetName( data.m_End, data.m_Dynamic );
 
                 // vkCmdEndRenderPass
-                m_Events.push_back( TraceEvent(
+                AppendEvent( TraceEvent(
                     TraceEvent::Phase::eDurationBegin,
                     endEventName,
                     "Drawcalls",
                     GetNormalizedGpuTimestamp( data.m_End.m_BeginTimestamp.m_Value ),
                     m_CommandQueue ) );
 
-                m_Events.push_back( TraceEvent(
+                AppendEvent( TraceEvent(
                     TraceEvent::Phase::eDurationEnd,
                     endEventName,
                     "Drawcalls",
@@ -712,7 +725,7 @@ namespace Profiler
             }
 
             // End
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 eventName,
                 "Render passes",
@@ -737,7 +750,7 @@ namespace Profiler
         if( !isOnlySubpassInRenderPass )
         {
             // Begin
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName, "",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
@@ -766,7 +779,7 @@ namespace Profiler
         if( !isOnlySubpassInRenderPass )
         {
             // End
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 eventName, "",
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
@@ -786,7 +799,6 @@ namespace Profiler
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerPipelineData& data )
     {
         const std::string eventName = m_pStringSerializer->GetName( data, true /*showEntryPoints*/ );
-        const nlohmann::json eventArgs = m_pJsonSerializer->GetPipelineArgs( data );
 
         const bool isValidPipeline =
             (data.m_Handle ||
@@ -796,14 +808,14 @@ namespace Profiler
         if( isValidPipeline )
         {
             // Begin
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Pipelines",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue,
-                {} ,
-                eventArgs ) );
+                {},
+                [&]( simdjson::builder::string_builder& builder ) { m_pJsonSerializer->WritePipelineArgs( builder, data ); } ) );
         }
 
         for( const auto& drawcall : data.m_Drawcalls )
@@ -818,7 +830,7 @@ namespace Profiler
         if( isValidPipeline )
         {
             // End
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 eventName,
                 "Pipelines",
@@ -841,19 +853,18 @@ namespace Profiler
         if( data.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
             const std::string eventName = m_pStringSerializer->GetCommandName( data );
-            const nlohmann::json eventArgs = m_pJsonSerializer->GetCommandArgs( data );
 
             // Cannot use complete events due to loss of precision
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 eventName,
                 "Drawcalls",
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue,
                 {},
-                eventArgs ) );
+                [&]( simdjson::builder::string_builder& builder ) { m_pJsonSerializer->WriteCommandArgs( builder, data ); } ) );
 
-            m_Events.push_back( TraceEvent(
+            AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 eventName,
                 "Drawcalls",
@@ -867,7 +878,7 @@ namespace Profiler
             {
                 const char* pDebugLabel = data.m_Payload.m_DebugLabel.m_pName == nullptr ? "" : data.m_Payload.m_DebugLabel.m_pName;
                 // Insert debug labels as instant events
-                m_Events.push_back( DebugTraceEvent(
+                AppendEvent( DebugTraceEvent(
                     TraceEvent::Phase::eInstant,
                     pDebugLabel,
                     GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
@@ -876,7 +887,7 @@ namespace Profiler
             if( data.m_Type == DeviceProfilerDrawcallType::eBeginDebugLabel )
             {
                 const char* pDebugLabel = data.m_Payload.m_DebugLabel.m_pName == nullptr ? "" : data.m_Payload.m_DebugLabel.m_pName;
-                m_Events.push_back( DebugTraceEvent(
+                AppendEvent( DebugTraceEvent(
                     TraceEvent::Phase::eDurationBegin,
                     pDebugLabel,
                     GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
@@ -889,7 +900,7 @@ namespace Profiler
                 // End only events that started in current frame
                 if( m_DebugLabelStackDepth > 0 )
                 {
-                    m_Events.push_back( DebugTraceEvent(
+                    AppendEvent( DebugTraceEvent(
                         TraceEvent::Phase::eDurationEnd,
                         "",
                         GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ) ) );
@@ -910,18 +921,34 @@ namespace Profiler
     {
         for( const TipRange& range : tipData )
         {
-            m_Events.push_back( ApiTraceEvent(
+            AppendEvent( ApiTraceEvent(
                 TraceEvent::Phase::eDurationBegin,
                 range.m_pFunctionName,
                 range.m_ThreadId,
                 GetNormalizedCpuTimestamp( range.m_BeginTimestamp ) ) );
 
-            m_Events.push_back( ApiTraceEvent(
+            AppendEvent( ApiTraceEvent(
                 TraceEvent::Phase::eDurationEnd,
                 range.m_pFunctionName,
                 range.m_ThreadId,
                 GetNormalizedCpuTimestamp( range.m_EndTimestamp ) ) );
         }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Serialize
+
+    \*************************************************************************/
+    void DeviceProfilerTraceSerializer::AppendEvent( const TraceEvent& event )
+    {
+        m_JsonBuilder.start_object();
+        event.Serialize( m_JsonBuilder );
+        m_JsonBuilder.end_object();
+        m_JsonBuilder.append_comma();
+        m_JsonBuilder.append( '\n' );
+        m_EventsSerialized += 1;
     }
 
     /*************************************************************************\

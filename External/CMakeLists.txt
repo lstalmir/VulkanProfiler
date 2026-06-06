@@ -126,6 +126,9 @@ add_subdirectory (VulkanMemoryAllocator)
 set (JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory (json)
 
+# simdjson/simdjson
+add_subdirectory (simdjson)
+
 # ocornut/imgui
 set (imgui_backends
     imgui/backends/imgui_impl_vulkan.h
