@@ -466,7 +466,7 @@ namespace Profiler
         // Append shader stages info.
         if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
         {
-            auto shadersBuilder = argsBuilder.AddArray( "shaderStages" );
+            auto shadersBuilder = argsBuilder.AddArray( "shaders" );
             for( const ProfilerShader& shader : pipeline.m_ShaderTuple.m_Shaders )
             {
                 auto shaderBuilder = shadersBuilder.Add();
