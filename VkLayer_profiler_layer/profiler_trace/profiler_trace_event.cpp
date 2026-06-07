@@ -46,17 +46,16 @@ namespace Profiler
             builder.Add( "cat", m_Category );
         }
 
-        const char phase[] = { static_cast<char>( m_Phase ), '\0' };
-        builder.Add( "ph", std::string_view( phase ) );
+        builder.Add( "ph", static_cast<char>( m_Phase ) );
         builder.Add( "ts", m_Timestamp.count() );
         builder.Add( "pid", 0 );
 
         if( m_Queue != VK_NULL_HANDLE )
         {
-            char queueHexHandle[32] = {};
-            ProfilerStringFunctions::Hex( queueHexHandle, reinterpret_cast<uint64_t>( m_Queue ) );
+            char queueHexHandle[32] = "VkQueue 0x";
+            ProfilerStringFunctions::Hex( queueHexHandle + 10, reinterpret_cast<uint64_t>( m_Queue ) );
 
-            builder.Add( "tid", "VkQueue 0x"s + queueHexHandle );
+            builder.Add( "tid", std::string_view( queueHexHandle ) );
         }
 
         if( m_Color )
@@ -84,8 +83,7 @@ namespace Profiler
         TraceEvent::Serialize( builder );
 
         // Instant events contain additional 's' parameter
-        const char scope[] = { static_cast<char>(m_Scope), '\0' };
-        builder.Add( "s", std::string_view( scope ) );
+        builder.Add( "s", static_cast<char>( m_Scope ) );
     }
 
     /*************************************************************************\
@@ -185,8 +183,7 @@ namespace Profiler
 
         if( m_Phase == Phase::eInstant )
         {
-            const char scope[] = { static_cast<char>( TraceInstantEvent::Scope::eThread ), '\0' };
-            builder.Add( "s", std::string_view( scope ) );
+            builder.Add( "s", static_cast<char>( TraceInstantEvent::Scope::eThread ) );
         }
     }
 

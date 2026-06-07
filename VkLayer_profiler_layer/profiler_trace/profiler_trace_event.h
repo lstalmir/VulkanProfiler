@@ -70,13 +70,13 @@ namespace Profiler
             eContextEnd = ')'
         };
 
-        Phase          m_Phase;
-        std::string    m_Name;
-        std::string    m_Category;
-        Microseconds   m_Timestamp;
-        VkQueue        m_Queue;
-        BuildCallback  m_Color;
-        BuildCallback  m_Args;
+        Phase            m_Phase;
+        std::string_view m_Name;
+        std::string_view m_Category;
+        Microseconds     m_Timestamp;
+        VkQueue          m_Queue;
+        BuildCallback    m_Color;
+        BuildCallback    m_Args;
 
         TraceEvent() = default;
 
