@@ -36,12 +36,7 @@
 #include <iomanip>
 #include <iostream>
 
-#include <nlohmann/json.hpp>
-
 #include "profiler_ext/VkProfilerEXT.h"
-
-// Alias commonly used types
-using json = nlohmann::json;
 
 namespace
 {
@@ -179,7 +174,7 @@ namespace Profiler
             // Write file header.
             m_OutputFile << '{';
             m_OutputFile << "\"displayTimeUnit\":\"ns\"," << lf;
-            m_OutputFile << " \"otherData\":" << json::object() << "," << lf;
+            m_OutputFile << " \"otherData\":{}," << lf;
             m_OutputFile << " \"traceEvents\":[" << eof;
 
             m_OutputFileEmpty = true;
