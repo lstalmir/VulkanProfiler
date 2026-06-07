@@ -34,8 +34,6 @@ namespace Profiler
     \*************************************************************************/
     void TraceEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
     {
-        using namespace std::literals;
-
         if( !m_Name.empty() )
         {
             builder.Add( "name", m_Name );
@@ -60,12 +58,14 @@ namespace Profiler
 
         if( m_Color )
         {
-            m_Color( builder.Add( "cname" ) );
+            auto cnameBuilder = builder.Add( "cname" );
+            m_Color( cnameBuilder );
         }
 
         if( m_Args )
         {
-            m_Args( builder.Add( "args" ) );
+            auto argsBuilder = builder.Add( "args" );
+            m_Args( argsBuilder );
         }
     }
 

@@ -251,16 +251,26 @@ namespace Profiler
             break;
 
         case DeviceProfilerDrawcallType::eClearColorImage:
+        {
             argsBuilder
                 .Add( "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearColorImage.m_Image ) );
-            WriteColorClearValue( argsBuilder.Add( "value" ), drawcall.m_Payload.m_ClearColorImage.m_Value );
+
+            auto valueBuilder = argsBuilder.Add( "value" );
+            WriteColorClearValue( valueBuilder, drawcall.m_Payload.m_ClearColorImage.m_Value );
+
             break;
+        }
 
         case DeviceProfilerDrawcallType::eClearDepthStencilImage:
+        {
             argsBuilder
                 .Add( "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearDepthStencilImage.m_Image ) );
-            WriteDepthStencilClearValue( argsBuilder.Add( "value" ), drawcall.m_Payload.m_ClearDepthStencilImage.m_Value );
+
+            auto valueBuilder = argsBuilder.Add( "value" );
+            WriteDepthStencilClearValue( valueBuilder, drawcall.m_Payload.m_ClearDepthStencilImage.m_Value );
+
             break;
+        }
 
         case DeviceProfilerDrawcallType::eResolveImage:
             argsBuilder
@@ -459,7 +469,8 @@ namespace Profiler
             auto shadersBuilder = argsBuilder.AddArray( "shaderStages" );
             for( const ProfilerShader& shader : pipeline.m_ShaderTuple.m_Shaders )
             {
-                WriteShaderStageArgs( shadersBuilder.Add(), shader );
+                auto shaderBuilder = shadersBuilder.Add();
+                WriteShaderStageArgs( shaderBuilder, shader );
             }
         }
 

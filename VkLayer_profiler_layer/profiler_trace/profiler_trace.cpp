@@ -922,7 +922,9 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::AppendEvent( const TraceEvent& event )
     {
-        event.Serialize( DeviceProfilerJsonObjectBuilder( m_JsonBuilder ) );
+        DeviceProfilerJsonObjectBuilder builder( m_JsonBuilder );
+        event.Serialize( builder );
+        builder.End();
 
         m_JsonBuilder.append_raw( ",\n" );
     }
