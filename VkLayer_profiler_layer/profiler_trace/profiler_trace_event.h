@@ -19,10 +19,9 @@
 // SOFTWARE.
 
 #pragma once
-#include "profiler_json.h"
+#include "profiler_helpers/profiler_json_builder.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
-#include <simdjson.h>
 #include <functional>
 
 #include "profiler_ext/VkProfilerEXT.h"
@@ -43,7 +42,7 @@ namespace Profiler
     \*************************************************************************/
     struct TraceEvent
     {
-        typedef std::function<void( DeviceProfilerJsonBuilder& )> Callback;
+        typedef std::function<void( DeviceProfilerJsonValueBuilder& )> BuildCallback;
 
         enum class Phase
         {
@@ -76,8 +75,8 @@ namespace Profiler
         std::string    m_Category;
         Microseconds   m_Timestamp;
         VkQueue        m_Queue;
-        Callback       m_Color;
-        Callback       m_Args;
+        BuildCallback  m_Color;
+        BuildCallback  m_Args;
 
         TraceEvent() = default;
 
@@ -88,8 +87,8 @@ namespace Profiler
             std::string_view category,
             TimestampType timestamp,
             VkQueue queue,
-            Callback color = {},
-            Callback args = {} )
+            BuildCallback color = {},
+            BuildCallback args = {} )
             : m_Phase( phase )
             , m_Name( name )
             , m_Category( category )
@@ -100,7 +99,7 @@ namespace Profiler
         {
         }
 
-        virtual void Serialize( DeviceProfilerJsonBuilder& builder ) const;
+        virtual void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const;
     };
 
     /*************************************************************************\
@@ -135,14 +134,14 @@ namespace Profiler
             std::string_view category,
             TimestampType timestamp,
             VkQueue queue,
-            Callback color = {},
-            Callback args = {} )
+            BuildCallback color = {},
+            BuildCallback args = {} )
             : TraceEvent( Phase::eInstant, name, category, timestamp, queue, color, args )
             , m_Scope( scope )
         {
         }
 
-        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -171,8 +170,8 @@ namespace Profiler
             std::string_view category,
             TimestampType timestamp,
             VkQueue queue,
-            Callback color = {},
-            Callback args = {} )
+            BuildCallback color = {},
+            BuildCallback args = {} )
             : TraceEvent( phase, name, category, timestamp, queue, color, args )
             , m_Id( id )
         {
@@ -181,7 +180,7 @@ namespace Profiler
                 || (m_Phase == Phase::eAsyncInstant) );
         }
 
-        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -209,14 +208,14 @@ namespace Profiler
             TimestampType timestamp,
             DurationType duration,
             VkQueue queue,
-            Callback color = {},
-            Callback args = {} )
+            BuildCallback color = {},
+            BuildCallback args = {} )
             : TraceEvent( Phase::eComplete, name, category, timestamp, queue, color, args )
             , m_Duration( std::chrono::duration_cast<decltype(m_Duration)>(duration) )
         {
         }
 
-        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -246,7 +245,7 @@ namespace Profiler
             size_t counterCount,
             const VkProfilerPerformanceCounterProperties2EXT* pCounterProperties,
             const VkProfilerPerformanceCounterResultEXT* pCounterResults,
-            Callback color = {} )
+            BuildCallback color = {} )
             : TraceEvent( Phase::eCounter, "", "", timestamp, queue, color )
             , m_CounterCount( counterCount )
             , m_pCounterProperties( pCounterProperties )
@@ -254,7 +253,7 @@ namespace Profiler
         {
         }
 
-        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -276,13 +275,13 @@ namespace Profiler
             Phase phase,
             std::string_view name,
             TimestampType timestamp,
-            Callback color = {},
-            Callback args = {} )
+            BuildCallback color = {},
+            BuildCallback args = {} )
             : TraceEvent( phase, name, "Debug", timestamp, VK_NULL_HANDLE, color, args )
         {
         }
 
-        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -307,13 +306,13 @@ namespace Profiler
             std::string_view name,
             uint32_t threadId,
             TimestampType timestamp,
-            Callback color = {},
-            Callback args = {} )
+            BuildCallback color = {},
+            BuildCallback args = {} )
             : TraceEvent( phase, name, "API", timestamp, VK_NULL_HANDLE, color, args )
             , m_ThreadId( threadId )
         {
         }
 
-        void Serialize( DeviceProfilerJsonBuilder& builder ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 }

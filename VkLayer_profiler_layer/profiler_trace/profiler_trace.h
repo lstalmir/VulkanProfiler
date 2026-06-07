@@ -19,9 +19,9 @@
 // SOFTWARE.
 
 #pragma once
-#include "profiler_json.h"
 #include "profiler/profiler_frontend.h"
 #include "profiler_helpers/profiler_time_helpers.h"
+#include "profiler_helpers/profiler_json_builder.h"
 #include <vulkan/vulkan.h>
 #include <atomic>
 #include <list>

@@ -269,7 +269,7 @@ namespace Profiler
                 m_OutputFile << lf;
             }
 
-            m_OutputFile << m_JsonBuilder.GetStringBuilder().view() << std::flush;
+            m_OutputFile << m_JsonBuilder.view() << std::flush;
 
             // Remove the last comma and insert end of array and end of object
             m_OutputFile.seekp( -eol_len, std::ios::end );
@@ -440,7 +440,7 @@ namespace Profiler
         m_SerializationTime += dur;
         m_FramesSerialized += 1;
 
-        m_JsonBuilder.Reset();
+        m_JsonBuilder.clear();
         m_pData = nullptr;
 
         return result;
@@ -815,7 +815,7 @@ namespace Profiler
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue,
                 {},
-                [&]( DeviceProfilerJsonBuilder& builder ) { m_pJsonSerializer->WritePipelineArgs( builder, data ); } ) );
+                [&]( DeviceProfilerJsonValueBuilder& builder ) { m_pJsonSerializer->WritePipelineArgs( builder, data ); } ) );
         }
 
         for( const auto& drawcall : data.m_Drawcalls )
@@ -862,7 +862,7 @@ namespace Profiler
                 GetNormalizedGpuTimestamp( data.m_BeginTimestamp.m_Value ),
                 m_CommandQueue,
                 {},
-                [&]( DeviceProfilerJsonBuilder& builder ) { m_pJsonSerializer->WriteCommandArgs( builder, data ); } ) );
+                [&]( DeviceProfilerJsonValueBuilder& builder ) { m_pJsonSerializer->WriteCommandArgs( builder, data ); } ) );
 
             AppendEvent( TraceEvent(
                 TraceEvent::Phase::eDurationEnd,
@@ -943,12 +943,9 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::AppendEvent( const TraceEvent& event )
     {
-        m_JsonBuilder.BeginObject();
-        event.Serialize( m_JsonBuilder );
-        m_JsonBuilder.EndObject();
+        event.Serialize( DeviceProfilerJsonObjectBuilder( m_JsonBuilder ) );
 
-        m_JsonBuilder.EndScope();
-        m_JsonBuilder.GetStringBuilder().append_raw( ",\n" );
+        m_JsonBuilder.append_raw( ",\n" );
 
         m_EventsSerialized += 1;
     }

@@ -19,66 +19,11 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_helpers/profiler_json_builder.h"
 #include <vulkan/vulkan.h>
-#include <simdjson.h>
-#include <string_view>
 
 namespace Profiler
 {
-    /*************************************************************************\
-
-    Class:
-        DeviceProfilerJsonBuilder
-
-    Description:
-        Helper class to build JSON objects.
-        It provides a higher-level interface to simdjson builder.
-
-    \*************************************************************************/
-    class DeviceProfilerJsonBuilder
-    {
-    public:
-        DeviceProfilerJsonBuilder();
-
-        void Reset();
-
-        void AddValue( std::string_view value );
-        void AddValue( uint64_t value );
-        void AddValue( int64_t value );
-        void AddValue( uint32_t value );
-        void AddValue( int32_t value );
-        void AddValue( double value );
-        void AddValue( bool value );
-
-        void AddKeyValue( std::string_view key, std::string_view value );
-        void AddKeyValue( std::string_view key, uint64_t value );
-        void AddKeyValue( std::string_view key, int64_t value );
-        void AddKeyValue( std::string_view key, uint32_t value );
-        void AddKeyValue( std::string_view key, int32_t value );
-        void AddKeyValue( std::string_view key, double value );
-        void AddKeyValue( std::string_view key, bool value );
-
-        void BeginKeyValue( std::string_view key );
-        void EndKeyValue();
-
-        void BeginArray( std::string_view name = std::string_view() );
-        bool BeginArray( std::string_view name, const void* pSourceArray );
-        void EndArray();
-
-        void BeginObject( std::string_view name = std::string_view() );
-        bool BeginObject( std::string_view name, const void* pSourceObject );
-        void EndObject();
-
-        void EndScope();
-
-        simdjson::builder::string_builder& GetStringBuilder();
-
-    private:
-        simdjson::builder::string_builder m_Builder;
-
-        bool m_FirstElementInScope;
-    };
-
     /*************************************************************************\
 
     Class:
@@ -93,17 +38,17 @@ namespace Profiler
     public:
         DeviceProfilerJsonSerializer( const class DeviceProfilerStringSerializer* );
 
-        void WriteCommandArgs( DeviceProfilerJsonBuilder&, const struct DeviceProfilerDrawcall& ) const;
-        void WritePipelineArgs( DeviceProfilerJsonBuilder&, const struct DeviceProfilerPipeline& ) const;
+        void WriteCommandArgs( DeviceProfilerJsonValueBuilder&, const struct DeviceProfilerDrawcall& ) const;
+        void WritePipelineArgs( DeviceProfilerJsonValueBuilder&, const struct DeviceProfilerPipeline& ) const;
 
     private:
         const class DeviceProfilerStringSerializer* m_pStringSerializer;
 
-        void WriteColorClearValue( DeviceProfilerJsonBuilder&, const VkClearColorValue& ) const;
-        void WriteDepthStencilClearValue( DeviceProfilerJsonBuilder&, const VkClearDepthStencilValue& ) const;
-        void WriteShaderStageArgs( DeviceProfilerJsonBuilder&, const struct ProfilerShader& ) const;
-        void WriteGraphicsPipelineCreateInfoArgs( DeviceProfilerJsonBuilder&, const VkGraphicsPipelineCreateInfo& ) const;
-        void WriteComputePipelineCreateInfoArgs( DeviceProfilerJsonBuilder&, const VkComputePipelineCreateInfo& ) const;
-        void WriteRayTracingPipelineCreateInfoArgs( DeviceProfilerJsonBuilder&, const VkRayTracingPipelineCreateInfoKHR& ) const;
+        void WriteColorClearValue( DeviceProfilerJsonValueBuilder&, const VkClearColorValue& ) const;
+        void WriteDepthStencilClearValue( DeviceProfilerJsonValueBuilder&, const VkClearDepthStencilValue& ) const;
+        void WriteShaderStageArgs( DeviceProfilerJsonValueBuilder&, const struct ProfilerShader& ) const;
+        void WriteGraphicsPipelineCreateInfoArgs( DeviceProfilerJsonObjectBuilder&, const VkGraphicsPipelineCreateInfo& ) const;
+        void WriteComputePipelineCreateInfoArgs( DeviceProfilerJsonObjectBuilder&, const VkComputePipelineCreateInfo& ) const;
+        void WriteRayTracingPipelineCreateInfoArgs( DeviceProfilerJsonObjectBuilder&, const VkRayTracingPipelineCreateInfoKHR& ) const;
     };
 }
