@@ -124,9 +124,6 @@ namespace Profiler
         , m_DeviceCalibratedTimestamp( 0 )
         , m_HostTimestampFrequency( OSGetTimestampFrequency( m_HostTimeDomain ) )
         , m_GpuTimestampPeriod( Nanoseconds( m_Frontend.GetPhysicalDeviceProperties().limits.timestampPeriod ) )
-        , m_SerializationTime( 0 )
-        , m_FramesSerialized( 0 )
-        , m_EventsSerialized( 0 )
     {
     }
 
@@ -230,11 +227,6 @@ namespace Profiler
             }
         }
 
-        printf( "VK Profiler: Serialization time: %.5f ms, Frames: %llu, Events: %llu\n",
-            m_SerializationTime.count(),
-            m_FramesSerialized,
-            m_EventsSerialized );
-
         return true;
     }
 
@@ -311,8 +303,6 @@ namespace Profiler
 
         // Setup state for serialization
         m_pData = &data;
-
-        auto begin = std::chrono::high_resolution_clock::now();
 
         SetupTimestampNormalizationConstants();
 
@@ -433,12 +423,6 @@ namespace Profiler
 
         // Write the serialized events to the output file
         bool result = AppendEventsToOutputFile();
-
-        // Serialization debug
-        auto end = std::chrono::high_resolution_clock::now();
-        auto dur = Milliseconds( end - begin );
-        m_SerializationTime += dur;
-        m_FramesSerialized += 1;
 
         m_JsonBuilder.clear();
         m_pData = nullptr;
@@ -946,8 +930,6 @@ namespace Profiler
         event.Serialize( DeviceProfilerJsonObjectBuilder( m_JsonBuilder ) );
 
         m_JsonBuilder.append_raw( ",\n" );
-
-        m_EventsSerialized += 1;
     }
 
     /*************************************************************************\

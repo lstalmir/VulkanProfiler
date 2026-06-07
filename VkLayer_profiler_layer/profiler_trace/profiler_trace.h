@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -115,11 +115,6 @@ namespace Profiler
         uint64_t     m_DeviceCalibratedTimestamp;
         uint64_t     m_HostTimestampFrequency;
         Milliseconds m_GpuTimestampPeriod;
-
-        // Serialization debug
-        Milliseconds m_SerializationTime;
-        uint64_t m_FramesSerialized;
-        uint64_t m_EventsSerialized;
 
         void SetupTimestampNormalizationConstants();
         Milliseconds GetNormalizedCpuTimestamp( uint64_t ) const;
