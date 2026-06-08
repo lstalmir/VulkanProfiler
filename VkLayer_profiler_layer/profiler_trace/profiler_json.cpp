@@ -512,29 +512,11 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerJsonSerializer::WriteColorClearValue( DeviceProfilerJsonValueBuilder& builder, const VkClearColorValue& value ) const
     {
-        auto valueBuilder = builder.MakeObject();
-        auto clearColorValueBuilder = valueBuilder.AddObject( "VkClearColorValue" );
-
-        auto float32Builder = clearColorValueBuilder.AddArray( "float32" );
-        for( int i = 0; i < 4; ++i )
-        {
-            float32Builder.Add( value.float32[i] );
-        }
-        float32Builder.End();
-
-        auto int32Builder = clearColorValueBuilder.AddArray( "int32" );
-        for( int i = 0; i < 4; ++i )
-        {
-            int32Builder.Add( value.int32[i] );
-        }
-        int32Builder.End();
-
-        auto uint32Builder = clearColorValueBuilder.AddArray( "uint32" );
-        for( int i = 0; i < 4; ++i )
-        {
-            uint32Builder.Add( value.uint32[i] );
-        }
-        uint32Builder.End();
+        builder.MakeObject()
+            .AddObject( "VkClearColorValue" )
+            .AddArray( "float32", value.float32 )
+            .AddArray( "int32", value.int32 )
+            .AddArray( "uint32", value.uint32 );
     }
 
     /*************************************************************************\
@@ -548,7 +530,8 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerJsonSerializer::WriteDepthStencilClearValue( DeviceProfilerJsonValueBuilder& builder, const VkClearDepthStencilValue& value ) const
     {
-        builder.MakeObject().AddObject( "VkClearDepthStencilValue" )
+        builder.MakeObject()
+            .AddObject( "VkClearDepthStencilValue" )
             .Add( "depth", value.depth )
             .Add( "stencil", value.stencil );
     }
@@ -766,14 +749,8 @@ namespace Profiler
             const auto& state = *createInfo.pColorBlendState;
             colorBlendStateBuilder
                 .Add( "logicOpEnable", static_cast<bool>( state.logicOpEnable ) )
-                .Add( "logicOp", m_pStringSerializer->GetLogicOpName( state.logicOp ) );
-
-            colorBlendStateBuilder
-                .AddArray( "blendConstants" )
-                .Add( state.blendConstants[0] )
-                .Add( state.blendConstants[1] )
-                .Add( state.blendConstants[2] )
-                .Add( state.blendConstants[3] );
+                .Add( "logicOp", m_pStringSerializer->GetLogicOpName( state.logicOp ) )
+                .AddArray( "blendConstants", state.blendConstants );
 
             if( auto attachmentsBuilder = colorBlendStateBuilder.AddArrayOrNull( "attachments", state.pAttachments ) )
             {

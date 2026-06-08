@@ -108,6 +108,12 @@ namespace Profiler
         DeviceProfilerJsonArrayBuilder AddArrayOrNull( bool condition );
         DeviceProfilerJsonObjectBuilder AddObjectOrNull( bool condition );
 
+        template<typename T>
+        DeviceProfilerJsonArrayBuilder& AddArray( const T& values );
+
+        template<typename T>
+        DeviceProfilerJsonArrayBuilder& AddArray( const T* pValues, size_t count );
+
         void End();
 
         bool IsEmpty() const { return m_IsEmpty; }
@@ -154,6 +160,12 @@ namespace Profiler
         DeviceProfilerJsonObjectBuilder AddObject( std::string_view key );
         DeviceProfilerJsonArrayBuilder AddArrayOrNull( std::string_view key, bool condition );
         DeviceProfilerJsonObjectBuilder AddObjectOrNull( std::string_view key, bool condition );
+
+        template<typename T>
+        DeviceProfilerJsonObjectBuilder& AddArray( std::string_view key, const T& values );
+
+        template<typename T>
+        DeviceProfilerJsonObjectBuilder& AddArray( std::string_view key, const T* pValues, size_t count );
 
         void End();
 
@@ -240,6 +252,52 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
+        AddArray
+
+    Description:
+        Adds an array to the JSON array and fills it with values from the
+        provided container.
+
+    \*************************************************************************/
+    template<typename T>
+    inline DeviceProfilerJsonArrayBuilder& DeviceProfilerJsonArrayBuilder::AddArray( const T& values )
+    {
+        auto arrayBuilder = AddArray();
+        for( const auto& value : values )
+        {
+            arrayBuilder.Add( value );
+        }
+        arrayBuilder.End();
+
+        return *this;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        AddArray
+
+    Description:
+        Adds an array to the JSON array and fills it with values from the
+        provided container.
+
+    \*************************************************************************/
+    template<typename T>
+    inline DeviceProfilerJsonArrayBuilder& DeviceProfilerJsonArrayBuilder::AddArray( const T* pValues, size_t count )
+    {
+        auto arrayBuilder = AddArray();
+        for( size_t i = 0; i < count; ++i )
+        {
+            arrayBuilder.Add( pValues[i] );
+        }
+        arrayBuilder.End();
+
+        return *this;
+    }
+
+    /*************************************************************************\
+
+    Function:
         Add
 
     Description:
@@ -257,6 +315,52 @@ namespace Profiler
         m_IsEmpty = false;
 
         m_Builder.append_key_value( key, value );
+
+        return *this;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        AddArray
+
+    Description:
+        Adds an array to the JSON object and fills it with values from the
+        provided container.
+
+    \*************************************************************************/
+    template<typename T>
+    inline DeviceProfilerJsonObjectBuilder& DeviceProfilerJsonObjectBuilder::AddArray( std::string_view key, const T& values )
+    {
+        auto arrayBuilder = AddArray( key );
+        for( const auto& value : values )
+        {
+            arrayBuilder.Add( value );
+        }
+        arrayBuilder.End();
+
+        return *this;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        AddArray
+
+    Description:
+        Adds an array to the JSON object and fills it with values from the
+        provided container.
+
+    \*************************************************************************/
+    template<typename T>
+    inline DeviceProfilerJsonObjectBuilder& DeviceProfilerJsonObjectBuilder::AddArray( std::string_view key, const T* pValues, size_t count )
+    {
+        auto arrayBuilder = AddArray( key );
+        for( size_t i = 0; i < count; ++i )
+        {
+            arrayBuilder.Add( pValues[i] );
+        }
+        arrayBuilder.End();
 
         return *this;
     }
