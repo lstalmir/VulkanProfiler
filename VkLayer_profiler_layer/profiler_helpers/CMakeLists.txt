@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025 Lukasz Stalmirski
+# Copyright (c) 2019-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@ project (profiler_helpers)
 
 set (headers
     "profiler_csv_helpers.h"
+    "profiler_json_builder.h"
     "profiler_string_serializer.h"
     "profiler_memory_comparator.h"
     "profiler_metrics_set_file.h"
@@ -32,6 +33,7 @@ set (headers
 
 set (sources
     "profiler_csv_helpers.cpp"
+    "profiler_json_builder.cpp"
     "profiler_string_serializer.cpp"
     "profiler_memory_comparator.cpp"
     "profiler_metrics_set_file.cpp"

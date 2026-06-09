@@ -126,6 +126,9 @@ add_subdirectory (VulkanMemoryAllocator)
 set (JSON_BuildTests OFF CACHE INTERNAL "")
 add_subdirectory (json)
 
+# simdjson/simdjson
+add_subdirectory (simdjson)
+
 # biojppm/rapidyaml
 function (build_rapidyaml)
     find_package (Python3 COMPONENTS Interpreter)

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,7 @@
 #pragma once
 #include "profiler/profiler_frontend.h"
 #include "profiler_helpers/profiler_time_helpers.h"
-#include <nlohmann/json.hpp>
+#include "profiler_helpers/profiler_json_builder.h"
 #include <vulkan/vulkan.h>
 #include <atomic>
 #include <list>
@@ -34,6 +34,8 @@
 
 namespace Profiler
 {
+    struct TraceEvent;
+
     /*************************************************************************\
 
     Structure:
@@ -101,7 +103,7 @@ namespace Profiler
         VkQueue      m_CommandQueue;
 
         // Serialized events
-        nlohmann::json m_Events;
+        DeviceProfilerJsonBuilder m_JsonBuilder;
 
         // Debug labels can cross command buffer and frame boundaries
         // Tracking depth of the stack to detect labels which begin in one frame and end in the next
@@ -132,6 +134,7 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerDrawcall& );
         void Serialize( const std::vector<struct TipRange>& );
 
+        void AppendEvent( const TraceEvent& event );
         bool AppendEventsToOutputFile();
     };
 
