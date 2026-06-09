@@ -19,10 +19,11 @@
 // SOFTWARE.
 
 #include "profiler_metrics_set_file.h"
+#include "profiler_json_builder.h"
 #include "profiler/profiler_frontend.h"
 
 #include <assert.h>
-#include <nlohmann/json.hpp>
+#include <simdjson.h>
 
 namespace Profiler
 {
@@ -55,17 +56,18 @@ namespace Profiler
     {
         try
         {
-            std::ifstream file( filename );
-            nlohmann::json json = nlohmann::json::parse( file );
+            simdjson::padded_string fileData = simdjson::padded_string::load( filename );
+            simdjson::ondemand::parser parser;
+            simdjson::ondemand::document json = parser.iterate( fileData );
 
-            m_Name = json["name"].get<std::string>();
-            m_Description = json["description"].get<std::string>();
+            m_Name = json["name"].get_string().value();
+            m_Description = json["description"].get_string().value();
 
             m_Counters.clear();
 
-            for( const auto& counter : json["counters"] )
+            for( auto counter : json["counters"] )
             {
-                m_Counters.push_back( counter.get<std::string>() );
+                m_Counters.push_back( std::string( counter.get_string().value() ) );
             }
 
             return true;
@@ -89,13 +91,14 @@ namespace Profiler
     {
         try
         {
-            nlohmann::json json;
-            json["name"] = m_Name;
-            json["description"] = m_Description;
-            json["counters"] = m_Counters;
+            DeviceProfilerJsonBuilder jsonBuilder;
+            DeviceProfilerJsonObjectBuilder( jsonBuilder )
+                .Add( "name", m_Name )
+                .Add( "description", m_Description )
+                .AddArray( "counters", m_Counters );
 
             std::ofstream file( filename );
-            file << std::setw( 4 ) << json;
+            file << jsonBuilder.view();
 
             return true;
         }

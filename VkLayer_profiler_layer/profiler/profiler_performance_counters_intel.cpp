@@ -46,7 +46,7 @@
 #define PROFILER_METRICS_DLL_INTEL "libigdmd.so"
 #endif
 
-#include <nlohmann/json.hpp>
+#include <simdjson.h>
 #include <fstream>
 
 namespace MD = MetricsDiscovery;
@@ -1106,12 +1106,22 @@ namespace Profiler
             vulkanDriverName[ vulkanDriverNameLength ] = 0;
 
             // Parse JSON file.
-            nlohmann::json icd = nlohmann::json::parse( std::ifstream( vulkanDriverName ) );
+            simdjson::padded_string icdManifestFileData = simdjson::padded_string::load( vulkanDriverName );
+            simdjson::ondemand::parser parser;
+            simdjson::ondemand::document icd = parser.iterate( icdManifestFileData );
 
             if( icd[ "file_format_version" ] == "1.0.0" )
             {
                 // Get path to the DLL.
-                std::filesystem::path vulkanModulePath = icd[ "ICD" ][ "library_path" ];
+                auto libraryPathElement = icd[ "ICD" ][ "library_path" ].get_string();
+                if( libraryPathElement.error() )
+                {
+                    // Failed to read library_path from JSON.
+                    RegCloseKey( hDeviceRegistryKey );
+                    continue;
+                }
+
+                std::filesystem::path vulkanModulePath = libraryPathElement.value();
 
                 if( !vulkanModulePath.is_absolute() )
                 {
