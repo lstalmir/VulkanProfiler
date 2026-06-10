@@ -20,10 +20,10 @@
 
 #include "profiler_metrics_set_file.h"
 #include "profiler_json_builder.h"
+#include "profiler_json_parser.h"
 #include "profiler/profiler_frontend.h"
 
 #include <assert.h>
-#include <simdjson.h>
 
 namespace Profiler
 {
@@ -54,28 +54,31 @@ namespace Profiler
     \***********************************************************************************/
     bool DeviceProfilerMetricsSetFile::Read( const std::string& filename )
     {
-        try
-        {
-            simdjson::padded_string fileData = simdjson::padded_string::load( filename );
-            simdjson::ondemand::parser parser;
-            simdjson::ondemand::document json = parser.iterate( fileData );
-
-            m_Name = json["name"].get_string().value();
-            m_Description = json["description"].get_string().value();
-
-            m_Counters.clear();
-
-            for( auto counter : json["counters"] )
-            {
-                m_Counters.push_back( std::string( counter.get_string().value() ) );
-            }
-
-            return true;
-        }
-        catch( ... )
+        DeviceProfilerJsonParser parser;
+        if( !parser.ParseFile( filename ) )
         {
             return false;
         }
+
+        auto json = parser.GetParsedDocument().ToObject();
+        if( !json.IsValid() )
+        {
+            return false;
+        }
+
+        // Read metrics set properties.
+        m_Name = json.Get( "name" ).ToString();
+        m_Description = json.Get( "description" ).ToString();
+
+        m_Counters.clear();
+
+        for( const auto& counter : json.Get( "counters" ).ToArray() )
+        {
+            m_Counters.push_back( counter.ToString() );
+        }
+
+        // Validate read data.
+        return !m_Name.empty() && !m_Counters.empty();
     }
 
     /***********************************************************************************\

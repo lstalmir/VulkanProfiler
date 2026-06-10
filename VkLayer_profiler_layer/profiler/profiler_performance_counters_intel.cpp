@@ -21,6 +21,7 @@
 #include "profiler_performance_counters_intel.h"
 #include "profiler/profiler_config.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler_helpers/profiler_json_parser.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
 #ifndef NDEBUG
@@ -46,7 +47,6 @@
 #define PROFILER_METRICS_DLL_INTEL "libigdmd.so"
 #endif
 
-#include <simdjson.h>
 #include <fstream>
 
 namespace MD = MetricsDiscovery;
@@ -1106,22 +1106,30 @@ namespace Profiler
             vulkanDriverName[ vulkanDriverNameLength ] = 0;
 
             // Parse JSON file.
-            simdjson::padded_string icdManifestFileData = simdjson::padded_string::load( vulkanDriverName );
-            simdjson::ondemand::parser parser;
-            simdjson::ondemand::document icd = parser.iterate( icdManifestFileData );
+            DeviceProfilerJsonParser parser;
+            if( !parser.ParseFile( vulkanDriverName ) )
+            {
+                RegCloseKey( hDeviceRegistryKey );
+                continue;
+            }
 
-            if( icd[ "file_format_version" ] == "1.0.0" )
+            auto icd = parser.GetParsedDocument().ToObject();
+            if( !icd.IsValid() )
+            {
+                RegCloseKey( hDeviceRegistryKey );
+                continue;
+            }
+
+            if( icd.Get( "file_format_version" ).ToStringView() == "1.0.0" )
             {
                 // Get path to the DLL.
-                auto libraryPathElement = icd[ "ICD" ][ "library_path" ].get_string();
-                if( libraryPathElement.error() )
+                std::filesystem::path vulkanModulePath = icd.Get( "ICD" ).Get( "library_path" ).ToStringView();
+                if( vulkanModulePath.empty() )
                 {
                     // Failed to read library_path from JSON.
                     RegCloseKey( hDeviceRegistryKey );
                     continue;
                 }
-
-                std::filesystem::path vulkanModulePath = libraryPathElement.value();
 
                 if( !vulkanModulePath.is_absolute() )
                 {
