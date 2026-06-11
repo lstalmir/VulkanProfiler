@@ -348,7 +348,10 @@ namespace Profiler
     {
         try
         {
-            m_Object.value().find_field_unordered( key ).take_value().template get<T>( target );
+            if( m_Object.value().find_field_unordered( key ).take_value().template get<T>( target ) != simdjson::SUCCESS )
+            {
+                SetError();
+            }
         }
         catch( ... )
         {
@@ -374,7 +377,7 @@ namespace Profiler
 
         if( Read( key, array ) )
         {
-            for( auto& item : array )
+            for( auto item : array )
             {
                 if( item.template get<typename T::value_type>( target.emplace_back() ) != simdjson::SUCCESS )
                 {

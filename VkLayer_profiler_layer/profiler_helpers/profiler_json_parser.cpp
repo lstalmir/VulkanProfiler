@@ -188,7 +188,7 @@ namespace Profiler
         auto iterateResult = m_pData->m_Parser.iterate_many(
             m_pData->m_DataBuffer,
             simdjson::ondemand::DEFAULT_BATCH_SIZE,
-            true /*allowCommaSeparated*/ );
+            simdjson::stream_format::comma_delimited );
 
         if( iterateResult.error() )
         {
