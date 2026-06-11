@@ -24,6 +24,7 @@ project (profiler_helpers)
 
 set (headers
     "profiler_csv_helpers.h"
+    "profiler_json_common.h"
     "profiler_json_builder.h"
     "profiler_json_parser.h"
     "profiler_string_serializer.h"

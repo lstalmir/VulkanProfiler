@@ -1113,17 +1113,21 @@ namespace Profiler
                 continue;
             }
 
-            auto icd = parser.GetParsedDocument().ToObject();
-            if( !icd.IsValid() )
+            auto manifest = parser.GetParsedDocument().ReadObject();
+            if( !manifest.IsValid() )
             {
                 RegCloseKey( hDeviceRegistryKey );
                 continue;
             }
 
-            if( icd.Get( "file_format_version" ).ToStringView() == "1.0.0" )
+            if( manifest.Read( "file_format_version" ).ToStringView() == "1.0.0" )
             {
                 // Get path to the DLL.
-                std::filesystem::path vulkanModulePath = icd.Get( "ICD" ).Get( "library_path" ).ToStringView();
+                std::filesystem::path vulkanModulePath =
+                    manifest.ReadObject( "ICD" )
+                        .Read( "library_path" )
+                        .ToStringView();
+
                 if( vulkanModulePath.empty() )
                 {
                     // Failed to read library_path from JSON.

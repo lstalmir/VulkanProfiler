@@ -19,18 +19,18 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_json_common.h"
+
 #include <filesystem>
 #include <string_view>
 #include <string>
 #include <optional>
 
-#include <simdjson.h>
-
 namespace Profiler
 {
-    class DeviceProfilerJsonValue;
-    class DeviceProfilerJsonObject;
-    class DeviceProfilerJsonArray;
+    class DeviceProfilerJsonValueReader;
+    class DeviceProfilerJsonObjectReader;
+    class DeviceProfilerJsonArrayReader;
 
     /*************************************************************************\
 
@@ -54,7 +54,7 @@ namespace Profiler
         void Reset();
         void Rewind();
 
-        DeviceProfilerJsonValue GetParsedDocument();
+        DeviceProfilerJsonValueReader GetParsedDocument();
 
     private:
         struct ParserData;
@@ -66,74 +66,143 @@ namespace Profiler
     /*************************************************************************\
 
     Class:
-        DeviceProfilerJsonValue
+        DeviceProfilerJsonReaderBase
 
     Description:
-        Helper class to represent a JSON value.
+        Base class for all JSON readers.
+        Provides common functionality to track read errors.
 
     \*************************************************************************/
-    class DeviceProfilerJsonValue
+    class DeviceProfilerJsonReaderBase
     {
     public:
-        DeviceProfilerJsonValue();
-        DeviceProfilerJsonValue( simdjson::ondemand::value&& value );
+        DeviceProfilerJsonReaderBase()
+            : m_HasReadError( false )
+        {
+        }
 
-        bool IsValid() const { return m_Value.has_value(); }
+        void SetError() { m_HasReadError = true; }
+        void ClearErrors() { m_HasReadError = false; }
+        bool ReadErrors() { return std::exchange( m_HasReadError, false ); }
 
-        std::string_view ToStringView() const { return CastTo<std::string_view>(); }
-        std::string ToString() const { return std::string( ToStringView() ); }
-        int64_t ToInt64() const { return CastTo<int64_t>(); }
-        uint64_t ToUint64() const { return CastTo<uint64_t>(); }
-        int32_t ToInt32() const { return CastTo<int32_t>(); }
-        uint32_t ToUint32() const { return CastTo<uint32_t>(); }
-        double ToDouble() const { return CastTo<double>(); }
-        float ToFloat() const { return static_cast<float>( ToDouble() ); }
-        bool ToBool() const { return CastTo<bool>(); }
-
-        DeviceProfilerJsonObject ToObject() const;
-        DeviceProfilerJsonArray ToArray() const;
-
-        // Object-like accessor.
-        DeviceProfilerJsonValue Get( std::string_view key ) const;
-
-        // Array-like accessor.
-        DeviceProfilerJsonValue Get( size_t index ) const;
+        operator bool() & { return !m_HasReadError; }
 
     private:
-        std::optional<simdjson::ondemand::value> mutable m_Value;
-
-        template<typename T>
-        T CastTo() const;
+        bool m_HasReadError;
     };
 
     /*************************************************************************\
 
     Class:
-        DeviceProfilerJsonObject
+        DeviceProfilerJsonValueReader
 
     Description:
-        Helper class to represent a JSON object.
+        Helper class to read a JSON value.
 
     \*************************************************************************/
-    class DeviceProfilerJsonObject
+    class DeviceProfilerJsonValueReader
+        : public DeviceProfilerJsonReaderBase
+    {
+    public:
+        DeviceProfilerJsonValueReader();
+        DeviceProfilerJsonValueReader( simdjson::ondemand::value&& value );
+
+        bool IsValid() const { return m_Value.has_value(); }
+
+        std::string_view ToStringView() { return CastTo<std::string_view>(); }
+        std::string ToString() { return std::string( ToStringView() ); }
+        int64_t ToInt64() { return CastTo<int64_t>(); }
+        uint64_t ToUint64() { return CastTo<uint64_t>(); }
+        int32_t ToInt32() { return CastTo<int32_t>(); }
+        uint32_t ToUint32() { return CastTo<uint32_t>(); }
+        double ToDouble() { return CastTo<double>(); }
+        float ToFloat() { return static_cast<float>( ToDouble() ); }
+        bool ToBool() { return CastTo<bool>(); }
+
+        DeviceProfilerJsonObjectReader ReadObject();
+        DeviceProfilerJsonArrayReader ReadArray();
+
+    private:
+        std::optional<simdjson::ondemand::value> m_Value;
+
+        template<typename T>
+        T CastTo();
+    };
+
+    /*************************************************************************\
+
+    Class:
+        DeviceProfilerJsonObjectReader
+
+    Description:
+        Helper class to read a JSON object.
+
+    \*************************************************************************/
+    class DeviceProfilerJsonObjectReader
+        : public DeviceProfilerJsonReaderBase
     {
     public:
         class Iterator;
 
-        DeviceProfilerJsonObject();
-        DeviceProfilerJsonObject( simdjson::ondemand::object&& object );
+        DeviceProfilerJsonObjectReader();
+        DeviceProfilerJsonObjectReader( simdjson::ondemand::object&& object );
+
+        DeviceProfilerJsonObjectReader( DeviceProfilerJsonObjectReader&& ) = delete;
+        DeviceProfilerJsonObjectReader& operator=( DeviceProfilerJsonObjectReader&& ) = delete;
+
+        DeviceProfilerJsonObjectReader( const DeviceProfilerJsonObjectReader& ) = delete;
+        DeviceProfilerJsonObjectReader& operator=( const DeviceProfilerJsonObjectReader& ) = delete;
 
         bool IsValid() const { return m_Object.has_value(); }
 
-        size_t GetSize() const;
+        template<typename T>
+        DeviceProfilerJsonObjectReader& Read( std::string_view key, T& target );
 
-        DeviceProfilerJsonValue Get( std::string_view key ) const;
+        template<typename T>
+        DeviceProfilerJsonObjectReader& ReadArray( std::string_view key, T& target );
 
-        Iterator begin() const;
-        Iterator end() const;
+        DeviceProfilerJsonValueReader Read( std::string_view key );
+        DeviceProfilerJsonObjectReader ReadObject( std::string_view key );
+        DeviceProfilerJsonArrayReader ReadArray( std::string_view key );
+
+        Iterator begin();
+        Iterator end();
 
     private:
-        std::optional<simdjson::ondemand::object> mutable m_Object;
+        std::optional<simdjson::ondemand::object> m_Object;
+    };
+
+    /*************************************************************************\
+
+    Class:
+        DeviceProfilerJsonArrayReader
+
+    Description:
+        Helper class to represent a JSON array.
+
+    \*************************************************************************/
+    class DeviceProfilerJsonArrayReader
+        : public DeviceProfilerJsonReaderBase
+    {
+    public:
+        class Iterator;
+
+        DeviceProfilerJsonArrayReader();
+        DeviceProfilerJsonArrayReader( simdjson::ondemand::array&& array );
+
+        DeviceProfilerJsonArrayReader( DeviceProfilerJsonArrayReader&& ) = delete;
+        DeviceProfilerJsonArrayReader& operator=( DeviceProfilerJsonArrayReader&& ) = delete;
+
+        DeviceProfilerJsonArrayReader( const DeviceProfilerJsonArrayReader& ) = delete;
+        DeviceProfilerJsonArrayReader& operator=( const DeviceProfilerJsonArrayReader& ) = delete;
+
+        bool IsValid() const { return m_Array.has_value(); }
+
+        Iterator begin();
+        Iterator end();
+
+    private:
+        std::optional<simdjson::ondemand::array> m_Array;
     };
 
     /*************************************************************************\
@@ -145,68 +214,49 @@ namespace Profiler
         Helper class to represent a JSON object iterator.
 
     \*************************************************************************/
-    class DeviceProfilerJsonObject::Iterator
+    class DeviceProfilerJsonObjectReader::Iterator
     {
     public:
+        using iterator_impl = simdjson::ondemand::object_iterator;
+
         using iterator_category = std::input_iterator_tag;
-        using value_type = std::pair<std::string_view, DeviceProfilerJsonValue>;
+        using value_type = std::pair<std::string_view, DeviceProfilerJsonValueReader>;
         using difference_type = std::ptrdiff_t;
         using pointer = void;
         using reference = value_type;
 
-        Iterator( simdjson::ondemand::object_iterator&& iterator = simdjson::ondemand::object_iterator() )
-            : m_Iterator( std::move( iterator ) )
-        {
-        }
-
         value_type operator*()
         {
-            auto result = *m_Iterator;
-            if( result.error() )
-                return { std::string_view(), DeviceProfilerJsonValue() };
-            auto& field = result.value_unsafe();
-            auto key = field.unescaped_key();
-            if( key.error() )
-                return { std::string_view(), DeviceProfilerJsonValue() };
-            return { key.value(), std::move( field.value() ) };
+            try
+            {
+                simdjson::ondemand::field field = ( *m_Impl ).take_value();
+                return value_type(
+                    field.unescaped_key().take_value(),
+                    simdjson::ondemand::value( field.value() ) );
+            }
+            catch( ... )
+            {
+                m_Reader.SetError();
+            }
+
+            return value_type();
         }
 
-        Iterator& operator++() { return ++m_Iterator, *this; }
-        bool operator!=( const Iterator& other ) const { return m_Iterator != other.m_Iterator; }
-        bool operator==( const Iterator& other ) const { return m_Iterator == other.m_Iterator; }
+        Iterator& operator++() { return ++m_Impl, *this; }
+        bool operator!=( const Iterator& other ) const { return m_Impl != other.m_Impl; }
+        bool operator==( const Iterator& other ) const { return m_Impl == other.m_Impl; }
 
     private:
-        simdjson::ondemand::object_iterator m_Iterator;
-    };
+        DeviceProfilerJsonObjectReader& m_Reader;
+        iterator_impl m_Impl;
 
-    /*************************************************************************\
+        Iterator( DeviceProfilerJsonObjectReader& reader, iterator_impl&& impl = iterator_impl() )
+            : m_Reader( reader )
+            , m_Impl( std::move( impl ) )
+        {
+        }
 
-    Class:
-        DeviceProfilerJsonArray
-
-    Description:
-        Helper class to represent a JSON array.
-
-    \*************************************************************************/
-    class DeviceProfilerJsonArray
-    {
-    public:
-        class Iterator;
-
-        DeviceProfilerJsonArray();
-        DeviceProfilerJsonArray( simdjson::ondemand::array&& array );
-
-        bool IsValid() const { return m_Array.has_value(); }
-
-        size_t GetSize() const;
-
-        DeviceProfilerJsonValue Get( size_t index ) const;
-
-        Iterator begin() const;
-        Iterator end() const;
-
-    private:
-        std::optional<simdjson::ondemand::array> mutable m_Array;
+        friend class DeviceProfilerJsonObjectReader;
     };
 
     /*************************************************************************\
@@ -218,34 +268,46 @@ namespace Profiler
         Helper class to represent a JSON array iterator.
 
     \*************************************************************************/
-    class DeviceProfilerJsonArray::Iterator
+    class DeviceProfilerJsonArrayReader::Iterator
     {
     public:
+        using iterator_impl = simdjson::ondemand::array_iterator;
+
         using iterator_category = std::input_iterator_tag;
-        using value_type = DeviceProfilerJsonValue;
+        using value_type = DeviceProfilerJsonValueReader;
         using difference_type = std::ptrdiff_t;
         using pointer = void;
         using reference = value_type;
 
-        Iterator( simdjson::ondemand::array_iterator&& iterator = simdjson::ondemand::array_iterator() )
-            : m_Iterator( std::move( iterator ) )
-        {
-        }
-
         value_type operator*()
         {
-            auto result = *m_Iterator;
-            if( result.error() )
-                return DeviceProfilerJsonValue();
-            return std::move( result.value_unsafe() );
+            try
+            {
+                return ( *m_Impl ).take_value();
+            }
+            catch( ... )
+            {
+                m_Reader.SetError();
+            }
+
+            return value_type();
         }
 
-        Iterator& operator++() { return ++m_Iterator, *this; }
-        bool operator!=( const Iterator& other ) const { return m_Iterator != other.m_Iterator; }
-        bool operator==( const Iterator& other ) const { return m_Iterator == other.m_Iterator; }
+        Iterator& operator++() { return ++m_Impl, *this; }
+        bool operator!=( const Iterator& other ) const { return m_Impl != other.m_Impl; }
+        bool operator==( const Iterator& other ) const { return m_Impl == other.m_Impl; }
 
     private:
-        simdjson::ondemand::array_iterator m_Iterator;
+        DeviceProfilerJsonArrayReader& m_Reader;
+        iterator_impl m_Impl;
+
+        Iterator( DeviceProfilerJsonArrayReader& reader, iterator_impl&& impl = iterator_impl() )
+            : m_Reader( reader )
+            , m_Impl( std::move( impl ) )
+        {
+        }
+
+        friend class DeviceProfilerJsonArrayReader;
     };
 
     /*************************************************************************\
@@ -258,19 +320,71 @@ namespace Profiler
 
     \*************************************************************************/
     template<typename T>
-    inline T DeviceProfilerJsonValue::CastTo() const
+    inline T DeviceProfilerJsonValueReader::CastTo()
     {
-        if( !m_Value.has_value() )
+        try
         {
-            return T();
+            return m_Value.value().template get<T>().take_value();
+        }
+        catch( ... )
+        {
+            SetError();
         }
 
-        auto result = m_Value->template get<T>();
-        if( result.error() )
+        return T();
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Read
+
+    Description:
+        Read a JSON field with a specific key and type from the JSON object.
+
+    \*************************************************************************/
+    template<typename T>
+    DeviceProfilerJsonObjectReader& DeviceProfilerJsonObjectReader::Read( std::string_view key, T& target )
+    {
+        try
         {
-            return T();
+            m_Object.value().find_field_unordered( key ).take_value().template get<T>( target );
+        }
+        catch( ... )
+        {
+            SetError();
         }
 
-        return result.value_unsafe();
+        return *this;
+    }
+
+    /*************************************************************************\
+
+    Function:
+        ReadArray
+
+    Description:
+        Read a JSON array with a specific key and type from the JSON object.
+
+    \*************************************************************************/
+    template<typename T>
+    DeviceProfilerJsonObjectReader& DeviceProfilerJsonObjectReader::ReadArray( std::string_view key, T& target )
+    {
+        simdjson::ondemand::array array;
+
+        if( Read( key, array ) )
+        {
+            for( auto& item : array )
+            {
+                if( item.template get<typename T::value_type>( target.emplace_back() ) != simdjson::SUCCESS )
+                {
+                    target.pop_back();
+                    SetError();
+                    break;
+                }
+            }
+        }
+
+        return *this;
     }
 }

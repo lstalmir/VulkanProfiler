@@ -60,25 +60,21 @@ namespace Profiler
             return false;
         }
 
-        auto json = parser.GetParsedDocument().ToObject();
+        auto json = parser.GetParsedDocument();
         if( !json.IsValid() )
         {
             return false;
         }
 
         // Read metrics set properties.
-        m_Name = json.Get( "name" ).ToString();
-        m_Description = json.Get( "description" ).ToString();
+        bool error =
+            json.ReadObject()
+                .Read( "name", m_Name )
+                .Read( "description", m_Description )
+                .ReadArray( "counters", m_Counters )
+                .ReadErrors();
 
-        m_Counters.clear();
-
-        for( const auto& counter : json.Get( "counters" ).ToArray() )
-        {
-            m_Counters.push_back( counter.ToString() );
-        }
-
-        // Validate read data.
-        return !m_Name.empty() && !m_Counters.empty();
+        return !error && !m_Name.empty() && !m_Counters.empty();
     }
 
     /***********************************************************************************\

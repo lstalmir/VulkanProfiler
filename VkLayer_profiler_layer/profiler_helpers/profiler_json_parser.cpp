@@ -262,11 +262,11 @@ namespace Profiler
         Returns the next document's root.
 
     \*************************************************************************/
-    DeviceProfilerJsonValue DeviceProfilerJsonParser::GetParsedDocument()
+    DeviceProfilerJsonValueReader DeviceProfilerJsonParser::GetParsedDocument()
     {
         if( !m_pData )
         {
-            return DeviceProfilerJsonValue();
+            return DeviceProfilerJsonValueReader();
         }
 
         if( m_pData->m_Document.has_value() )
@@ -293,7 +293,7 @@ namespace Profiler
             }
         }
 
-        return DeviceProfilerJsonValue();
+        return DeviceProfilerJsonValueReader();
     }
 
     /*************************************************************************\
@@ -324,7 +324,7 @@ namespace Profiler
         Constructor.
 
     \*************************************************************************/
-    DeviceProfilerJsonValue::DeviceProfilerJsonValue()
+    DeviceProfilerJsonValueReader::DeviceProfilerJsonValueReader()
         : m_Value( std::nullopt )
     {
     }
@@ -338,7 +338,7 @@ namespace Profiler
         Constructor.
 
     \*************************************************************************/
-    DeviceProfilerJsonValue::DeviceProfilerJsonValue( simdjson::ondemand::value&& value )
+    DeviceProfilerJsonValueReader::DeviceProfilerJsonValueReader( simdjson::ondemand::value&& value )
         : m_Value( value )
     {
     }
@@ -346,101 +346,47 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
-        ToObject
+        ReadObject
 
     Description:
-        Casts the JSON value to an object and returns it.
+        Start reading the JSON value as an object.
 
     \*************************************************************************/
-    DeviceProfilerJsonObject DeviceProfilerJsonValue::ToObject() const
+    DeviceProfilerJsonObjectReader DeviceProfilerJsonValueReader::ReadObject()
     {
-        if( !m_Value.has_value() )
+        try
         {
-            return DeviceProfilerJsonObject();
+            return m_Value.value().get_object().take_value();
+        }
+        catch( ... )
+        {
+            SetError();
         }
 
-        auto result = m_Value->get_object();
-        if( result.error() )
-        {
-            return DeviceProfilerJsonObject();
-        }
-
-        return std::move( result.value_unsafe() );
+        return DeviceProfilerJsonObjectReader();
     }
 
     /*************************************************************************\
 
     Function:
-        ToArray
+        ReadArray
 
     Description:
-        Casts the JSON value to an array and returns it.
+        Start reading the JSON value as an array.
 
     \*************************************************************************/
-    DeviceProfilerJsonArray DeviceProfilerJsonValue::ToArray() const
+    DeviceProfilerJsonArrayReader DeviceProfilerJsonValueReader::ReadArray()
     {
-        if( !m_Value.has_value() )
+        try
         {
-            return DeviceProfilerJsonArray();
+            return m_Value.value().get_array().take_value();
+        }
+        catch( ... )
+        {
+            SetError();
         }
 
-        auto result = m_Value->get_array();
-        if( result.error() )
-        {
-            return DeviceProfilerJsonArray();
-        }
-
-        return std::move( result.value_unsafe() );
-    }
-
-    /*************************************************************************\
-
-    Function:
-        Get
-
-    Description:
-        Object-like access to the JSON value.
-
-    \*************************************************************************/
-    DeviceProfilerJsonValue DeviceProfilerJsonValue::Get( std::string_view key ) const
-    {
-        if( !m_Value.has_value() )
-        {
-            return DeviceProfilerJsonValue();
-        }
-
-        auto result = m_Value->find_field_unordered( key );
-        if( result.error() )
-        {
-            return DeviceProfilerJsonValue();
-        }
-
-        return std::move( result.value_unsafe() );
-    }
-
-    /*************************************************************************\
-
-    Function:
-        Get
-
-    Description:
-        Array-like access to the JSON value.
-
-    \*************************************************************************/
-    DeviceProfilerJsonValue DeviceProfilerJsonValue::Get( size_t index ) const
-    {
-        if( !m_Value.has_value() )
-        {
-            return DeviceProfilerJsonValue();
-        }
-
-        auto result = m_Value->at( index );
-        if( result.error() )
-        {
-            return DeviceProfilerJsonValue();
-        }
-
-        return std::move( result.value_unsafe() );
+        return DeviceProfilerJsonArrayReader();
     }
 
     /*************************************************************************\
@@ -452,7 +398,7 @@ namespace Profiler
         Constructor.
 
     \*************************************************************************/
-    DeviceProfilerJsonObject::DeviceProfilerJsonObject()
+    DeviceProfilerJsonObjectReader::DeviceProfilerJsonObjectReader()
         : m_Object( std::nullopt )
     {
     }
@@ -466,7 +412,7 @@ namespace Profiler
         Constructor.
 
     \*************************************************************************/
-    DeviceProfilerJsonObject::DeviceProfilerJsonObject( simdjson::ondemand::object&& object )
+    DeviceProfilerJsonObjectReader::DeviceProfilerJsonObjectReader( simdjson::ondemand::object&& object )
         : m_Object( object )
     {
     }
@@ -474,45 +420,66 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
-        GetSize
+        Read
 
     Description:
-        Returns the number of key-value pairs in the JSON object.
+        Read a JSON field with a specific key as a value.
 
     \*************************************************************************/
-    size_t DeviceProfilerJsonObject::GetSize() const
+    DeviceProfilerJsonValueReader DeviceProfilerJsonObjectReader::Read( std::string_view key )
     {
-        if( !m_Object.has_value() )
+        try
         {
-            return 0;
+            return m_Object.value().find_field_unordered( key ).take_value();
+        }
+        catch( ... )
+        {
+            SetError();
         }
 
-        return m_Object->count_fields();
+        return DeviceProfilerJsonValueReader();
     }
 
     /*************************************************************************\
 
     Function:
-        Get
+        ReadObject
 
     Description:
-        Returns the value of the specified field in the JSON object.
+        Begin reading a JSON field with a specific key as an object.
 
     \*************************************************************************/
-    DeviceProfilerJsonValue DeviceProfilerJsonObject::Get( std::string_view key ) const
+    DeviceProfilerJsonObjectReader DeviceProfilerJsonObjectReader::ReadObject( std::string_view key )
     {
-        if( !m_Object.has_value() )
+        simdjson::ondemand::object object;
+
+        if( Read( key, object ) )
         {
-            return DeviceProfilerJsonValue();
+            return std::move( object );
         }
 
-        auto result = m_Object->find_field_unordered( key );
-        if( result.error() )
+        return DeviceProfilerJsonObjectReader();
+    }
+
+    /*************************************************************************\
+
+    Function:
+        ReadArray
+
+    Description:
+        Begin reading a JSON field with a specific key as an array.
+
+    \*************************************************************************/
+    DeviceProfilerJsonArrayReader DeviceProfilerJsonObjectReader::ReadArray( std::string_view key )
+    {
+        simdjson::ondemand::array array;
+
+        if( Read( key, array ) )
         {
-            return DeviceProfilerJsonValue();
+            return std::move( array );
         }
 
-        return std::move( result.value_unsafe() );
+        return DeviceProfilerJsonArrayReader();
     }
 
     /*************************************************************************\
@@ -524,20 +491,18 @@ namespace Profiler
         Returns an iterator to the beginning of the JSON object.
 
     \*************************************************************************/
-    DeviceProfilerJsonObject::Iterator DeviceProfilerJsonObject::begin() const
+    DeviceProfilerJsonObjectReader::Iterator DeviceProfilerJsonObjectReader::begin()
     {
-        if( !m_Object.has_value() )
+        try
         {
-            return Iterator();
+            return Iterator( *this, m_Object.value().begin().take_value() );
+        }
+        catch( ... )
+        {
+            SetError();
         }
 
-        auto result = m_Object->begin();
-        if( result.error() )
-        {
-            return Iterator();
-        }
-
-        return std::move( result.value_unsafe() );
+        return Iterator( *this );
     }
 
     /*************************************************************************\
@@ -549,32 +514,30 @@ namespace Profiler
         Returns an iterator to the end of the JSON object.
 
     \*************************************************************************/
-    DeviceProfilerJsonObject::Iterator DeviceProfilerJsonObject::end() const
+    DeviceProfilerJsonObjectReader::Iterator DeviceProfilerJsonObjectReader::end()
     {
-        if( !m_Object.has_value() )
+        try
         {
-            return Iterator();
+            return Iterator( *this, m_Object.value().end().take_value() );
+        }
+        catch( ... )
+        {
+            SetError();
         }
 
-        auto result = m_Object->end();
-        if( result.error() )
-        {
-            return Iterator();
-        }
-
-        return std::move( result.value_unsafe() );
+        return Iterator( *this );
     }
 
     /*************************************************************************\
 
     Function:
-        DeviceProfilerJsonArray
+        DeviceProfilerJsonArrayReader
 
     Description:
         Constructor.
 
     \*************************************************************************/
-    DeviceProfilerJsonArray::DeviceProfilerJsonArray()
+    DeviceProfilerJsonArrayReader::DeviceProfilerJsonArrayReader()
         : m_Array( std::nullopt )
     {
     }
@@ -582,59 +545,15 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
-        DeviceProfilerJsonArray
+        DeviceProfilerJsonArrayReader
 
     Description:
         Constructor.
 
     \*************************************************************************/
-    DeviceProfilerJsonArray::DeviceProfilerJsonArray( simdjson::ondemand::array&& array )
+    DeviceProfilerJsonArrayReader::DeviceProfilerJsonArrayReader( simdjson::ondemand::array&& array )
         : m_Array( array )
     {
-    }
-
-    /*************************************************************************\
-
-    Function:
-        GetSize
-
-    Description:
-        Returns the number of elements in the JSON array.
-
-    \*************************************************************************/
-    size_t DeviceProfilerJsonArray::GetSize() const
-    {
-        if( !m_Array.has_value() )
-        {
-            return 0;
-        }
-
-        return m_Array->count_elements();
-    }
-
-    /*************************************************************************\
-
-    Function:
-        Get
-
-    Description:
-        Returns the value at the specified index in the JSON array.
-
-    \*************************************************************************/
-    DeviceProfilerJsonValue DeviceProfilerJsonArray::Get( size_t index ) const
-    {
-        if( !m_Array.has_value() )
-        {
-            return DeviceProfilerJsonValue();
-        }
-
-        auto result = m_Array->at( index );
-        if( result.error() )
-        {
-            return DeviceProfilerJsonValue();
-        }
-
-        return std::move( result.value_unsafe() );
     }
 
     /*************************************************************************\
@@ -646,20 +565,18 @@ namespace Profiler
         Returns an iterator to the beginning of the JSON array.
 
     \*************************************************************************/
-    DeviceProfilerJsonArray::Iterator DeviceProfilerJsonArray::begin() const
+    DeviceProfilerJsonArrayReader::Iterator DeviceProfilerJsonArrayReader::begin()
     {
-        if( !m_Array.has_value() )
+        try
         {
-            return Iterator();
+            return Iterator( *this, m_Array.value().begin().take_value() );
+        }
+        catch( ... )
+        {
+            SetError();
         }
 
-        auto result = m_Array->begin();
-        if( result.error() )
-        {
-            return Iterator();
-        }
-
-        return std::move( result.value_unsafe() );
+        return Iterator( *this );
     }
 
     /*************************************************************************\
@@ -671,19 +588,17 @@ namespace Profiler
         Returns an iterator to the end of the JSON array.
 
     \*************************************************************************/
-    DeviceProfilerJsonArray::Iterator DeviceProfilerJsonArray::end() const
+    DeviceProfilerJsonArrayReader::Iterator DeviceProfilerJsonArrayReader::end()
     {
-        if( !m_Array.has_value() )
+        try
         {
-            return Iterator();
+            return Iterator( *this, m_Array.value().end().take_value() );
+        }
+        catch( ... )
+        {
+            SetError();
         }
 
-        auto result = m_Array->end();
-        if( result.error() )
-        {
-            return Iterator();
-        }
-
-        return std::move( result.value_unsafe() );
+        return Iterator( *this );
     }
 }
