@@ -1123,12 +1123,9 @@ namespace Profiler
             if( manifest.Read( "file_format_version" ).ToStringView() == "1.0.0" )
             {
                 // Get path to the DLL.
-                std::filesystem::path vulkanModulePath =
-                    manifest.ReadObject( "ICD" )
-                        .Read( "library_path" )
-                        .ToStringView();
+                std::filesystem::path vulkanModulePath;
 
-                if( vulkanModulePath.empty() )
+                if( !manifest.ReadObject( "ICD" ).Read( "library_path", vulkanModulePath ) )
                 {
                     // Failed to read library_path from JSON.
                     RegCloseKey( hDeviceRegistryKey );

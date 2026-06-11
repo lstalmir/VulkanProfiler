@@ -22,8 +22,43 @@
 #include <simdjson.h>
 
 #include <string>
+#include <filesystem>
 
-/*************************************************************************\
+namespace Profiler::simdjson_helpers
+{
+    /*************************************************************************\
+
+    Function:
+        GetStringLike
+
+    Description:
+        Helper function to get a string-like values
+        (std::string, std::filesystem::path, etc.) from JSON.
+
+    \*************************************************************************/
+    template<typename T>
+    inline simdjson::error_code GetStringLike( simdjson::ondemand::value& value, T& out ) noexcept
+    {
+        std::string_view stringView;
+
+        auto error = value.get_string( stringView );
+        if( !error )
+        {
+            try
+            {
+                out.assign( stringView );
+            }
+            catch( ... )
+            {
+                error = simdjson::error_code::MEMALLOC;
+            }
+        }
+
+        return error;
+    }
+}
+
+/*****************************************************************************\
 
 Function:
     get
@@ -31,17 +66,24 @@ Function:
 Description:
     Specialization for std::string.
 
-\*************************************************************************/
+\*****************************************************************************/
 template<>
-inline simdjson::error_code simdjson::ondemand::value::get<std::string>( std::string& out )
+inline simdjson::error_code simdjson::ondemand::value::get( std::string& out ) noexcept
 {
-    std::string_view stringView;
+    return Profiler::simdjson_helpers::GetStringLike( *this, out );
+}
 
-    auto error = get_string( stringView );
-    if( !error )
-    {
-        out.assign( stringView );
-    }
+/*****************************************************************************\
 
-    return error;
+Function:
+    get
+
+Description:
+    Specialization for std::filesystem::path.
+
+\*****************************************************************************/
+template<>
+inline simdjson::error_code simdjson::ondemand::value::get( std::filesystem::path& out ) noexcept
+{
+    return Profiler::simdjson_helpers::GetStringLike( *this, out );
 }
