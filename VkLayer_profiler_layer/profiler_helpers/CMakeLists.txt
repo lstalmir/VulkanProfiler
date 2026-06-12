@@ -24,7 +24,9 @@ project (profiler_helpers)
 
 set (headers
     "profiler_csv_helpers.h"
+    "profiler_json_common.h"
     "profiler_json_builder.h"
+    "profiler_json_parser.h"
     "profiler_string_serializer.h"
     "profiler_memory_comparator.h"
     "profiler_metrics_set_file.h"
@@ -34,6 +36,7 @@ set (headers
 set (sources
     "profiler_csv_helpers.cpp"
     "profiler_json_builder.cpp"
+    "profiler_json_parser.cpp"
     "profiler_string_serializer.cpp"
     "profiler_memory_comparator.cpp"
     "profiler_metrics_set_file.cpp"
