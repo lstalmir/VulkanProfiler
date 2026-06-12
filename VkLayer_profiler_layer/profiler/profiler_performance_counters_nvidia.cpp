@@ -24,7 +24,7 @@
 
 #include <profiler_layer_objects/VkDevice_object.h>
 
-#include <NvPerfCounterConfiguration.h>
+#include <NvPerfMetricsConfigBuilder.h>
 #include <NvPerfMetricConfigurationsHAL.h>
 
 #ifdef WIN32
@@ -211,14 +211,11 @@ namespace Profiler
             }
         }
 
-        // Enumerate metrics sets.
+        // Load metric configuration object.
+        nv::perf::MetricConfigObject metricConfigObject = {};
+
         if( result == VK_SUCCESS )
         {
-            nv::perf::MetricConfigObject metricConfigObject = {};
-            nv::perf::RawCounterSchedulingHints schedulingHints = {};
-
-            std::string script;
-
             if( !nv::perf::MetricConfigurations::LoadMetricConfigObject(
                     metricConfigObject,
                     deviceIdentifiers.pChipName,
@@ -226,17 +223,11 @@ namespace Profiler
             {
                 result = VK_ERROR_INITIALIZATION_FAILED;
             }
+        }
 
-            if( result == VK_SUCCESS )
-            {
-                script = metricConfigObject.GenerateScriptForAllNamespacedUserMetrics();
-
-                if( script.empty() )
-                {
-                    result = VK_ERROR_INITIALIZATION_FAILED;
-                }
-            }
-
+        // Configure the metrics evaluator.
+        if( result == VK_SUCCESS )
+        {
             if( result == VK_SUCCESS )
             {
                 if( !m_MetricsEvaluator.UserDefinedMetrics_Initialize() )
@@ -247,7 +238,8 @@ namespace Profiler
 
             if( result == VK_SUCCESS )
             {
-                if( !m_MetricsEvaluator.UserDefinedMetrics_Execute( script ) )
+                if( !m_MetricsEvaluator.UserDefinedMetrics_Execute(
+                        metricConfigObject.GenerateScriptForAllNamespacedUserMetrics() ) )
                 {
                     result = VK_ERROR_INITIALIZATION_FAILED;
                 }
@@ -260,20 +252,40 @@ namespace Profiler
                     result = VK_ERROR_INITIALIZATION_FAILED;
                 }
             }
+        }
 
-            if( result == VK_SUCCESS )
+        // Enumerate available counters.
+        if( result == VK_SUCCESS )
+        {
+            for( const char* pMetricName : nv::perf::EnumerateCounters( m_MetricsEvaluator.Get() ) )
             {
-                nv::perf::MetricsAndSchedulingHints metricsAndSchedulingHints =
-                    metricConfigObject.GetMetricsAndScheduleHints( "" );
+                Counter counter = {};
+                counter.m_Name = pMetricName;
 
-                for( const auto& schedulingHint : metricsAndSchedulingHints.schedulingHints )
+                // Read metric type and index.
+                if( !m_MetricsEvaluator.GetMetricTypeAndIndex(
+                        pMetricName,
+                        counter.m_Type,
+                        counter.m_Index ) )
                 {
-                    for( const auto& hint : schedulingHint.hints )
-                    {
-                        schedulingHints[hint.rawCounterName] =
-                            nv::perf::RawCounterConfigBuilder::ToRawCounterDomain( schedulingHint.domain.c_str() );
-                    }
+                    continue;
                 }
+
+                // Read metric properties.
+                if( const char* pMetricDescription = m_MetricsEvaluator.GetMetricDescription(
+                        counter.m_Type,
+                        counter.m_Index ) )
+                {
+                    counter.m_Description = pMetricDescription;
+                }
+
+                // API does not provide UUIDs for metrics
+                uint32_t uuid[VK_UUID_SIZE / 4] = {};
+                uuid[0] = counter.m_Type;
+                uuid[1] = counter.m_Index;
+                memcpy( counter.m_UUID, uuid, VK_UUID_SIZE );
+
+                m_Counters.push_back( std::move( counter ) );
             }
         }
 
@@ -312,6 +324,39 @@ namespace Profiler
     VkProfilerPerformanceCountersSamplingModeEXT DeviceProfilerPerformanceCountersNVIDIA::GetSamplingMode() const
     {
         return m_SamplingMode;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMetricsCount
+
+    Description:
+        Returns the number of metrics in the specified metrics set.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerPerformanceCountersNVIDIA::GetMetricsCount( uint32_t metricsSetIndex ) const
+    {
+        if( metricsSetIndex >= m_MetricsSets.size() )
+        {
+            return 0;
+        }
+
+        return static_cast<uint32_t>( m_MetricsSets[metricsSetIndex].m_CounterIndices.size() );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetMetricsSetCount
+
+    Description:
+        Returns the number of metrics sets exposed by this extension.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerPerformanceCountersNVIDIA::GetMetricsSetCount() const
+    {
+        return static_cast<uint32_t>( m_MetricsSets.size() );
     }
 
     /***********************************************************************************\
@@ -382,6 +427,12 @@ namespace Profiler
                 assert( false );
                 return VK_ERROR_INITIALIZATION_FAILED;
             }
+
+            if( !m_PeriodicSampler.StartSampling() )
+            {
+                assert( false );
+                return VK_ERROR_INITIALIZATION_FAILED;
+            }
         }
 
         m_ActiveMetricsSetIndex = metricsSetIndex;
@@ -407,6 +458,42 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetMetricsProperties
+
+    Description:
+        Returns properties of all available metrics.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerPerformanceCountersNVIDIA::GetMetricsProperties(
+        uint32_t count,
+        VkProfilerPerformanceCounterProperties2EXT* pProperties ) const
+    {
+        const size_t writeCount = std::min<size_t>( count, m_Counters.size() );
+        for( size_t i = 0; i < writeCount; ++i )
+        {
+            FillPerformanceCounterProperties( m_Counters[i], pProperties[i] );
+        }
+
+        return static_cast<uint32_t>( m_Counters.size() );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SupportsCustomMetricsSets
+
+    Description:
+        NVIDIA implementation supports custom metrics sets.
+
+    \***********************************************************************************/
+    bool DeviceProfilerPerformanceCountersNVIDIA::SupportsCustomMetricsSets() const
+    {
+        return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         ResetMembers
 
     Description:
@@ -422,7 +509,45 @@ namespace Profiler
 
         m_MetricsEvaluator.Reset();
         m_PeriodicSampler.Reset();
+        m_CounterData.Reset();
+
+        m_Counters.clear();
+
+        m_MetricsSets.clear();
 
         m_ActiveMetricsSetIndex = UINT32_MAX;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FillPerformanceCounterProperties
+
+    Description:
+        Copy counter properties from internal representation to Vulkan structure.
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersNVIDIA::FillPerformanceCounterProperties(
+        const Counter& counter,
+        VkProfilerPerformanceCounterProperties2EXT& properties )
+    {
+        assert( properties.sType == VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_COUNTER_PROPERTIES_2_EXT );
+        assert( properties.pNext == nullptr );
+
+        ProfilerStringFunctions::CopyString(
+            properties.shortName,
+            counter.m_Name.c_str(),
+            counter.m_Name.length() );
+
+        ProfilerStringFunctions::CopyString(
+            properties.description,
+            counter.m_Description.c_str(),
+            counter.m_Description.length() );
+
+        properties.flags = 0;
+        properties.unit = counter.m_Unit;
+        properties.storage = counter.m_Storage;
+
+        memcpy( properties.uuid, counter.m_UUID, VK_UUID_SIZE );
     }
 }

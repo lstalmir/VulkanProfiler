@@ -24,9 +24,9 @@
 #define VK_NO_PROTOTYPES
 #include <NvPerfVulkan.h>
 #include <NvPerfMetricsEvaluator.h>
+#include <NvPerfCounterConfiguration.h>
 #include <NvPerfPeriodicSamplerGpu.h>
 #include <NvPerfCounterData.h>
-#include <NvPerfCounterConfiguration.h>
 
 #include <vector>
 #include <mutex>
@@ -55,25 +55,45 @@ namespace Profiler
 
         VkProfilerPerformanceCountersSamplingModeEXT GetSamplingMode() const final;
 
+        uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const final;
+        uint32_t GetMetricsSetCount() const final;
         VkResult SetActiveMetricsSet( uint32_t metricsSetIndex ) final;
         uint32_t GetActiveMetricsSetIndex() const final;
+        // bool AreMetricsSetsCompatible( uint32_t metricsSet1, uint32_t metricsSet2 ) const final;
+        // uint32_t GetRequiredPasses( uint32_t counterCount, const uint32_t* pCounterIndices ) const final;
+        // uint32_t GetMetricsSets( uint32_t count, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const final;
+        // void GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const final;
+        // uint32_t GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, uint32_t count, VkProfilerPerformanceCounterProperties2EXT* pProperties ) const final;
+        uint32_t GetMetricsProperties( uint32_t count, VkProfilerPerformanceCounterProperties2EXT* pProperties ) const final;
+        // void GetAvailableMetrics( uint32_t selectedCountersCount, const uint32_t* pSelectedCounters, uint32_t& availableCountersCount, uint32_t* pAvailableCounters ) const final;
+
+        bool SupportsCustomMetricsSets() const final;
+        // uint32_t CreateCustomMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) final;
+        // void DestroyCustomMetricsSet( uint32_t ) final;
+        // void UpdateCustomMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) final;
 
     private:
         struct Counter
         {
-            uint32_t m_MetricIndex;
+            std::string             m_Name;
+            std::string             m_Description;
 
             VkProfilerPerformanceCounterUnitEXT m_Unit;
             VkProfilerPerformanceCounterStorageEXT m_Storage;
 
-            // NvPerf SDK does not provide UUIDs for metrics.
-            uint8_t m_UUID[VK_UUID_SIZE];
+            uint8_t                 m_UUID[VK_UUID_SIZE];
+
+            NVPW_MetricType         m_Type;
+            size_t                  m_Index;
         };
 
         struct MetricsSet
         {
+            std::string             m_Name;
+            std::string             m_Description;
+            std::vector<uint32_t>   m_CounterIndices;
+
             nv::perf::CounterConfiguration m_CounterConfiguration;
-            std::vector<Counter>    m_Counters;
         };
 
         struct VkDevice_Object*     m_pVulkanDevice;
@@ -85,11 +105,16 @@ namespace Profiler
         nv::perf::sampler::GpuPeriodicSampler m_PeriodicSampler;
         nv::perf::sampler::RingBufferCounterData m_CounterData;
 
+        std::vector<Counter>        m_Counters;
+
+        std::shared_mutex mutable   m_MetricsSetsMutex;
         std::vector<MetricsSet>     m_MetricsSets;
 
         std::shared_mutex mutable   m_ActiveMetricsSetMutex;
         uint32_t                    m_ActiveMetricsSetIndex;
 
         void ResetMembers();
+
+        static void FillPerformanceCounterProperties( const Counter& counter, VkProfilerPerformanceCounterProperties2EXT& properties );
     };
 }
