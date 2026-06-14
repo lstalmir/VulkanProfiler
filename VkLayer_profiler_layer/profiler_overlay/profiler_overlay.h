@@ -288,6 +288,7 @@ namespace Profiler
         bool m_PerformanceQueryMetricsFilterRegexValid;
         bool m_PerformanceQueryMetricsFilterRegexMode;
         bool m_PerformanceQueryMetricsSetPropertiesExpanded;
+        bool m_PerformanceQueryCustomMetricsSetsSupported;
 
         void SelectPerformanceQueryMetricsSet( const std::shared_ptr<PerformanceQueryMetricsSet>& );
 
@@ -430,6 +431,8 @@ namespace Profiler
 
         void DrawPerformanceCountersQueryData( const PerformanceQueryRangeData& );
         void DrawPerformanceCountersStreamData( const PerformanceQueryRangeData& );
+        void DrawPerformanceCountersEditor();
+        void DrawPerformanceCounterTooltip( const VkProfilerPerformanceCounterProperties2EXT&, bool, bool );
 
         // Top pipelines helpers
         void UpdateTopPipelinesExporter();

@@ -475,6 +475,8 @@ namespace Profiler
             // Fetch custom performance counters
             if( m_Frontend.SupportsCustomPerformanceMetricsSets() )
             {
+                m_PerformanceQueryCustomMetricsSetsSupported = true;
+
                 const uint32_t counterCount = m_Frontend.GetPerformanceCounterProperties( 0, nullptr );
                 m_PerformanceQueryEditorCounterProperties.resize( counterCount,
                     { VK_STRUCTURE_TYPE_PROFILER_PERFORMANCE_COUNTER_PROPERTIES_2_EXT } );
@@ -704,6 +706,7 @@ namespace Profiler
         m_PerformanceQueryMetricsFilterRegexValid = false;
         m_PerformanceQueryMetricsFilterRegexMode = false;
         m_PerformanceQueryMetricsSetPropertiesExpanded = false;
+        m_PerformanceQueryCustomMetricsSetsSupported = false;
 
         m_PerformanceQueryCommandBufferFilter = VkCommandBufferHandle();
         m_PerformanceQueryCommandBufferFilterName = m_pFrameStr;
@@ -2162,7 +2165,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerOverlayOutput::UpdatePerformanceCountersTab()
     {
-        const bool supportsCustomMetricsSets = m_Frontend.SupportsCustomPerformanceMetricsSets();
         const float interfaceScale = ImGui::GetIO().FontGlobalScale;
 
         // Data source
@@ -2371,7 +2373,7 @@ namespace Profiler
         ImGui::TextUnformatted( Lang::PerformanceCountersSet );
 
         int performanceQueryMetricsSetComboButtonCount = 1;
-        if( supportsCustomMetricsSets )
+        if( m_PerformanceQueryCustomMetricsSetsSupported )
         {
             // Reserve space for bookmarking button.
             performanceQueryMetricsSetComboButtonCount += 1;
@@ -2426,7 +2428,7 @@ namespace Profiler
 
         PerformanceMetricsSetTooltip( m_pActivePerformanceQueryMetricsSet );
 
-        if( supportsCustomMetricsSets )
+        if( m_PerformanceQueryCustomMetricsSetsSupported )
         {
             // Bookmark the current metrics set.
             ImGui::SameLine( 0, buttonSpacing );
@@ -2537,7 +2539,7 @@ namespace Profiler
         {
             bool propertiesChanged = false;
 
-            ImGui::BeginDisabled( !supportsCustomMetricsSets );
+            ImGui::BeginDisabled( !m_PerformanceQueryCustomMetricsSetsSupported );
 
             ImGui::TextUnformatted( "Name:" );
             ImGui::SameLine( 100.f * interfaceScale );
@@ -2585,6 +2587,12 @@ namespace Profiler
                 break;
             }
 
+            // Provide controls to manage custom performance counters sets.
+            if( m_PerformanceQueryCustomMetricsSetsSupported )
+            {
+                DrawPerformanceCountersEditor();
+            }
+
             ImGui::PopStyleColor();
         }
 
@@ -2603,55 +2611,10 @@ namespace Profiler
     void ProfilerOverlayOutput::DrawPerformanceCountersQueryData(
         const PerformanceQueryRangeData& rangeData )
     {
-        const bool supportsCustomMetricsSets = m_Frontend.SupportsCustomPerformanceMetricsSets();
-        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
-
         // Setup performance counters table.
         constexpr ImGuiTableFlags tableFlags =
             ImGuiTableFlags_NoClip |
             ImGuiTableFlags_BordersInnerH;
-
-        auto PerformanceMetricTooltip = [&]( const VkProfilerPerformanceCounterProperties2EXT& metricProperties, bool available, bool selected )
-        {
-            if( ( supportsCustomMetricsSets ||
-                    metricProperties.description[0] ) &&
-                ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
-            {
-                ImGui::BeginTooltip();
-                ImGui::PushTextWrapPos( 350.f * interfaceScale );
-
-                if( metricProperties.description[0] )
-                {
-                    ImGui::TextUnformatted( metricProperties.description );
-                }
-
-                if( supportsCustomMetricsSets )
-                {
-                    ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 160, 160, 160, 255 ) );
-
-                    if( available )
-                    {
-                        if( !selected )
-                        {
-                            ImGui::TextUnformatted( "Click to add this metric to the set." );
-                        }
-                        else
-                        {
-                            ImGui::TextUnformatted( "Click to remove this metric from the set." );
-                        }
-                    }
-                    else
-                    {
-                        ImGui::TextUnformatted( "This metric cannot be enabled in this set because it would require multiple query passes." );
-                    }
-
-                    ImGui::PopStyleColor();
-                }
-
-                ImGui::PopTextWrapPos();
-                ImGui::EndTooltip();
-            }
-        };
 
         if( ImGui::BeginTable( "Performance counters table", 5, tableFlags ) )
         {
@@ -2681,7 +2644,7 @@ namespace Profiler
 
                     ImGui::TableNextColumn();
                     {
-                        if( supportsCustomMetricsSets )
+                        if( m_PerformanceQueryCustomMetricsSetsSupported )
                         {
                             ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
 
@@ -2701,7 +2664,7 @@ namespace Profiler
                             ImGui::TextUnformatted( metricProperties.shortName );
                         }
 
-                        PerformanceMetricTooltip( metricProperties, true, true );
+                        DrawPerformanceCounterTooltip( metricProperties, true, true );
                     }
 
                     float delta = 0.0f;
@@ -2823,77 +2786,6 @@ namespace Profiler
             }
 
             ImGui::EndTable();
-        }
-
-        // Provide controls to manage custom performance counters sets.
-        if( supportsCustomMetricsSets )
-        {
-            if( ImGui::BeginTable( "##Performance counters editor table", 1, tableFlags ) )
-            {
-                ImGuiListClipper clipper;
-                clipper.Begin( static_cast<int>( m_PerformanceQueryEditorCounterVisibileIndices.size() ) );
-
-                std::vector<uint32_t> unknownCountersAvailability;
-
-                while( clipper.Step() )
-                {
-                    for( uint32_t i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i )
-                    {
-                        const uint32_t counterIndex = m_PerformanceQueryEditorCounterVisibileIndices[i];
-                        const auto& metricProperties = m_PerformanceQueryEditorCounterProperties[counterIndex];
-
-                        bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
-                        bool selected = Contains( m_PerformanceQueryEditorCounterIndices, counterIndex );
-
-                        if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] &&
-                            ( unknownCountersAvailability.size() < 10 ) )
-                        {
-                            unknownCountersAvailability.push_back( counterIndex );
-                        }
-
-                        ImGui::TableNextColumn();
-                        ImGui::BeginDisabled( !available );
-                        ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
-
-                        if( ImGui::Checkbox( metricProperties.shortName, &selected ) )
-                        {
-                            SetPerformanceQueryEditorCounterSelected( counterIndex, selected, true /*refresh*/ );
-                        }
-
-                        ImGui::PopStyleVar();
-                        ImGui::EndDisabled();
-
-                        PerformanceMetricTooltip( metricProperties, available, selected );
-                    }
-                }
-
-                if( !unknownCountersAvailability.empty() )
-                {
-                    for( uint32_t counterIndex : unknownCountersAvailability )
-                    {
-                        m_PerformanceQueryEditorCounterAvailability[counterIndex] = false;
-                        m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] = true;
-                    }
-
-                    uint32_t unknownCounterCount = static_cast<uint32_t>( unknownCountersAvailability.size() );
-
-                    m_Frontend.GetAvailablePerformanceCounters(
-                        static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() ),
-                        m_PerformanceQueryEditorCounterIndices.data(),
-                        unknownCounterCount,
-                        unknownCountersAvailability.data() );
-
-                    // The function returns number of available counters.
-                    unknownCountersAvailability.resize( unknownCounterCount );
-
-                    for( uint32_t counterIndex : unknownCountersAvailability )
-                    {
-                        m_PerformanceQueryEditorCounterAvailability[counterIndex] = true;
-                    }
-                }
-
-                ImGui::EndTable();
-            }
         }
     }
 
@@ -3077,6 +2969,148 @@ namespace Profiler
         }
 
         ImPlot::PopStyleVar();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawPerformanceCountersEditor
+
+    Description:
+        Draws the performance counters editor with the list of available metrics and
+        their selection state.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawPerformanceCountersEditor()
+    {
+        // Setup performance counters table.
+        constexpr ImGuiTableFlags tableFlags =
+            ImGuiTableFlags_NoClip |
+            ImGuiTableFlags_BordersInnerH;
+
+        if( ImGui::BeginTable( "##Performance counters editor table", 1, tableFlags ) )
+        {
+            ImGuiListClipper clipper;
+            clipper.Begin( static_cast<int>( m_PerformanceQueryEditorCounterVisibileIndices.size() ) );
+
+            std::vector<uint32_t> unknownCountersAvailability;
+
+            while( clipper.Step() )
+            {
+                for( uint32_t i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i )
+                {
+                    const uint32_t counterIndex = m_PerformanceQueryEditorCounterVisibileIndices[i];
+                    const auto& metricProperties = m_PerformanceQueryEditorCounterProperties[counterIndex];
+
+                    bool available = m_PerformanceQueryEditorCounterAvailability[counterIndex];
+                    bool selected = Contains( m_PerformanceQueryEditorCounterIndices, counterIndex );
+
+                    if( !m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] &&
+                        ( unknownCountersAvailability.size() < 10 ) )
+                    {
+                        unknownCountersAvailability.push_back( counterIndex );
+                    }
+
+                    ImGui::TableNextColumn();
+                    ImGui::BeginDisabled( !available );
+                    ImGui::PushStyleVar( ImGuiStyleVar_FramePadding, ImVec2() );
+
+                    if( ImGui::Checkbox( metricProperties.shortName, &selected ) )
+                    {
+                        SetPerformanceQueryEditorCounterSelected( counterIndex, selected, true /*refresh*/ );
+                    }
+
+                    ImGui::PopStyleVar();
+                    ImGui::EndDisabled();
+
+                    DrawPerformanceCounterTooltip( metricProperties, available, selected );
+                }
+            }
+
+            if( !unknownCountersAvailability.empty() )
+            {
+                for( uint32_t counterIndex : unknownCountersAvailability )
+                {
+                    m_PerformanceQueryEditorCounterAvailability[counterIndex] = false;
+                    m_PerformanceQueryEditorCounterAvailabilityKnown[counterIndex] = true;
+                }
+
+                uint32_t unknownCounterCount = static_cast<uint32_t>( unknownCountersAvailability.size() );
+
+                m_Frontend.GetAvailablePerformanceCounters(
+                    static_cast<uint32_t>( m_PerformanceQueryEditorCounterIndices.size() ),
+                    m_PerformanceQueryEditorCounterIndices.data(),
+                    unknownCounterCount,
+                    unknownCountersAvailability.data() );
+
+                // The function returns number of available counters.
+                unknownCountersAvailability.resize( unknownCounterCount );
+
+                for( uint32_t counterIndex : unknownCountersAvailability )
+                {
+                    m_PerformanceQueryEditorCounterAvailability[counterIndex] = true;
+                }
+            }
+
+            ImGui::EndTable();
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DrawPerformanceCounterTooltip
+
+    Description:
+        Draws the performance counter tooltip with the counter description and
+        availability information.
+
+    \***********************************************************************************/
+    void ProfilerOverlayOutput::DrawPerformanceCounterTooltip(
+        const VkProfilerPerformanceCounterProperties2EXT& metricProperties,
+        bool available,
+        bool selected )
+    {
+        const float interfaceScale = ImGui::GetIO().FontGlobalScale;
+
+        if( ( m_PerformanceQueryCustomMetricsSetsSupported ||
+                metricProperties.description[0] ) &&
+            ImGui::IsItemHovered( ImGuiHoveredFlags_ForTooltip ) )
+        {
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos( 350.f * interfaceScale );
+
+            if( metricProperties.description[0] )
+            {
+                ImGui::TextUnformatted( metricProperties.description );
+            }
+
+            if( m_PerformanceQueryCustomMetricsSetsSupported )
+            {
+                ImGui::PushStyleColor( ImGuiCol_Text, IM_COL32( 160, 160, 160, 255 ) );
+
+                if( available )
+                {
+                    if( !selected )
+                    {
+                        ImGui::TextUnformatted( "Click to add this metric to the set." );
+                    }
+                    else
+                    {
+                        ImGui::TextUnformatted( "Click to remove this metric from the set." );
+                    }
+                }
+                else
+                {
+                    ImGui::TextUnformatted( "This metric cannot be enabled in this set because it would require multiple query passes." );
+                }
+
+                ImGui::PopStyleColor();
+            }
+
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
     }
 
     /***********************************************************************************\
