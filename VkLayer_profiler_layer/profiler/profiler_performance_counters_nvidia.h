@@ -20,6 +20,7 @@
 
 #pragma once
 #include "profiler_performance_counters.h"
+#include "profiler_counters.h"
 #include "utils/lockable_unordered_map.h"
 
 #define VK_NO_PROTOTYPES
@@ -100,23 +101,41 @@ namespace Profiler
 
         VkProfilerPerformanceCountersSamplingModeEXT m_SamplingMode;
         uint32_t                    m_SamplingPeriodInNanoseconds;
+        
+        CpuTimestampCounter         m_CpuTimestampCounter;
 
         std::string                 m_ChipName;
 
         nv::perf::MetricsEvaluator  m_MetricsEvaluator;
         nv::perf::sampler::GpuPeriodicSampler m_PeriodicSampler;
         nv::perf::sampler::RingBufferCounterData m_CounterData;
+        nv::perf::CounterDataCombiner m_CounterDataCombiner;
         ConcurrentMap<uint32_t, nv::perf::CounterConfiguration> m_CounterConfigurations;
 
         std::shared_mutex mutable   m_ActiveMetricsSetMutex;
         uint32_t                    m_ActiveMetricsSetIndex;
 
         DeviceProfilerCustomMetricsSetManager<MetricsSet, Counter> m_MetricsSetManager;
+        
+        std::thread                 m_MetricsStreamCollectionThread;
+        std::mutex                  m_MetricsStreamCollectionMutex;
+        bool                        m_MetricsStreamCollectionThreadExit;
+        
+        std::mutex mutable          m_MetricsStreamResultsMutex;
+        std::vector<DeviceProfilerPerformanceCountersStreamResult> m_MetricsStreamResults;
+        uint64_t                    m_MetricsStreamLastResultTimestamp;
+        uint64_t                    m_MetricsStreamMaxBufferLengthInNanoseconds;
+        uint32_t                    m_MetricsStreamMaxReportCount;
 
         void ResetMembers();
 
         VkResult SetActiveMetricsSet_NoLock( uint32_t metricsSetIndex );
         bool PrepareCounterConfigurationForMetricsSet( const MetricsSet& metricsSet );
+        std::vector<NVPW_MetricEvalRequest> GetMetricEvalRequests( uint32_t metricsSetIndex );
+
+        void MetricsStreamCollectionThreadProc();
+        size_t CollectMetricsStreamSamples();
+        void FreeUnusedMetricsStreamSamples();
 
         static void FillPerformanceMetricsSetProperties( const MetricsSet& set, VkProfilerPerformanceMetricsSetProperties2EXT& properties );
         static void FillPerformanceCounterProperties( const Counter& counter, VkProfilerPerformanceCounterProperties2EXT& properties );

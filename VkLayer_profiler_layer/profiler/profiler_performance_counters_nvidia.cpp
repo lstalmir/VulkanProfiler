@@ -69,7 +69,8 @@ namespace Profiler
         // Configure the performance counters.
         {
             m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
-            m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
+            // m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
+            m_SamplingPeriodInNanoseconds = 50'000;
         }
 
         // Get commonly used Vulkan objects and function pointers.
@@ -268,6 +269,9 @@ namespace Profiler
                     counter.m_Description = pMetricDescription;
                 }
 
+                counter.m_Unit = VK_PROFILER_PERFORMANCE_COUNTER_UNIT_GENERIC_EXT;
+                counter.m_Storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT;
+
                 // API does not provide UUIDs for metrics
                 uint32_t uuid[VK_UUID_SIZE / 4] = {};
                 uuid[0] = counter.m_Type;
@@ -275,6 +279,18 @@ namespace Profiler
                 memcpy( counter.m_UUID, uuid, VK_UUID_SIZE );
 
                 m_MetricsSetManager.RegisterCounter( std::move( counter ) );
+            }
+        }
+
+        // Start metrics stream collection thread
+        if( result == VK_SUCCESS )
+        {
+            if( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
+            {
+                m_MetricsStreamCollectionThreadExit = false;
+                m_MetricsStreamCollectionThread = std::thread(
+                    &DeviceProfilerPerformanceCountersNVIDIA::MetricsStreamCollectionThreadProc,
+                    this );
             }
         }
 
@@ -298,6 +314,12 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerPerformanceCountersNVIDIA::Destroy()
     {
+        if( m_MetricsStreamCollectionThread.joinable() )
+        {
+            m_MetricsStreamCollectionThreadExit = true;
+            m_MetricsStreamCollectionThread.join();
+        }
+
         ResetMembers();
     }
 
@@ -417,7 +439,7 @@ namespace Profiler
 
             // Configure the new session.
             size_t recordBufferSize = 0;
-            const size_t maxNumUndecodedSamples = 0x20000;
+            const size_t maxNumUndecodedSamples = 1'000'000 / m_SamplingPeriodInNanoseconds;
             const size_t maxNumUndecodedSamplingRanges = 1;
             const auto samplingInterval = m_PeriodicSampler.GetGpuPulseSamplingInterval(
                 m_SamplingPeriodInNanoseconds );
@@ -430,7 +452,7 @@ namespace Profiler
                     counterConfiguration.counterDataPrefix.data(),
                     counterConfiguration.counterDataPrefix.size(),
                     maxNumUndecodedSamples,
-                    NVPW_PERIODIC_SAMPLER_COUNTER_DATA_APPEND_MODE_LINEAR,
+                    NVPW_PERIODIC_SAMPLER_COUNTER_DATA_APPEND_MODE_CIRCULAR,
                     m_CounterData.GetCounterData() ) )
             {
                 assert( false );
@@ -453,6 +475,13 @@ namespace Profiler
                     maxNumUndecodedSamplingRanges,
                     { samplingInterval.triggerSource },
                     samplingInterval.samplingInterval ) )
+            {
+                assert( false );
+                return VK_ERROR_INITIALIZATION_FAILED;
+            }
+
+            if( !m_PeriodicSampler.SetConfig(
+                    counterConfiguration.configImage, 0 ) )
             {
                 assert( false );
                 return VK_ERROR_INITIALIZATION_FAILED;
@@ -739,6 +768,113 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ReadStreamData
+
+    Description:
+        Reads the stream data for the specified time range and parses it into counter
+        results.
+
+    \***********************************************************************************/
+    bool DeviceProfilerPerformanceCountersNVIDIA::ReadStreamData(
+        uint64_t beginTimestamp,
+        uint64_t endTimestamp,
+        std::vector<DeviceProfilerPerformanceCountersStreamResult>& samples )
+    {
+        std::scoped_lock lk( m_MetricsStreamResultsMutex );
+
+        if( m_SamplingMode != VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
+        {
+            // No stream data available in query mode.
+            return true;
+        }
+
+        if( beginTimestamp == endTimestamp )
+        {
+            // No data to read.
+            return true;
+        }
+
+        auto begin = m_MetricsStreamResults.begin();
+        auto end = m_MetricsStreamResults.end();
+
+        if( endTimestamp < beginTimestamp )
+        {
+            return true;
+        }
+        else
+        {
+            while( ( begin != end ) && ( begin->m_GpuTimestamp < beginTimestamp ) )
+                begin++;
+            while( ( end != begin ) && ( end - 1 )->m_GpuTimestamp > endTimestamp )
+                end--;
+        }
+
+        bool dataComplete = ( end != m_MetricsStreamResults.end() );
+
+        if( begin != end )
+        {
+            // Adjust timestamps to be relative to the begin timestamp.
+            for( auto it = begin; it != end; ++it )
+            {
+                it->m_GpuTimestamp -= beginTimestamp;
+            }
+
+            // Copy the data to the output buffer.
+            samples.insert( samples.begin(), begin, end );
+
+            m_MetricsStreamResults.erase( begin, end );
+        }
+        else
+        {
+            // No more data will arrive if the thread has exited.
+            if( !m_MetricsStreamCollectionThread.joinable() )
+            {
+                dataComplete = true;
+            }
+        }
+
+        return dataComplete;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetMembers
+
+    Description:
+        Set default values for all members of the class.
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersNVIDIA::ResetMembers()
+    {
+        m_pVulkanDevice = nullptr;
+
+        m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
+        m_SamplingPeriodInNanoseconds = 0;
+
+        m_ChipName.clear();
+
+        m_MetricsEvaluator.Reset();
+        m_PeriodicSampler.Reset();
+        m_CounterData.Reset();
+        m_CounterConfigurations.clear();
+
+        m_ActiveMetricsSetIndex = UINT32_MAX;
+
+        m_MetricsSetManager.Destroy();
+
+        m_MetricsStreamCollectionThread = std::thread();
+        m_MetricsStreamCollectionThreadExit = false;
+
+        m_MetricsStreamResults.clear();
+        m_MetricsStreamLastResultTimestamp = 0;
+        m_MetricsStreamMaxBufferLengthInNanoseconds = 1'000'000'000ull;
+        m_MetricsStreamMaxReportCount = 16'384;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         PrepareCounterConfigurationForMetricsSet
 
     Description:
@@ -794,60 +930,251 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        ReadStreamData
+        GetMetricEvalRequests
 
     Description:
-        Reads the stream data for the specified time range and parses it into counter
-        results.
 
     \***********************************************************************************/
-    bool DeviceProfilerPerformanceCountersNVIDIA::ReadStreamData(
-        uint64_t beginTimestamp,
-        uint64_t endTimestamp,
-        std::vector<DeviceProfilerPerformanceCountersStreamResult>& results )
+    std::vector<NVPW_MetricEvalRequest> DeviceProfilerPerformanceCountersNVIDIA::GetMetricEvalRequests(
+        uint32_t metricsSetIndex )
     {
-        if( m_SamplingMode != VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT )
+        std::scoped_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
+        const MetricsSet& metricsSet = m_MetricsSetManager.GetMetricsSet( metricsSetIndex );
+
+        std::vector<NVPW_MetricEvalRequest> metricEvalRequests;
+        metricEvalRequests.reserve( metricsSet.m_CounterIndices.size() );
+
+        for( uint32_t counterIndex : metricsSet.m_CounterIndices )
         {
-            // No stream data available in query mode.
-            return true;
+            const Counter& counter = m_MetricsSetManager.GetCounter( counterIndex );
+
+            NVPW_MetricEvalRequest metricEvalRequest = {};
+            if( m_MetricsEvaluator.ToMetricEvalRequest(
+                    counter.m_Name.c_str(),
+                    metricEvalRequest ) )
+            {
+                metricEvalRequests.push_back( metricEvalRequest );
+            }
         }
 
-        if( beginTimestamp == endTimestamp )
-        {
-            // No data to read.
-            return true;
-        }
-
-        // todo: read
-
-        return true;
+        return metricEvalRequests;
     }
 
     /***********************************************************************************\
 
     Function:
-        ResetMembers
+        MetricsStreamCollectionThreadProc
 
     Description:
-        Set default values for all members of the class.
+        Thread procedure for collecting stream data in the background and parsing it into
+        counter results.
 
     \***********************************************************************************/
-    void DeviceProfilerPerformanceCountersNVIDIA::ResetMembers()
+    void DeviceProfilerPerformanceCountersNVIDIA::MetricsStreamCollectionThreadProc()
     {
-        m_pVulkanDevice = nullptr;
+        while( !m_MetricsStreamCollectionThreadExit )
+        {
+            try
+            {
+                // Limit size of the buffered data.
+                FreeUnusedMetricsStreamSamples();
 
-        m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
-        m_SamplingPeriodInNanoseconds = 0;
+                // Collect pending samples from the stream.
+                const size_t reportCount = CollectMetricsStreamSamples();
 
-        m_ChipName.clear();
+                // Wait for the next batch of reports to be available.
+                // Avoid sleeping if the reportCount is high to avoid dropping samples.
+                if( reportCount < ( m_MetricsStreamMaxReportCount / 2 ) )
+                {
+                    std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+                }
+            }
+            catch( ... )
+            {
+                // Prevent the thread from exiting on exceptions.
+                assert( false );
+            }
+        }
+    }
 
-        m_MetricsEvaluator.Reset();
-        m_PeriodicSampler.Reset();
-        m_CounterData.Reset();
+    /***********************************************************************************\
 
-        m_MetricsSetManager.Destroy();
+    Function:
+        CollectMetricsStreamSamples
 
-        m_ActiveMetricsSetIndex = UINT32_MAX;
+    Description:
+
+    \***********************************************************************************/
+    size_t DeviceProfilerPerformanceCountersNVIDIA::CollectMetricsStreamSamples()
+    {
+        thread_local std::vector<double> parsedValues;
+        thread_local std::vector<VkProfilerPerformanceCounterResultEXT> parsedResults;
+
+        // Don't switch the active metrics set while reading the stream.
+        std::shared_lock lk( m_ActiveMetricsSetMutex );
+
+        const uint64_t cpuTimestamp = m_CpuTimestampCounter.GetCurrentValue();
+
+        const uint32_t activeMetricsSetIndex = m_ActiveMetricsSetIndex;
+        if( activeMetricsSetIndex == UINT32_MAX )
+        {
+            // No active metrics set, nothing to read.
+            return 0;
+        }
+
+        // Get the number of bytes available in the record buffer and check for overflow.
+        nv::perf::sampler::GpuPeriodicSampler::GetRecordBufferStatusParams bufferStatus = {};
+        bufferStatus.queryNumUnreadBytes = true;
+
+        if( !m_PeriodicSampler.GetRecordBufferStatus( bufferStatus ) )
+        {
+            return 0;
+        }
+
+        if( bufferStatus.numUnreadBytes == 0 )
+        {
+            // No data to read.
+            return 0;
+        }
+
+        // Read the data and acknowledge the read bytes.
+        NVPW_GPU_PeriodicSampler_DecodeStopReason decodeStopReason = NVPW_GPU_PERIODIC_SAMPLER_DECODE_STOP_REASON_OTHER;
+        size_t numSamplesMerged = 0;
+        size_t numBytesConsumed = 0;
+
+        if( !m_PeriodicSampler.DecodeCounters(
+                m_CounterData.GetCounterData(),
+                bufferStatus.numUnreadBytes,
+                decodeStopReason,
+                numSamplesMerged,
+                numBytesConsumed ) )
+        {
+            return 0;
+        }
+
+        if( !m_PeriodicSampler.AcknowledgeRecordBuffer(
+                numBytesConsumed ) )
+        {
+            return 0;
+        }
+
+        if( !m_CounterData.UpdatePut() )
+        {
+            return 0;
+        }
+
+        const auto& counterData = m_CounterData.GetCounterData();
+        if( !m_MetricsEvaluator.MetricsEvaluatorSetDeviceAttributes(
+                counterData.data(),
+                counterData.size() ) )
+        {
+            return 0;
+        }
+
+        // Unlock the active metrics set mutex while parsing the reports.
+        // The function is thread-safe and keeping it would block SetActiveMetricsSet calls.
+        lk.unlock();
+
+        std::vector<NVPW_MetricEvalRequest> metricEvalRequests =
+            GetMetricEvalRequests( activeMetricsSetIndex );
+
+        parsedValues.resize( metricEvalRequests.size() );
+        parsedResults.resize( metricEvalRequests.size() );
+
+        uint32_t reportCount = 0;
+
+        auto ConsumeProc = [&]( const uint8_t* pData, size_t dataSize, uint32_t rangeIndex, bool& stop )
+        {
+            stop = false;
+
+            // Evaluate the metrics and convert them to VkProfilerPerformanceCounterResultEXT values.
+            if( !m_MetricsEvaluator.EvaluateToGpuValues(
+                    pData,
+                    dataSize,
+                    rangeIndex,
+                    metricEvalRequests.size(),
+                    metricEvalRequests.data(),
+                    parsedValues.data() ) )
+            {
+                return false;
+            }
+
+            for( size_t i = 0; i < parsedValues.size(); ++i )
+            {
+                parsedResults[i].float64 = parsedValues[i];
+            }
+
+            // Read the sample collection timestamp.
+            nv::perf::sampler::SampleTimestamp sampleTimestamp = {};
+
+            if( !nv::perf::sampler::CounterDataGetSampleTime(
+                    pData,
+                    rangeIndex,
+                    sampleTimestamp ) )
+            {
+                return false;
+            }
+
+            if( sampleTimestamp.end != m_MetricsStreamLastResultTimestamp )
+            {
+                // Store the parsed results in the stream results buffer.
+                std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
+                m_MetricsStreamResults.push_back( { sampleTimestamp.end,
+                    cpuTimestamp,
+                    activeMetricsSetIndex,
+                    parsedResults } );
+
+                m_MetricsStreamLastResultTimestamp = sampleTimestamp.end;
+            }
+
+            reportCount++;
+            return true;
+        };
+
+        if( !m_CounterData.ConsumeData( ConsumeProc ) )
+        {
+            return 0;
+        }
+
+        if( !m_CounterData.UpdateGet( reportCount ) )
+        {
+            return 0;
+        }
+
+        return reportCount;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FreeUnusedMetricsStreamSamples
+
+    Description:
+
+    \***********************************************************************************/
+    void DeviceProfilerPerformanceCountersNVIDIA::FreeUnusedMetricsStreamSamples()
+    {
+        return;
+
+        std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
+
+        if( !m_MetricsStreamResults.empty() )
+        {
+            const uint64_t currentTimestamp = m_CpuTimestampCounter.GetCurrentValue();
+
+            const auto begin = m_MetricsStreamResults.begin();
+            const auto end = m_MetricsStreamResults.end();
+
+            // Find the first sample that is within the max buffer length.
+            auto it = begin;
+            while( ( it != end ) && ( m_CpuTimestampCounter.Convert( currentTimestamp - it->m_CpuTimestamp ).count() > m_MetricsStreamMaxBufferLengthInNanoseconds ) )
+                it++;
+
+            if( it != begin )
+            {
+                m_MetricsStreamResults.erase( begin, it );
+            }
+        }
     }
 
     /***********************************************************************************\
