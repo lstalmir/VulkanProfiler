@@ -20,6 +20,7 @@
 
 #pragma once
 #include "profiler_performance_counters.h"
+#include "utils/lockable_unordered_map.h"
 
 #define VK_NO_PROTOTYPES
 #include <NvPerfVulkan.h>
@@ -59,18 +60,17 @@ namespace Profiler
         uint32_t GetMetricsSetCount() const final;
         VkResult SetActiveMetricsSet( uint32_t metricsSetIndex ) final;
         uint32_t GetActiveMetricsSetIndex() const final;
-        // bool AreMetricsSetsCompatible( uint32_t metricsSet1, uint32_t metricsSet2 ) const final;
-        // uint32_t GetRequiredPasses( uint32_t counterCount, const uint32_t* pCounterIndices ) const final;
-        // uint32_t GetMetricsSets( uint32_t count, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const final;
-        // void GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const final;
-        // uint32_t GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, uint32_t count, VkProfilerPerformanceCounterProperties2EXT* pProperties ) const final;
+        uint32_t GetRequiredPasses( uint32_t counterCount, const uint32_t* pCounterIndices ) const final;
+        uint32_t GetMetricsSets( uint32_t count, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const final;
+        void GetMetricsSetProperties( uint32_t metricsSetIndex, VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const final;
+        uint32_t GetMetricsSetMetricsProperties( uint32_t metricsSetIndex, uint32_t count, VkProfilerPerformanceCounterProperties2EXT* pProperties ) const final;
         uint32_t GetMetricsProperties( uint32_t count, VkProfilerPerformanceCounterProperties2EXT* pProperties ) const final;
-        // void GetAvailableMetrics( uint32_t selectedCountersCount, const uint32_t* pSelectedCounters, uint32_t& availableCountersCount, uint32_t* pAvailableCounters ) const final;
+        void GetAvailableMetrics( uint32_t selectedCountersCount, const uint32_t* pSelectedCounters, uint32_t& availableCountersCount, uint32_t* pAvailableCounters ) const final;
 
         bool SupportsCustomMetricsSets() const final;
-        // uint32_t CreateCustomMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) final;
-        // void DestroyCustomMetricsSet( uint32_t ) final;
-        // void UpdateCustomMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) final;
+        uint32_t CreateCustomMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) final;
+
+        bool ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) final;
 
     private:
         struct Counter
@@ -92,8 +92,8 @@ namespace Profiler
             std::string             m_Name;
             std::string             m_Description;
             std::vector<uint32_t>   m_CounterIndices;
-
-            nv::perf::CounterConfiguration m_CounterConfiguration;
+            uint32_t                m_CompatibleHash; // Counters
+            uint32_t                m_FullHash;       // All fields
         };
 
         struct VkDevice_Object*     m_pVulkanDevice;
@@ -101,20 +101,24 @@ namespace Profiler
         VkProfilerPerformanceCountersSamplingModeEXT m_SamplingMode;
         uint32_t                    m_SamplingPeriodInNanoseconds;
 
+        std::string                 m_ChipName;
+
         nv::perf::MetricsEvaluator  m_MetricsEvaluator;
         nv::perf::sampler::GpuPeriodicSampler m_PeriodicSampler;
         nv::perf::sampler::RingBufferCounterData m_CounterData;
-
-        std::vector<Counter>        m_Counters;
-
-        std::shared_mutex mutable   m_MetricsSetsMutex;
-        std::vector<MetricsSet>     m_MetricsSets;
+        ConcurrentMap<uint32_t, nv::perf::CounterConfiguration> m_CounterConfigurations;
 
         std::shared_mutex mutable   m_ActiveMetricsSetMutex;
         uint32_t                    m_ActiveMetricsSetIndex;
 
+        DeviceProfilerCustomMetricsSetManager<MetricsSet, Counter> m_MetricsSetManager;
+
         void ResetMembers();
 
+        VkResult SetActiveMetricsSet_NoLock( uint32_t metricsSetIndex );
+        bool PrepareCounterConfigurationForMetricsSet( const MetricsSet& metricsSet );
+
+        static void FillPerformanceMetricsSetProperties( const MetricsSet& set, VkProfilerPerformanceMetricsSetProperties2EXT& properties );
         static void FillPerformanceCounterProperties( const Counter& counter, VkProfilerPerformanceCounterProperties2EXT& properties );
     };
 }

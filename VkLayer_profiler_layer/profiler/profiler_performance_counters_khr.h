@@ -111,16 +111,11 @@ namespace Profiler
             uint8_t m_UUID[VK_UUID_SIZE];
         };
 
-        std::vector<Counter> m_Counters;
-
-        std::shared_mutex mutable m_MetricsSetsMutex;
-        std::vector<MetricsSet> m_MetricsSets;
+        DeviceProfilerCustomMetricsSetManager<MetricsSet, Counter> m_MetricsSetManager;
 
         static void FillPerformanceMetricsSetProperties( const MetricsSet& set, VkProfilerPerformanceMetricsSetProperties2EXT& properties );
         static void FillPerformanceCounterProperties( const Counter& counter, VkProfilerPerformanceCounterProperties2EXT& properties );
 
-        uint32_t FindMetricsSetByHash( uint32_t fullHash ) const;
-        uint32_t RegisterMetricsSet( MetricsSet&& metricsSet );
         void RegisterCounter( uint32_t queueFamilyIndex, uint32_t counterIndexInFamily, const VkPerformanceCounterKHR& counter, const VkPerformanceCounterDescriptionKHR& description );
     };
 }
