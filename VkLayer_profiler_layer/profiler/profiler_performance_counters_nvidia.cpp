@@ -70,7 +70,7 @@ namespace Profiler
         {
             m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
             // m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
-            m_SamplingPeriodInNanoseconds = 50'000;
+            m_SamplingPeriodInNanoseconds = 25'000;
         }
 
         // Get commonly used Vulkan objects and function pointers.
@@ -270,7 +270,7 @@ namespace Profiler
                 }
 
                 counter.m_Unit = VK_PROFILER_PERFORMANCE_COUNTER_UNIT_GENERIC_EXT;
-                counter.m_Storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT;
+                counter.m_Storage = VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT;
 
                 // API does not provide UUIDs for metrics
                 uint32_t uuid[VK_UUID_SIZE / 4] = {};
@@ -439,7 +439,7 @@ namespace Profiler
 
             // Configure the new session.
             size_t recordBufferSize = 0;
-            const size_t maxNumUndecodedSamples = 1'000'000 / m_SamplingPeriodInNanoseconds;
+            const size_t maxNumUndecodedSamples = 1'000'000'000 / m_SamplingPeriodInNanoseconds;
             const size_t maxNumUndecodedSamplingRanges = 1;
             const auto samplingInterval = m_PeriodicSampler.GetGpuPulseSamplingInterval(
                 m_SamplingPeriodInNanoseconds );
@@ -447,13 +447,20 @@ namespace Profiler
             const MetricsSet& metricsSet = m_MetricsSetManager.GetMetricsSet( metricsSetIndex );
             const auto& counterConfiguration = m_CounterConfigurations.at( metricsSet.m_CompatibleHash );
 
-            if( !nv::perf::sampler::GpuPeriodicSamplerCreateCounterData(
+            auto CreateCounterData = [&]( uint32_t maxSamples, NVPW_PeriodicSampler_CounterData_AppendMode appendMode, std::vector<uint8_t>& counterData ) {
+                return nv::perf::sampler::GpuPeriodicSamplerCreateCounterData(
                     m_PeriodicSampler.GetDeviceIndex(),
                     counterConfiguration.counterDataPrefix.data(),
                     counterConfiguration.counterDataPrefix.size(),
                     maxNumUndecodedSamples,
                     NVPW_PERIODIC_SAMPLER_COUNTER_DATA_APPEND_MODE_CIRCULAR,
-                    m_CounterData.GetCounterData() ) )
+                    m_CounterData.GetCounterData() );
+            };
+
+            if( !m_CounterData.Initialize(
+                    maxNumUndecodedSamples,
+                    true,
+                    CreateCounterData ) )
             {
                 assert( false );
                 return VK_ERROR_INITIALIZATION_FAILED;
@@ -813,12 +820,6 @@ namespace Profiler
 
         if( begin != end )
         {
-            // Adjust timestamps to be relative to the begin timestamp.
-            for( auto it = begin; it != end; ++it )
-            {
-                it->m_GpuTimestamp -= beginTimestamp;
-            }
-
             // Copy the data to the output buffer.
             samples.insert( samples.begin(), begin, end );
 
@@ -1063,6 +1064,7 @@ namespace Profiler
             return 0;
         }
 
+        // Prepare the metrics evaluator and the metrics evaluation requests.
         const auto& counterData = m_CounterData.GetCounterData();
         if( !m_MetricsEvaluator.MetricsEvaluatorSetDeviceAttributes(
                 counterData.data(),
@@ -1071,11 +1073,7 @@ namespace Profiler
             return 0;
         }
 
-        // Unlock the active metrics set mutex while parsing the reports.
-        // The function is thread-safe and keeping it would block SetActiveMetricsSet calls.
-        lk.unlock();
-
-        std::vector<NVPW_MetricEvalRequest> metricEvalRequests =
+        const std::vector<NVPW_MetricEvalRequest> metricEvalRequests =
             GetMetricEvalRequests( activeMetricsSetIndex );
 
         parsedValues.resize( metricEvalRequests.size() );
@@ -1101,7 +1099,7 @@ namespace Profiler
 
             for( size_t i = 0; i < parsedValues.size(); ++i )
             {
-                parsedResults[i].float64 = parsedValues[i];
+                parsedResults[i].float32 = static_cast<float>( parsedValues[i] );
             }
 
             // Read the sample collection timestamp.
@@ -1119,7 +1117,8 @@ namespace Profiler
             {
                 // Store the parsed results in the stream results buffer.
                 std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
-                m_MetricsStreamResults.push_back( { sampleTimestamp.end,
+                m_MetricsStreamResults.push_back( {
+                    sampleTimestamp.end,
                     cpuTimestamp,
                     activeMetricsSetIndex,
                     parsedResults } );
@@ -1154,8 +1153,6 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerPerformanceCountersNVIDIA::FreeUnusedMetricsStreamSamples()
     {
-        return;
-
         std::scoped_lock resultsLock( m_MetricsStreamResultsMutex );
 
         if( !m_MetricsStreamResults.empty() )
