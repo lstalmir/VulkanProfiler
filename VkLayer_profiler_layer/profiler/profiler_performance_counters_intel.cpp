@@ -21,6 +21,7 @@
 #include "profiler_performance_counters_intel.h"
 #include "profiler/profiler_config.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler_helpers/profiler_json_parser.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
 #ifndef NDEBUG
@@ -46,7 +47,6 @@
 #define PROFILER_METRICS_DLL_INTEL "libigdmd.so"
 #endif
 
-#include <nlohmann/json.hpp>
 #include <fstream>
 
 namespace MD = MetricsDiscovery;
@@ -1106,12 +1106,31 @@ namespace Profiler
             vulkanDriverName[ vulkanDriverNameLength ] = 0;
 
             // Parse JSON file.
-            nlohmann::json icd = nlohmann::json::parse( std::ifstream( vulkanDriverName ) );
+            DeviceProfilerJsonParser parser;
+            if( !parser.ParseFile( vulkanDriverName ) )
+            {
+                RegCloseKey( hDeviceRegistryKey );
+                continue;
+            }
 
-            if( icd[ "file_format_version" ] == "1.0.0" )
+            auto manifest = parser.GetParsedDocument().ReadObject();
+            if( !manifest.IsValid() )
+            {
+                RegCloseKey( hDeviceRegistryKey );
+                continue;
+            }
+
+            if( manifest.Read( "file_format_version" ).ToStringView() == "1.0.0" )
             {
                 // Get path to the DLL.
-                std::filesystem::path vulkanModulePath = icd[ "ICD" ][ "library_path" ];
+                std::filesystem::path vulkanModulePath;
+
+                if( !manifest.ReadObject( "ICD" ).Read( "library_path", vulkanModulePath ) )
+                {
+                    // Failed to read library_path from JSON.
+                    RegCloseKey( hDeviceRegistryKey );
+                    continue;
+                }
 
                 if( !vulkanModulePath.is_absolute() )
                 {

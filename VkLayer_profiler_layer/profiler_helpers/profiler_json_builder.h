@@ -19,11 +19,11 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_json_common.h"
+
 #include <assert.h>
 #include <string_view>
 #include <type_traits>
-
-#include <simdjson.h>
 
 namespace Profiler
 {
