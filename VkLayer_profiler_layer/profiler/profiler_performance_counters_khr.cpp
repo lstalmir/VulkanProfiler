@@ -42,7 +42,9 @@ namespace Profiler
         , m_UsedQueueFamilies()
         , m_ActiveMetricsSetMutex()
         , m_ActiveMetricsSetIndex( UINT32_MAX )
-        , m_MetricsSetManager()
+        , m_Counters( 0 )
+        , m_MetricsSets( 0 )
+        , m_MetricsSetsMutex()
     {
     }
 
@@ -149,7 +151,8 @@ namespace Profiler
 
         m_QueueFamilyCount = 0;
 
-        m_MetricsSetManager.Destroy();
+        m_Counters.clear();
+        m_MetricsSets.clear();
 
         m_pDevice = nullptr;
     }
@@ -165,12 +168,11 @@ namespace Profiler
     \***********************************************************************************/
     uint32_t DeviceProfilerPerformanceCountersKHR::GetReportSize( uint32_t metricsSetIndex, uint32_t queueFamilyIndex ) const
     {
-        std::shared_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
-        const std::vector<MetricsSet>& metricsSets = m_MetricsSetManager.GetMetricsSets();
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
 
-        if( metricsSetIndex < metricsSets.size() )
+        if( metricsSetIndex < m_MetricsSets.size() )
         {
-            const MetricsSet& metricsSet = metricsSets[metricsSetIndex];
+            const MetricsSet& metricsSet = m_MetricsSets[metricsSetIndex];
             const MetricsSetQueueFamilyCounters& queueFamilyCounters = metricsSet.m_QueueFamilyCounters[queueFamilyIndex];
             return static_cast<uint32_t>( queueFamilyCounters.m_CounterIndices.size() * sizeof( VkPerformanceCounterResultKHR ) );
         }
@@ -189,12 +191,11 @@ namespace Profiler
     \***********************************************************************************/
     uint32_t DeviceProfilerPerformanceCountersKHR::GetMetricsCount( uint32_t metricsSetIndex ) const
     {
-        std::shared_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
-        const std::vector<MetricsSet>& metricsSets = m_MetricsSetManager.GetMetricsSets();
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
 
-        if( metricsSetIndex < metricsSets.size() )
+        if( metricsSetIndex < m_MetricsSets.size() )
         {
-            return static_cast<uint32_t>( metricsSets[metricsSetIndex].m_CounterIndices.size() );
+            return static_cast<uint32_t>( m_MetricsSets[metricsSetIndex].m_CounterIndices.size() );
         }
 
         return 0;
@@ -211,8 +212,8 @@ namespace Profiler
     \***********************************************************************************/
     uint32_t DeviceProfilerPerformanceCountersKHR::GetMetricsSetCount() const
     {
-        std::shared_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
-        return static_cast<uint32_t>( m_MetricsSetManager.GetMetricsSets().size() );
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
+        return static_cast<uint32_t>( m_MetricsSets.size() );
     }
 
     /***********************************************************************************\
@@ -227,10 +228,8 @@ namespace Profiler
     \***********************************************************************************/
     VkResult DeviceProfilerPerformanceCountersKHR::SetActiveMetricsSet( uint32_t metricsSetIndex )
     {
-        std::shared_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
-        const std::vector<MetricsSet>& metricsSets = m_MetricsSetManager.GetMetricsSets();
-
-        if( ( metricsSetIndex >= metricsSets.size() ) &&
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
+        if( ( metricsSetIndex >= m_MetricsSets.size() ) &&
             ( metricsSetIndex != UINT32_MAX ) )
         {
             return VK_ERROR_VALIDATION_FAILED_EXT;
@@ -269,16 +268,15 @@ namespace Profiler
     \***********************************************************************************/
     bool DeviceProfilerPerformanceCountersKHR::AreMetricsSetsCompatible( uint32_t firstMetricsSetIndex, uint32_t secondMetricsSetIndex ) const
     {
-        std::shared_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
-        const std::vector<MetricsSet>& metricsSets = m_MetricsSetManager.GetMetricsSets();
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
 
-        if( ( firstMetricsSetIndex >= metricsSets.size() ) ||
-            ( secondMetricsSetIndex >= metricsSets.size() ) )
+        if( ( firstMetricsSetIndex >= m_MetricsSets.size() ) ||
+            ( secondMetricsSetIndex >= m_MetricsSets.size() ) )
         {
             return false;
         }
 
-        return ( metricsSets[firstMetricsSetIndex].m_CompatibleHash == metricsSets[secondMetricsSetIndex].m_CompatibleHash );
+        return ( m_MetricsSets[firstMetricsSetIndex].m_CompatibleHash == m_MetricsSets[secondMetricsSetIndex].m_CompatibleHash );
     }
 
     /***********************************************************************************\
@@ -309,7 +307,7 @@ namespace Profiler
             // Construct a list of allocated counters for the given queue family.
             for( uint32_t i = 0; i < counterCount; ++i )
             {
-                const Counter& counter = m_MetricsSetManager.GetCounter( pCounterIndices[i] );
+                const Counter& counter = m_Counters.at( pCounterIndices[i] );
                 const uint32_t counterIndexInFamily = counter.m_QueueFamilyCounterIndices[queueFamilyIndex];
 
                 if( counterIndexInFamily != UINT32_MAX )
@@ -349,17 +347,16 @@ namespace Profiler
         uint32_t count,
         VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const
     {
-        std::shared_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
-        const std::vector<MetricsSet>& metricsSets = m_MetricsSetManager.GetMetricsSets();
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
 
         // Fill in the properties.
-        const size_t writeCount = std::min<size_t>( count, metricsSets.size() );
+        const size_t writeCount = std::min<size_t>( count, m_MetricsSets.size() );
         for( size_t i = 0; i < writeCount; ++i )
         {
-            FillPerformanceMetricsSetProperties( metricsSets[i], pProperties[i] );
+            FillPerformanceMetricsSetProperties( m_MetricsSets[i], pProperties[i] );
         }
 
-        return static_cast<uint32_t>( metricsSets.size() );
+        return static_cast<uint32_t>( m_MetricsSets.size() );
     }
 
     /***********************************************************************************\
@@ -375,16 +372,15 @@ namespace Profiler
         uint32_t metricsSetIndex,
         VkProfilerPerformanceMetricsSetProperties2EXT* pProperties ) const
     {
-        std::shared_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
-        const std::vector<MetricsSet>& metricsSets = m_MetricsSetManager.GetMetricsSets();
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
 
-        if( metricsSetIndex >= metricsSets.size() )
+        if( metricsSetIndex >= m_MetricsSets.size() )
         {
             memset( pProperties, 0, sizeof( VkProfilerPerformanceMetricsSetProperties2EXT ) );
             return;
         }
 
-        FillPerformanceMetricsSetProperties( metricsSets[metricsSetIndex], *pProperties );
+        FillPerformanceMetricsSetProperties( m_MetricsSets[metricsSetIndex], *pProperties );
     }
 
     /***********************************************************************************\
@@ -401,21 +397,20 @@ namespace Profiler
         uint32_t counterCount,
         VkProfilerPerformanceCounterProperties2EXT* pCounters ) const
     {
-        std::shared_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
-        const std::vector<MetricsSet>& metricsSets = m_MetricsSetManager.GetMetricsSets();
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
 
-        if( metricsSetIndex >= metricsSets.size() )
+        if( metricsSetIndex >= m_MetricsSets.size() )
         {
             return 0;
         }
 
         // Fill in the properties.
-        const auto& metricsSet = metricsSets[metricsSetIndex];
+        const auto& metricsSet = m_MetricsSets[metricsSetIndex];
         const size_t writeCount = std::min<size_t>( counterCount, metricsSet.m_CounterIndices.size() );
         for( size_t i = 0; i < writeCount; ++i )
         {
             const uint32_t counterIndex = metricsSet.m_CounterIndices[i];
-            const Counter& counter = m_MetricsSetManager.GetCounter( counterIndex );
+            const Counter& counter = m_Counters.at( counterIndex );
 
             FillPerformanceCounterProperties( counter, pCounters[i] );
         }
@@ -436,16 +431,14 @@ namespace Profiler
         uint32_t counterCount,
         VkProfilerPerformanceCounterProperties2EXT* pCounters ) const
     {
-        const std::vector<Counter>& counters = m_MetricsSetManager.GetCounters();
-
         // Fill in the properties.
-        const size_t writeCount = std::min<size_t>( counterCount, counters.size() );
+        const size_t writeCount = std::min<size_t>( counterCount, m_Counters.size() );
         for( size_t i = 0; i < writeCount; ++i )
         {
-            FillPerformanceCounterProperties( counters[i], pCounters[i] );
+            FillPerformanceCounterProperties( m_Counters[i], pCounters[i] );
         }
 
-        return static_cast<uint32_t>( counters.size() );
+        return static_cast<uint32_t>( m_Counters.size() );
     }
 
     /***********************************************************************************\
@@ -478,7 +471,7 @@ namespace Profiler
             // Construct a list of allocated counters for the given queue family.
             for( uint32_t i = 0; i < selectedCountersCount; ++i )
             {
-                const Counter& counter = m_MetricsSetManager.GetCounter( pSelectedCounters[i] );
+                const Counter& counter = m_Counters.at( pSelectedCounters[i] );
                 const uint32_t counterIndexInFamily = counter.m_QueueFamilyCounterIndices[queueFamilyIndex];
 
                 if( counterIndexInFamily != UINT32_MAX )
@@ -534,7 +527,7 @@ namespace Profiler
     \***********************************************************************************/
     VkResult DeviceProfilerPerformanceCountersKHR::CreateQueryPool( uint32_t queueFamilyIndex, uint32_t size, VkQueryPool* pQueryPool )
     {
-        std::shared_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
 
         VkQueryPoolCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
@@ -546,10 +539,9 @@ namespace Profiler
         performanceCreateInfo.queueFamilyIndex = queueFamilyIndex;
 
         const uint32_t activeMetricsSetIndex = GetActiveMetricsSetIndex();
-        const auto& metricsSets = m_MetricsSetManager.GetMetricsSets();
-        if( activeMetricsSetIndex < metricsSets.size() )
+        if( activeMetricsSetIndex < m_MetricsSets.size() )
         {
-            const MetricsSet& activeCounters = metricsSets[activeMetricsSetIndex];
+            const MetricsSet& activeCounters = m_MetricsSets[activeMetricsSetIndex];
             const MetricsSetQueueFamilyCounters& queueFamilyCounters = activeCounters.m_QueueFamilyCounters[queueFamilyIndex];
             performanceCreateInfo.counterIndexCount = static_cast<uint32_t>( queueFamilyCounters.m_CounterIndices.size() );
             performanceCreateInfo.pCounterIndices = queueFamilyCounters.m_CounterIndices.data();
@@ -583,16 +575,46 @@ namespace Profiler
     \***********************************************************************************/
     uint32_t DeviceProfilerPerformanceCountersKHR::CreateCustomMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo )
     {
-        DeviceProfilerCustomMetricsSetBuilder builder( pCreateInfo, m_MetricsSetManager );
+        assert( pCreateInfo->sType == VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_CREATE_INFO_EXT );
+        assert( pCreateInfo->pNext == nullptr );
 
         // Validate parameters.
-        if( !builder.IsInputValid() )
+        if( !pCreateInfo->metricsCount || !pCreateInfo->pMetricsIndices )
         {
             return UINT32_MAX;
         }
 
+        // Sort counter indices.
+        std::vector<uint32_t> sortedCounterIndices(
+            pCreateInfo->pMetricsIndices,
+            pCreateInfo->pMetricsIndices + pCreateInfo->metricsCount );
+        std::sort( sortedCounterIndices.begin(), sortedCounterIndices.end() );
+
+        // Calculate a hash of the counter set to identify compatible sets.
+        HashInput hashInput;
+
+        for( uint32_t counterIndex : sortedCounterIndices )
+        {
+            const Counter& counter = m_Counters.at( counterIndex );
+            hashInput.Add( counter.m_UUID, sizeof( counter.m_UUID ) );
+        }
+
+        uint32_t compatibleHash = Farmhash::Fingerprint32(
+            hashInput.GetData(),
+            hashInput.GetSize() );
+
+        // Calculate a full hash to identify identical sets.
+        hashInput.Reset();
+        hashInput.Add( compatibleHash );
+        hashInput.Add( pCreateInfo->pName );
+        hashInput.Add( pCreateInfo->pDescription );
+
+        uint32_t fullHash = Farmhash::Fingerprint32(
+            hashInput.GetData(),
+            hashInput.GetSize() );
+
         // Check if an identical counter set already exists.
-        uint32_t metricsSetIndex = builder.GetExistingMetricsSetIndex();
+        uint32_t metricsSetIndex = FindMetricsSetByHash( fullHash );
 
         // Create and register the counter set if it does not exist yet.
         if( metricsSetIndex == UINT32_MAX )
@@ -600,9 +622,9 @@ namespace Profiler
             MetricsSet metricsSet = {};
             metricsSet.m_Name = pCreateInfo->pName ? pCreateInfo->pName : std::string();
             metricsSet.m_Description = pCreateInfo->pDescription ? pCreateInfo->pDescription : std::string();
-            metricsSet.m_CounterIndices = builder.GetSortedCounterIndices();
-            metricsSet.m_CompatibleHash = builder.GetCompatibleMetricsSetHash();
-            metricsSet.m_FullHash = builder.GetFullMetricsSetHash();
+            metricsSet.m_CounterIndices = std::move( sortedCounterIndices );
+            metricsSet.m_CompatibleHash = compatibleHash;
+            metricsSet.m_FullHash = fullHash;
 
             for( uint32_t queueFamilyIndex : m_UsedQueueFamilies )
             {
@@ -612,7 +634,7 @@ namespace Profiler
                 for( size_t i = 0; i < counterCount; ++i )
                 {
                     const uint32_t counterIndex = metricsSet.m_CounterIndices[i];
-                    const Counter& counter = m_MetricsSetManager.GetCounter( counterIndex );
+                    const Counter& counter = m_Counters.at( counterIndex );
                     const uint32_t counterIndexInFamily = counter.m_QueueFamilyCounterIndices[queueFamilyIndex];
 
                     if( counterIndexInFamily != UINT32_MAX )
@@ -625,7 +647,7 @@ namespace Profiler
                 metricsSet.m_QueueFamilyCounters.push_back( std::move( queueFamilyCounters ) );
             }
 
-            metricsSetIndex = m_MetricsSetManager.RegisterMetricsSet( std::move( metricsSet ) );
+            metricsSetIndex = RegisterMetricsSet( std::move( metricsSet ) );
         }
 
         return metricsSetIndex;
@@ -642,7 +664,7 @@ namespace Profiler
     \***********************************************************************************/
     void DeviceProfilerPerformanceCountersKHR::DestroyCustomMetricsSet( uint32_t metricsSetIndex )
     {
-        std::scoped_lock lock( m_ActiveMetricsSetMutex );
+        std::scoped_lock lock( m_MetricsSetsMutex, m_ActiveMetricsSetMutex );
 
         // Disable active counter set if it is being removed.
         if( metricsSetIndex == m_ActiveMetricsSetIndex )
@@ -651,7 +673,10 @@ namespace Profiler
         }
 
         // Remove the counter set from the vector.
-        m_MetricsSetManager.UnregisterMetricsSet( metricsSetIndex );
+        if( metricsSetIndex < m_MetricsSets.size() )
+        {
+            m_MetricsSets.erase( m_MetricsSets.begin() + metricsSetIndex );
+        }
     }
 
     /***********************************************************************************\
@@ -671,8 +696,7 @@ namespace Profiler
         }
 
         // Avoid vector reallocation during updates.
-        std::scoped_lock lock( m_MetricsSetManager.GetMetricsSetsMutex() );
-        std::vector<MetricsSet>& metricsSets = m_MetricsSetManager.GetMetricsSets();
+        std::scoped_lock lock( m_MetricsSetsMutex );
 
         for( uint32_t i = 0; i < updateCount; ++i )
         {
@@ -680,13 +704,13 @@ namespace Profiler
             assert( updateInfo.sType == VK_STRUCTURE_TYPE_PROFILER_CUSTOM_PERFORMANCE_METRICS_SET_UPDATE_INFO_EXT );
             assert( updateInfo.pNext == nullptr );
 
-            if( updateInfo.metricsSetIndex >= metricsSets.size() )
+            if( updateInfo.metricsSetIndex >= m_MetricsSets.size() )
             {
                 continue;
             }
 
             // Update the metrics set properties.
-            MetricsSet& metricsSet = metricsSets[updateInfo.metricsSetIndex];
+            MetricsSet& metricsSet = m_MetricsSets[updateInfo.metricsSetIndex];
 
             if( updateInfo.pName != nullptr )
             {
@@ -729,10 +753,9 @@ namespace Profiler
         static_assert( sizeof( VkPerformanceCounterResultKHR ) == sizeof( VkProfilerPerformanceCounterResultEXT ) );
         assert( reportSize == GetReportSize( metricsSetIndex, queueFamilyIndex ) );
 
-        std::shared_lock metricsSetsLock( m_MetricsSetManager.GetMetricsSetsMutex() );
-        const std::vector<MetricsSet>& metricsSets = m_MetricsSetManager.GetMetricsSets();
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
 
-        const MetricsSet& metricsSet = metricsSets.at( metricsSetIndex );
+        const MetricsSet& metricsSet = m_MetricsSets.at( metricsSetIndex );
         const MetricsSetQueueFamilyCounters& queueFamilyCounters = metricsSet.m_QueueFamilyCounters.at( queueFamilyIndex );
 
         // Allocate space for the results.
@@ -745,6 +768,51 @@ namespace Profiler
             const uint32_t counterIndex = queueFamilyCounters.m_ReverseMapping[i];
             results[counterIndex] = reinterpret_cast<const VkProfilerPerformanceCounterResultEXT*>( pReport )[i];
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FindMetricsSetByHash
+
+    Description:
+        Try to find an existing counter set by its full hash (all properties must match).
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerPerformanceCountersKHR::FindMetricsSetByHash( uint32_t fullHash ) const
+    {
+        std::shared_lock metricsSetsLock( m_MetricsSetsMutex );
+
+        const uint32_t setCount = static_cast<uint32_t>( m_MetricsSets.size() );
+        for( uint32_t setIndex = 0; setIndex < setCount; ++setIndex )
+        {
+            if( m_MetricsSets[setIndex].m_FullHash == fullHash )
+            {
+                return setIndex;
+            }
+        }
+
+        return UINT32_MAX;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        RegisterMetricsSet
+
+    Description:
+        Append the counter set to the list of available sets.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerPerformanceCountersKHR::RegisterMetricsSet( MetricsSet&& metricsSet )
+    {
+        std::unique_lock metricsSetsLock( m_MetricsSetsMutex );
+
+        // Append the counter set to the list.
+        m_MetricsSets.push_back( std::move( metricsSet ) );
+
+        // Return the index of the newly created counter set.
+        return static_cast<uint32_t>( m_MetricsSets.size() - 1 );
     }
 
     /***********************************************************************************\
@@ -763,7 +831,7 @@ namespace Profiler
         const VkPerformanceCounterDescriptionKHR& description )
     {
         // Check if the counter is already registered.
-        for( Counter& existingCounter : m_MetricsSetManager.GetCounters() )
+        for( Counter& existingCounter : m_Counters )
         {
             if( memcmp( existingCounter.m_UUID, counter.uuid, sizeof( counter.uuid ) ) == 0 )
             {
@@ -785,7 +853,7 @@ namespace Profiler
         newCounter.m_Storage = static_cast<VkProfilerPerformanceCounterStorageEXT>( counter.storage );
         memcpy( newCounter.m_UUID, counter.uuid, sizeof( counter.uuid ) );
 
-        m_MetricsSetManager.RegisterCounter( std::move( newCounter ) );
+        m_Counters.push_back( std::move( newCounter ) );
     }
 
     /***********************************************************************************\

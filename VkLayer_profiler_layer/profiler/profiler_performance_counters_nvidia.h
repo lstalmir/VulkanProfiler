@@ -115,8 +115,11 @@ namespace Profiler
         std::shared_mutex mutable   m_ActiveMetricsSetMutex;
         uint32_t                    m_ActiveMetricsSetIndex;
 
-        DeviceProfilerCustomMetricsSetManager<MetricsSet, Counter> m_MetricsSetManager;
-        
+        std::vector<Counter>        m_Counters;
+
+        std::shared_mutex mutable   m_MetricsSetsMutex;
+        std::vector<MetricsSet>     m_MetricsSets;
+
         std::thread                 m_MetricsStreamCollectionThread;
         std::mutex                  m_MetricsStreamCollectionMutex;
         bool                        m_MetricsStreamCollectionThreadExit;
@@ -136,6 +139,9 @@ namespace Profiler
         void MetricsStreamCollectionThreadProc();
         size_t CollectMetricsStreamSamples();
         void FreeUnusedMetricsStreamSamples();
+
+        uint32_t FindMetricsSetByHash( uint32_t fullHash ) const;
+        uint32_t RegisterMetricsSet( MetricsSet&& metricsSet );
 
         static void FillPerformanceMetricsSetProperties( const MetricsSet& set, VkProfilerPerformanceMetricsSetProperties2EXT& properties );
         static void FillPerformanceCounterProperties( const Counter& counter, VkProfilerPerformanceCounterProperties2EXT& properties );
