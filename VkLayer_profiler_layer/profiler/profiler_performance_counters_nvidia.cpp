@@ -69,8 +69,7 @@ namespace Profiler
         // Configure the performance counters.
         {
             m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
-            // m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
-            m_SamplingPeriodInNanoseconds = 25'000;
+            m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
         }
 
         // Get commonly used Vulkan objects and function pointers.

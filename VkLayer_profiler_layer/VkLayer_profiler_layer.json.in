@@ -188,17 +188,18 @@
                             "description": "Timer period in nanoseconds for performance stream collection mode.",
                             "env": "VKPROF_performance_stream_timer_period",
                             "type": "INT",
+                            "unit": "ns",
                             "default": 25000,
                             "dependence": {
-                                "mode": "ALL",
+                                "mode": "ANY",
                                 "settings": [
                                     {
                                         "key": "enable_performance_query_ext",
                                         "value": "intel"
                                     },
                                     {
-                                        "key": "performance_query_mode",
-                                        "value": "stream"
+                                        "key": "enable_performance_query_ext",
+                                        "value": "nvidia"
                                     }
                                 ]
                             }
