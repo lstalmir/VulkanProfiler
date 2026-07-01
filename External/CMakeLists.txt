@@ -166,7 +166,7 @@ function (build_nvperf_sdk)
     set (nvperf_metric_configurations_output_dir
         "${CMAKE_CURRENT_BINARY_DIR}/nvperf/NvPerfUtility/include")
 
-    file (MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/nvperf")
+    file (MAKE_DIRECTORY "${nvperf_metric_configurations_output_dir}")
 
     foreach (dir IN LISTS nvperf_metric_configurations_dirs)
         get_filename_component (chip "${dir}" NAME)
