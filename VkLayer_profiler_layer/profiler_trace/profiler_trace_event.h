@@ -92,10 +92,10 @@ namespace Profiler
             : m_Phase( phase )
             , m_Name( name )
             , m_Category( category )
-            , m_Timestamp( std::chrono::duration_cast<decltype(m_Timestamp)>(timestamp) )
+            , m_Timestamp( std::chrono::duration_cast<decltype( m_Timestamp )>( timestamp ) )
             , m_Queue( queue )
-            , m_Color( color )
-            , m_Args( args )
+            , m_Color( std::move( color ) )
+            , m_Args( std::move( args ) )
         {
         }
 
@@ -136,7 +136,7 @@ namespace Profiler
             VkQueue queue,
             BuildCallback color = {},
             BuildCallback args = {} )
-            : TraceEvent( Phase::eInstant, name, category, timestamp, queue, color, args )
+            : TraceEvent( Phase::eInstant, name, category, timestamp, queue, std::move( color ), std::move( args ) )
             , m_Scope( scope )
         {
         }
@@ -172,7 +172,7 @@ namespace Profiler
             VkQueue queue,
             BuildCallback color = {},
             BuildCallback args = {} )
-            : TraceEvent( phase, name, category, timestamp, queue, color, args )
+            : TraceEvent( phase, name, category, timestamp, queue, std::move( color ), std::move( args ) )
             , m_Id( id )
         {
             assert( (m_Phase == Phase::eAsyncStart)
@@ -210,8 +210,8 @@ namespace Profiler
             VkQueue queue,
             BuildCallback color = {},
             BuildCallback args = {} )
-            : TraceEvent( Phase::eComplete, name, category, timestamp, queue, color, args )
-            , m_Duration( std::chrono::duration_cast<decltype(m_Duration)>(duration) )
+            : TraceEvent( Phase::eComplete, name, category, timestamp, queue, std::move( color ), std::move( args ) )
+            , m_Duration( std::chrono::duration_cast<decltype( m_Duration )>( duration ) )
         {
         }
 
@@ -246,7 +246,7 @@ namespace Profiler
             const VkProfilerPerformanceCounterProperties2EXT* pCounterProperties,
             const VkProfilerPerformanceCounterResultEXT* pCounterResults,
             BuildCallback color = {} )
-            : TraceEvent( Phase::eCounter, "", "", timestamp, queue, color )
+            : TraceEvent( Phase::eCounter, "", "", timestamp, queue, std::move( color ) )
             , m_CounterCount( counterCount )
             , m_pCounterProperties( pCounterProperties )
             , m_pCounterResults( pCounterResults )
@@ -277,7 +277,7 @@ namespace Profiler
             TimestampType timestamp,
             BuildCallback color = {},
             BuildCallback args = {} )
-            : TraceEvent( phase, name, "Debug", timestamp, VK_NULL_HANDLE, color, args )
+            : TraceEvent( phase, name, "Debug", timestamp, VK_NULL_HANDLE, std::move( color ), std::move( args ) )
         {
         }
 
@@ -308,7 +308,7 @@ namespace Profiler
             TimestampType timestamp,
             BuildCallback color = {},
             BuildCallback args = {} )
-            : TraceEvent( phase, name, "API", timestamp, VK_NULL_HANDLE, color, args )
+            : TraceEvent( phase, name, "API", timestamp, VK_NULL_HANDLE, std::move( color ), std::move( args ) )
             , m_ThreadId( threadId )
         {
         }
