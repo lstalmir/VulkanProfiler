@@ -67,9 +67,20 @@ namespace Profiler
         m_pVulkanDevice = pDevice;
 
         // Configure the performance counters.
+        if( result == VK_SUCCESS )
         {
-            m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
-            m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
+            switch( config.m_PerformanceQueryMode )
+            {
+            case Profiler::performance_query_mode_t::stream:
+                m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
+                m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
+                break;
+
+            default:
+                // Unsupported mode
+                result = VK_ERROR_FEATURE_NOT_PRESENT;
+                break;
+            }
         }
 
         // Get commonly used Vulkan objects and function pointers.
@@ -437,27 +448,29 @@ namespace Profiler
 
             // Configure the new session.
             size_t recordBufferSize = 0;
+            const bool validateCounterData = true;
             const size_t maxNumUndecodedSamples = 1'000'000'000 / m_SamplingPeriodInNanoseconds;
             const size_t maxNumUndecodedSamplingRanges = 1;
             const auto samplingInterval = m_PeriodicSampler.GetGpuPulseSamplingInterval(
                 m_SamplingPeriodInNanoseconds );
 
-            const MetricsSet& metricsSet = m_MetricsSets[metricsSetIndex];
+            const MetricsSet& metricsSet = m_MetricsSets.at( metricsSetIndex );
             const auto& counterConfiguration = m_CounterConfigurations.at( metricsSet.m_CompatibleHash );
 
-            auto CreateCounterData = [&]( uint32_t maxSamples, NVPW_PeriodicSampler_CounterData_AppendMode appendMode, std::vector<uint8_t>& counterData ) {
+            auto CreateCounterData = [&]( uint32_t maxSamples, NVPW_PeriodicSampler_CounterData_AppendMode appendMode, std::vector<uint8_t>& counterData )
+            {
                 return nv::perf::sampler::GpuPeriodicSamplerCreateCounterData(
                     m_PeriodicSampler.GetDeviceIndex(),
                     counterConfiguration.counterDataPrefix.data(),
                     counterConfiguration.counterDataPrefix.size(),
-                    maxNumUndecodedSamples,
-                    NVPW_PERIODIC_SAMPLER_COUNTER_DATA_APPEND_MODE_CIRCULAR,
-                    m_CounterData.GetCounterData() );
+                    maxSamples,
+                    appendMode,
+                    counterData );
             };
 
             if( !m_CounterData.Initialize(
                     maxNumUndecodedSamples,
-                    true,
+                    validateCounterData,
                     CreateCounterData ) )
             {
                 assert( false );
@@ -626,7 +639,7 @@ namespace Profiler
         }
 
         // Fill in the properties.
-        const auto& metricsSet = m_MetricsSets[metricsSetIndex];
+        const auto& metricsSet = m_MetricsSets.at( metricsSetIndex );
         const size_t writeCount = std::min<size_t>( counterCount, metricsSet.m_CounterIndices.size() );
         for( size_t i = 0; i < writeCount; ++i )
         {
@@ -881,8 +894,10 @@ namespace Profiler
         m_ChipName.clear();
 
         m_MetricsEvaluator.Reset();
+
         m_PeriodicSampler.Reset();
         m_CounterData.Reset();
+
         m_CounterConfigurations.clear();
 
         m_ActiveMetricsSetIndex = UINT32_MAX;
