@@ -107,9 +107,10 @@ namespace Profiler
         std::string                 m_ChipName;
 
         nv::perf::MetricsEvaluator  m_MetricsEvaluator;
+
         nv::perf::sampler::GpuPeriodicSampler m_PeriodicSampler;
         nv::perf::sampler::RingBufferCounterData m_CounterData;
-        nv::perf::CounterDataCombiner m_CounterDataCombiner;
+
         ConcurrentMap<uint32_t, nv::perf::CounterConfiguration> m_CounterConfigurations;
 
         std::shared_mutex mutable   m_ActiveMetricsSetMutex;
