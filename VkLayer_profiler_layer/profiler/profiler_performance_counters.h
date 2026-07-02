@@ -19,10 +19,8 @@
 // SOFTWARE.
 
 #pragma once
-#include "profiler_helpers.h"
 #include <vulkan/vulkan.h>
 #include <vector>
-#include <shared_mutex>
 // Import extension structures
 #include "profiler_ext/VkProfilerEXT.h"
 
@@ -43,10 +41,10 @@ namespace Profiler
     \***********************************************************************************/
     struct DeviceProfilerPerformanceCountersStreamResult
     {
-        uint64_t                                           m_GpuTimestamp;
-        uint64_t                                           m_CpuTimestamp;
-        uint32_t                                           m_MetricsSetIndex;
-        std::vector<VkProfilerPerformanceCounterResultEXT> m_Data;
+        uint64_t                                            m_GpuTimestamp;
+        uint64_t                                            m_CpuTimestamp;
+        uint32_t                                            m_MetricsSetIndex;
+        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Data;
     };
 
     /***********************************************************************************\
