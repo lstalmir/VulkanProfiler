@@ -190,14 +190,14 @@ namespace Profiler
         // Setup sampling mode
         if( result == VK_SUCCESS )
         {
-            switch( config.m_PerformanceQueryMode )
+            switch( config.m_IntelPerformanceQuery.m_IntelPerformanceQueryMode )
             {
-            case performance_query_mode_t::query:
+            case intel_performance_query_mode_t::query:
                 m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
                 break;
-            case performance_query_mode_t::stream:
+            case intel_performance_query_mode_t::stream:
                 m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
-                m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
+                m_SamplingPeriodInNanoseconds = config.m_IntelPerformanceQuery.m_IntelPerformanceStreamTimerPeriod;
                 break;
             default:
                 // Unsupported mode
@@ -298,7 +298,12 @@ namespace Profiler
             assert( oaMetricSetCount > 0 );
 
             uint32_t defaultMetricsSetIndex = UINT32_MAX;
-            const char* pDefaultMetricsSetName = config.m_DefaultMetricsSet.c_str();
+            const char* pDefaultMetricsSetName = config.m_IntelPerformanceQuery.m_IntelDefaultMetricsSet.c_str();
+
+            if( config.m_IntelPerformanceQuery.m_IntelDefaultMetricsSet.empty() )
+            {
+                pDefaultMetricsSetName = "RenderBasic";
+            }
 
             uint32_t apiMask = ( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT ) ?
                 MD::API_TYPE_IOSTREAM :

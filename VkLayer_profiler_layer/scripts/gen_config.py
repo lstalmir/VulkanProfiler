@@ -19,6 +19,18 @@
 # SOFTWARE.
 
 import json
+from types import NoneType
+
+def find_setting( settings: list, key: str, group: str | NoneType = None ):
+    if group is not None:
+        group_path = group.split('.')
+
+def make_c_name( name: str ):
+    c_name_components = []
+    for component in name.split('.'):
+        words = [v.capitalize() for v in component.split('_')]
+        c_name_components.append( f"m_{''.join(words)}" )
+    return ".".join( c_name_components )
 
 class LayerSettingFlag:
     def __init__( self, j: dict ):
@@ -26,57 +38,167 @@ class LayerSettingFlag:
         self.label = str(j["label"])
         self.description = str(j["description"])
 
+    def __eq__( self, other ):
+        if not isinstance( other, LayerSettingFlag ):
+            return False
+        return self.key == other.key
+
+class LayerSettingDependence:
+    def __init__( self, j: dict ):
+        self.mode = j.get( "mode", "NONE" )
+        self.settings = {s["key"]: s["value"] for s in j.get( "settings", [] )}
+
+# Base class for all layer settings
 class LayerSetting:
-    def __init__( self, layer_info, j: dict ):
+    def __init__( self, layer_info, j: dict, group: str | NoneType = None ):
+        self.group = group
         self.key = str(j["key"])
         self.label = str(j["label"])
         self.description = str(j["description"])
-        self.env = str(j["env"]) if "env" in j.keys() else None
         self.type = str(j["type"])
-        self.default = j["default"]
-        self.platforms = list(j["platforms"] if "platforms" in j.keys() else [])
-        if self.type == "ENUM":
-            self.flags = [LayerSettingFlag(f) for f in j["flags"]]
+        self.env = j.get( "env", None )
+        self.default = j.get( "default", None )
+        self.platforms = j.get( "platforms", [] )
+        self.dependence = LayerSettingDependence( j.get( "dependence", {} ) )
+
+    def __eq__( self, other ):
+        if not isinstance( other, LayerSetting ):
+            return False
+        return self.key == other.key and \
+            self.type == other.type and \
+            self.default == other.default and \
+            self.env == other.env
 
     def c_type( self ):
-        if self.type == "ENUM":
-            return f"{self.key}_t"
-        if self.type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
-            return "std::string"
         return self.type.lower()
 
     def c_name( self ):
-        words = [v.capitalize() for v in self.key.split('_')]
-        return f"m_{''.join(words)}"
+        return make_c_name( self.key )
+
+    def c_full_name( self ):
+        if self.group is not None:
+            return f"{make_c_name( self.group )}.{make_c_name( self.key )}"
+        return make_c_name( self.key )
+
+    def c_value( self, value ):
+        return str( value )
 
     def c_default( self ):
-        if self.type == "BOOL":
-            return "true" if self.default else "false"
-        if self.type == "ENUM":
-            return f"{self.c_type()}::{self.default}"
-        if self.type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
-            return f"\"{self.default}\""
-        return str( self.default )
+        if self.default is None:
+            return "{}"
+        return self.c_value( self.default )
 
     def c_assign_from_string( self, string ):
-        if self.type == "BOOL":
-            return f"bool_t::TryParse({string}.c_str(), {self.c_name()})"
-        if self.type == "ENUM":
-            return f"{self.c_type()}::TryParse({string}.c_str(), {self.c_name()})"
-        if self.type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
-            return f"{self.c_name()} = {string}"
-        return f"{self.c_name()} = static_cast<{self.c_type()}>(std::stoi({string}))"
+        return f"{self.c_full_name()} = static_cast<{self.c_type()}>(std::stoi({string}))"
+
+    def c_dependence_condition( self, settings ):
+        if self.dependence.mode != "NONE":
+            conditions = []
+            for key, value in self.dependence.settings.items():
+                setting = find_setting( settings, key, self.group )
+                if setting is not None:
+                    conditions.append( f"({setting.c_full_name()} == {setting.c_value( value )})" )
+            if self.dependence.mode == "ALL":
+                return " && ".join( conditions )
+            if self.dependence.mode == "ANY":
+                return " || ".join( conditions )
+        return None
+
+# BOOL setting
+class BoolLayerSetting(LayerSetting):
+    def __init__( self, layer_info, j: dict, group: str | NoneType = None ):
+        super().__init__( layer_info, j, group )
+        
+    def __eq__( self, other ):
+        if not isinstance( other, BoolLayerSetting ):
+            return False
+        return super().__eq__( other )
+
+    def c_value( self, value ):
+        return "true" if value else "false"
+
+    def c_assign_from_string( self, string ):
+        return f"bool_t::TryParse({string}.c_str(), {self.c_full_name()})"
+
+# ENUM setting
+class EnumLayerSetting(LayerSetting):
+    def __init__( self, layer_info, j: dict, group: str | NoneType = None ):
+        super().__init__( layer_info, j, group )
+        self.flags = [LayerSettingFlag(f) for f in j.get( "flags", [] )]
+        
+    def __eq__( self, other ):
+        if not isinstance( other, EnumLayerSetting ):
+            return False
+        return super().__eq__( other ) and \
+            self.flags == other.flags
+
+    def c_type( self ):
+        return f"{self.key}_t"
+
+    def c_value( self, value ):
+        return f"{self.c_type()}::{value}"
+
+    def c_assign_from_string( self, string ):
+        return f"{self.c_type()}::TryParse({string}.c_str(), {self.c_full_name()})"
+
+# STRING-like setting
+class StringLayerSetting(LayerSetting):
+    def __init__( self, layer_info, j: dict, group: str | NoneType = None ):
+        super().__init__( layer_info, j, group )
+        
+    def __eq__( self, other ):
+        if not isinstance( other, StringLayerSetting ):
+            return False
+        return super().__eq__( other )
+
+    def c_type( self ):
+        return "std::string"
+
+    def c_value( self, value ):
+        return f"\"{value}\""
+
+    def c_assign_from_string( self, string ):
+        return f"{self.c_full_name()} = {string}"
+
+# GROUP setting
+class GroupLayerSetting(LayerSetting):
+    def __init__( self, layer_info, j: dict, group: str | NoneType = None ):
+        super().__init__( layer_info, j, group )
+        subgroup = f"{group}.{self.key}" if group is not None else self.key
+        self.settings = layer_info.parse_layer_settings_list( j["settings"], subgroup )
+
+    def c_type( self ):
+        return f"{self.key}_t"
 
 class LayerInfo:
     def __init__( self, j: dict ):
         self.name = j["name"]
-        self.settings = self.__list_settings( j["features"] )
+        self.settings = self.parse_layer_settings_list( j["features"]["settings"] )
+        
+    def parse_layer_setting( self, j: dict, group: str | NoneType = None ):
+        setting_type = j["type"]
+        if setting_type == "GROUP":
+            return GroupLayerSetting( self, j, group )
+        elif setting_type == "BOOL":
+            return BoolLayerSetting( self, j, group )
+        elif setting_type == "ENUM":
+            return EnumLayerSetting( self, j, group )
+        elif setting_type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
+            return StringLayerSetting( self, j, group )
+        else:
+            return LayerSetting( self, j, group )
 
-    def __list_settings( self, j: dict ):
+    def parse_layer_settings_list( self, j: dict, group: str | NoneType = None ):
         settings = []
-        for setting in j.get( "settings", [] ):
-            settings.append( LayerSetting( self, setting ) )
-            settings.extend( self.__list_settings( setting ) )
+        for setting in j:
+            layer_setting = self.parse_layer_setting( setting, group )
+            if layer_setting.type == "GROUP":
+                settings.append( layer_setting )
+            else:
+                settings.append( layer_setting )
+                subsettings = setting.get( "settings", None )
+                if subsettings is not None:
+                    settings.extend( self.parse_layer_settings_list( subsettings, group ) )
         return settings
 
 def get_layer_info( path: str ):
@@ -84,9 +206,26 @@ def get_layer_info( path: str ):
         manifest_json = json.load( file )
     return LayerInfo( manifest_json["layer"] )
 
+def get_unique_enums( settings: list[LayerSetting] ):
+    enums = {}
+    def append_unique_enum( setting: LayerSetting ):
+        try:
+            existing_definition = enums[setting.key]
+            if existing_definition != setting:
+                raise ValueError( f"Duplicate enum definition for key '{setting.key}'" )
+        except KeyError:
+            enums[setting.key] = setting
+    for setting in settings:
+        if setting.type == "ENUM":
+            append_unique_enum( setting )
+        elif setting.type == "GROUP":
+            for group_setting in get_unique_enums( setting.settings ):
+                append_unique_enum( group_setting )
+    return enums.values()
+
 def begin_platforms( platforms: list[str] ):
     ifdef = ""
-    if len(platforms) > 0:
+    if len( platforms ) > 0:
         ifdef = "#if 1"
         if "WINDOWS" in platforms:
             ifdef += " && defined( WIN32 )"
@@ -96,11 +235,59 @@ def begin_platforms( platforms: list[str] ):
     return ifdef
 
 def end_platforms( platforms: list[str] ):
-    if len(platforms) > 0:
+    if len( platforms ) > 0:
         return "#endif\n"
     return ""
 
-# Generate configuration bsed on json file.
+def def_LoadFromVulkanLayerSettings( out, settings ):
+    for setting in settings:
+        out.write( begin_platforms( setting.platforms ) )
+
+        if setting.type == "GROUP":
+            def_LoadFromVulkanLayerSettings( out, setting.settings )
+
+        else:
+            out.write( f"    if(vkuHasLayerSetting(layerSettingSet, \"{setting.key}\")) {{\n" )
+            if setting.type == "ENUM":
+                out.write( "      std::string value;\n" )
+                out.write( f"      vkuGetLayerSettingValue(layerSettingSet, \"{setting.key}\", value);\n" )
+                out.write( f"      {setting.c_assign_from_string('value')};\n" )
+            else:
+                out.write( f"      vkuGetLayerSettingValue(layerSettingSet, \"{setting.key}\", {setting.c_full_name()});\n" )
+            out.write( "    }\n" )
+
+        out.write( end_platforms( setting.platforms ) )
+
+def def_LoadFromEnvironment( out, settings ):
+    for setting in settings:
+        out.write( begin_platforms( setting.platforms ) )
+
+        if setting.type == "GROUP":
+            def_LoadFromEnvironment( out, setting.settings )
+
+        elif setting.env is not None:
+            out.write( f"    if(auto var = ProfilerPlatformFunctions::GetEnvironmentVar(\"{setting.env}\"); var.has_value()) {{\n" )
+            out.write( f"      {setting.c_assign_from_string('var.value()')};\n" )
+            out.write( "    }\n" )
+
+        out.write( end_platforms( setting.platforms ) )
+
+def def_LoadFromFile( out, settings ):
+    for setting in settings:
+        out.write( begin_platforms( setting.platforms ) )
+
+        if setting.type == "GROUP":
+            def_LoadFromFile( out, setting.settings )
+
+        else:
+            out.write( f"        if(PROFILER_STREQI(name.c_str(), \"{setting.key}\")) {{\n" )
+            out.write( f"          {setting.c_assign_from_string('value')};\n" )
+            out.write(  "          continue;\n" )
+            out.write(  "        }\n" )
+
+        out.write( end_platforms( setting.platforms ) )
+
+# Generate configuration based on json file.
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser( description="Generate configuration based on json file." )
@@ -129,25 +316,36 @@ if __name__ == "__main__":
         out.write( "};\n\n" )
 
         # Declare enums
+        for setting in get_unique_enums( layer.settings ):
+            typename = setting.c_type()
+            out.write( f"struct {typename} {{\n" )
+            out.write( "  enum value_t {\n" )
+            for flag in setting.flags:
+                out.write( f"    // {flag.description}\n" )
+                out.write( f"    {flag.key},\n" )
+            out.write( "  } value;\n\n" )
+            out.write( f"  {typename}(int v) : value(static_cast<value_t>(v)) {{}}\n" )
+            out.write( f"  {typename}(const std::string& name) : {typename}(name.c_str()) {{}}\n" )
+            out.write( f"  {typename}(const char* pName) : value({setting.c_default()}) {{ TryParse(pName, *this); }}\n" )
+            out.write( "  operator value_t() const { return value; }\n\n" )
+            out.write( f"  static bool TryParse(const char* pName, {typename}& out) {{\n" )
+            for idx, flag in enumerate(setting.flags):
+                out.write( f"    if(PROFILER_STREQI(\"{idx}\", pName) || PROFILER_STREQI(\"{flag.key}\", pName)) {{ out.value = {flag.key}; return true; }}\n" )
+            out.write( "    return false;\n" )
+            out.write( "  }\n" )
+            out.write( "};\n\n" )
+
+        # Declare groups
         for setting in layer.settings:
-            if setting.type == "ENUM":
-                typename = setting.c_type()
-                out.write( f"struct {typename} {{\n" )
-                out.write( "  enum value_t {\n" )
-                for flag in setting.flags:
-                    out.write( f"    // {flag.description}\n" )
-                    out.write( f"    {flag.key},\n" )
-                out.write( "  } value;\n\n" )
-                out.write( f"  {typename}(int v) : value(static_cast<value_t>(v)) {{}}\n" )
-                out.write( f"  {typename}(const std::string& name) : {typename}(name.c_str()) {{}}\n" )
-                out.write( f"  {typename}(const char* pName) : value({setting.c_default()}) {{ TryParse(pName, *this); }}\n" )
-                out.write( "  operator value_t() const { return value; }\n\n" )
-                out.write( f"  static bool TryParse(const char* pName, {typename}& out) {{\n" )
-                for idx, flag in enumerate(setting.flags):
-                    out.write( f"    if(PROFILER_STREQI(\"{idx}\", pName) || PROFILER_STREQI(\"{flag.key}\", pName)) {{ out.value = {flag.key}; return true; }}\n" )
-                out.write( "    return false;\n" )
-                out.write( "  }\n" )
+            if setting.type == "GROUP":
+                out.write( begin_platforms( setting.platforms ) )
+                out.write( f"struct {setting.c_type()} {{\n" )
+                for subsetting in setting.settings:
+                    out.write( f"  // {subsetting.description}\n" )
+                    out.write( f"  {subsetting.c_type()} {subsetting.c_name()} = {subsetting.c_default()};\n" )
+                out.write( "\n" )
                 out.write( "};\n\n" )
+                out.write( end_platforms( setting.platforms ) )
 
         out.write( "struct ProfilerLayerSettings {\n" )
         for setting in layer.settings:
@@ -160,31 +358,15 @@ if __name__ == "__main__":
         out.write( "    const VkLayerSettingsCreateInfoEXT* pLayerSettingsCreateInfo = vkuFindLayerSettingsCreateInfo(pCreateInfo);\n\n" )
         out.write( "    VkuLayerSettingSet layerSettingSet = VK_NULL_HANDLE;\n" )
         out.write( f"    vkuCreateLayerSettingSet(\"{layer.name}\", pLayerSettingsCreateInfo, pAllocator, nullptr, &layerSettingSet);\n\n" )
-        for setting in layer.settings:
-            out.write( begin_platforms( setting.platforms ) )
-            out.write( f"    if(vkuHasLayerSetting(layerSettingSet, \"{setting.key}\")) {{\n" )
-            if setting.type == "ENUM":
-                out.write( "      std::string value;\n" )
-                out.write( f"      vkuGetLayerSettingValue(layerSettingSet, \"{setting.key}\", value);\n" )
-                out.write( f"      {setting.c_name()} = {setting.c_type()}(value);\n" )
-            else:
-                out.write( f"      vkuGetLayerSettingValue(layerSettingSet, \"{setting.key}\", {setting.c_name()});\n" )
-            out.write( "    }\n" )
-            out.write( end_platforms( setting.platforms ) )
+        def_LoadFromVulkanLayerSettings( out, layer.settings )
         out.write( "    vkuDestroyLayerSettingSet(layerSettingSet, pAllocator);\n" )
         out.write( "  }\n\n" )
 
         out.write( "  // Support loading from environment\n" )
         out.write( "  void LoadFromEnvironment() {\n" )
-        for setting in layer.settings:
-            if setting.env is not None:
-                out.write( begin_platforms( setting.platforms ) )
-                out.write( f"    if(auto var = ProfilerPlatformFunctions::GetEnvironmentVar(\"{setting.env}\"); var.has_value()) {{\n" )
-                out.write( f"      {setting.c_assign_from_string('var.value()')};\n" )
-                out.write( "    }\n" )
-                out.write( end_platforms( setting.platforms ) )
+        def_LoadFromEnvironment( out, layer.settings )
         out.write( "  }\n\n" )
-        
+
         out.write( "  // Support legacy config file\n" )
         out.write( "  void LoadFromFile(const std::filesystem::path& path) {\n" )
         out.write( "    std::ifstream in(path);\n" )
@@ -192,11 +374,7 @@ if __name__ == "__main__":
         out.write( "    while(in) {\n" )
         out.write( "      in >> name >> value;\n" )
         out.write( "      if(!name.empty()) {\n" )
-        for setting in layer.settings:
-            out.write( f"        if(PROFILER_STREQI(name.c_str(), \"{setting.key}\")) {{\n" )
-            out.write( f"          {setting.c_assign_from_string('value')};\n" )
-            out.write(  "          continue;\n" )
-            out.write(  "        }\n" )
+        def_LoadFromFile( out, layer.settings )
         out.write( "      }\n" )
         out.write( "    }\n" )
         out.write( "  }\n" )

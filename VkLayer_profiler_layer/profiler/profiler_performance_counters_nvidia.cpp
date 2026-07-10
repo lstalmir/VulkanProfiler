@@ -69,18 +69,8 @@ namespace Profiler
         // Configure the performance counters.
         if( result == VK_SUCCESS )
         {
-            switch( config.m_PerformanceQueryMode )
-            {
-            case Profiler::performance_query_mode_t::stream:
-                m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
-                m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
-                break;
-
-            default:
-                // Unsupported mode
-                result = VK_ERROR_FEATURE_NOT_PRESENT;
-                break;
-            }
+            m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
+            m_SamplingPeriodInNanoseconds = config.m_NvidiaPerformanceQuery.m_NvidiaPerformanceStreamTimerPeriod;
         }
 
         // Get commonly used Vulkan objects and function pointers.
