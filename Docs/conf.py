@@ -11,7 +11,7 @@ import os.path
 sys.path.append(os.path.dirname(os.path.realpath(__file__)))
 
 project = 'VulkanProfiler'
-copyright = '2025, Łukasz Stalmirski'
+copyright = '2026, Łukasz Stalmirski'
 author = 'Łukasz Stalmirski'
 
 # -- General configuration ---------------------------------------------------
