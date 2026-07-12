@@ -145,6 +145,12 @@
                             "key": "khr",
                             "label": "KHR",
                             "description": "Enable VK_KHR_performance_query extension."
+                        },
+                        {
+                            "key": "nvidia",
+                            "label": "NVIDIA",
+                            "description": "Enable NVIDIA NvPerf SDK (Requires administrative privileges).",
+                            "status": "ALPHA"
                         }
                     ],
                     "settings": [
@@ -211,6 +217,36 @@
                                     {
                                         "key": "enable_performance_query_ext",
                                         "value": "intel"
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "key": "nvidia_performance_query",
+                            "label": "NVIDIA performance query settings",
+                            "description": "Settings for NVIDIA performance query extension.",
+                            "type": "GROUP",
+                            "settings": [
+                                {
+                                    "key": "nvidia_performance_stream_timer_period",
+                                    "label": "Performance stream timer period",
+                                    "description": "Timer period in nanoseconds for performance stream collection mode.",
+                                    "env": "VKPROF_nvidia_performance_stream_timer_period",
+                                    "type": "INT",
+                                    "unit": "ns",
+                                    "default": 25000,
+                                    "range": {
+                                        "min": 1,
+                                        "max": 1000000000
+                                    }
+                                }
+                            ],
+                            "dependence": {
+                                "mode": "ALL",
+                                "settings": [
+                                    {
+                                        "key": "enable_performance_query_ext",
+                                        "value": "nvidia"
                                     }
                                 ]
                             }

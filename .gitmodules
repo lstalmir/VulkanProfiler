@@ -49,3 +49,6 @@
 [submodule "External/simdjson"]
 	path = External/simdjson
 	url = https://github.com/simdjson/simdjson
+[submodule "External/rapidyaml"]
+	path = External/rapidyaml
+	url = https://github.com/biojppm/rapidyaml

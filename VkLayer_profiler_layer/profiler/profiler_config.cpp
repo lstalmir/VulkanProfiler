@@ -48,6 +48,11 @@ namespace Profiler
                     m_IntelPerformanceQuery.m_IntelPerformanceStreamTimerPeriod = performanceCountersCreateInfo.streamTimerPeriod;
                     break;
                 }
+                case enable_performance_query_ext_t::nvidia:
+                {
+                    m_NvidiaPerformanceQuery.m_NvidiaPerformanceStreamTimerPeriod = performanceCountersCreateInfo.streamTimerPeriod;
+                    break;
+                }
                 }
                 break;
             }

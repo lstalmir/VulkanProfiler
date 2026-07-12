@@ -38,6 +38,7 @@ set (headers
     "profiler_performance_counters.h"
     "profiler_performance_counters_khr.h"
     "profiler_performance_counters_intel.h"
+    "profiler_performance_counters_nvidia.h"
     "profiler_query_pool.h"
     "profiler_resources.h"
     "profiler_shader.h"
@@ -57,6 +58,7 @@ set (sources
     "profiler_memory_tracker.cpp"
     "profiler_performance_counters_khr.cpp"
     "profiler_performance_counters_intel.cpp"
+    "profiler_performance_counters_nvidia.cpp"
     "profiler_query_pool.cpp"
     "profiler_shader.cpp"
     "profiler_sync.cpp"
@@ -75,4 +77,5 @@ add_library (profiler
 
 target_link_libraries (profiler
     PUBLIC profiler_common
-    PUBLIC metrics-discovery)
+    PUBLIC metrics-discovery
+    PUBLIC nvperf)

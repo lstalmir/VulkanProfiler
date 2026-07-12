@@ -22,6 +22,7 @@
 #include "profiler_command_buffer.h"
 #include "profiler_performance_counters_khr.h"
 #include "profiler_performance_counters_intel.h"
+#include "profiler_performance_counters_nvidia.h"
 #include "profiler_helpers.h"
 #include <farmhash.h>
 #include <inttypes.h>
@@ -416,6 +417,11 @@ namespace Profiler
         {
             // Use KHR performance query extension.
             m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersKHR>();
+        }
+        else if( m_Config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::nvidia )
+        {
+            // Use NVIDIA performance counters if requested.
+            m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersNVIDIA>();
         }
 
         if( m_pPerformanceCounters )

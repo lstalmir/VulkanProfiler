@@ -200,7 +200,8 @@ target_link_libraries (profiler_common
     INTERFACE spirv-cross-c
     INTERFACE farmhash
     INTERFACE fmt
-    INTERFACE simdjson)
+    INTERFACE simdjson
+    INTERFACE ryml)
 target_include_directories (profiler_common
     INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}"
     INTERFACE "${CMAKE_CURRENT_BINARY_DIR}"

@@ -20,6 +20,8 @@
 
 cmake_minimum_required (VERSION 3.8...3.31)
 
+find_package (Python3 COMPONENTS Interpreter)
+
 set (CMAKE_FOLDER External)
 
 # Disable all warnings in this directory
@@ -124,6 +126,84 @@ add_subdirectory (VulkanMemoryAllocator)
 
 # simdjson/simdjson
 add_subdirectory (simdjson)
+
+# biojppm/rapidyaml
+function (build_rapidyaml)
+    # Amalgamate ryml into a single header:
+    set (ryml_dir "${CMAKE_CURRENT_SOURCE_DIR}/rapidyaml")
+    set (ryml_header_dir "${CMAKE_CURRENT_BINARY_DIR}/rapidyaml")
+    set (ryml_header "${ryml_header_dir}/ryml_all.hpp")
+    set (amscript "${ryml_dir}/tools/amalgamate.py")
+
+    file (GLOB_RECURSE ryml_sources
+        LIST_DIRECTORIES FALSE
+        CONFIGURE_DEPENDS "${ryml_dir}/src")
+
+    add_custom_command (OUTPUT "${ryml_header}"
+        COMMAND "${Python3_EXECUTABLE}" "${amscript}" "${ryml_header}"
+        COMMENT "${Python3_EXECUTABLE} ${amscript} ${ryml_header}"
+        DEPENDS ${ryml_sources} "${amscript}" "${ryml_dir}/ext/c4core/cmake/amalgamate_utils.py")
+
+    # Build the static library.
+    add_library (ryml STATIC
+        "${ryml_dir}/samples/singleheaderlib/lib.cpp"
+        "${ryml_header}")
+
+    target_include_directories (ryml PUBLIC "${ryml_header_dir}")
+endfunction ()
+
+build_rapidyaml()
+
+# nvidia/nvperf
+function (build_nvperf_sdk)
+    # Generate metrics configuration headers:
+    file (GLOB nvperf_metric_configurations_dirs LIST_DIRECTORIES TRUE CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvperf/redist/NvPerfUtility/data/MetricConfigurations/*")
+
+    set (nvperf_metric_configurations_generator
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvperf/redist/NvPerfUtility/build/MetricConfigurations/metric_configurations_generator.py")
+
+    set (nvperf_metric_configurations_output_dir
+        "${CMAKE_CURRENT_BINARY_DIR}/nvperf/NvPerfUtility/include")
+
+    file (MAKE_DIRECTORY "${nvperf_metric_configurations_output_dir}")
+
+    foreach (dir IN LISTS nvperf_metric_configurations_dirs)
+        get_filename_component (chip "${dir}" NAME)
+
+        file (GLOB dir_files LIST_DIRECTORIES TRUE CONFIGURE_DEPENDS
+            "${dir}/*.yaml")
+
+        set (output_file "${nvperf_metric_configurations_output_dir}/NvPerfMetricConfigurations${chip}.h")
+
+        add_custom_command (OUTPUT "${output_file}"
+            COMMAND "${Python3_EXECUTABLE}"
+                "${nvperf_metric_configurations_generator}"
+                --chip ${chip}
+                --outDir "${nvperf_metric_configurations_output_dir}"
+                --yamlPaths "${dir}"
+            COMMENT "Generating NvPerf metric configurations for ${chip}"
+            DEPENDS ${dir_files} "${nvperf_metric_configurations_generator}")
+            
+        list (APPEND nvperf_metric_configurations_headers "${output_file}")
+    endforeach ()
+
+    add_custom_target (nvperf_codegen
+        DEPENDS ${nvperf_metric_configurations_headers})
+
+    # Create interface library to include the headers.
+    # The PerfSDK license doesn't allow for including its binaries,
+    # but headers are allowed in order to build software on top of the SDK.
+    add_library (nvperf INTERFACE)
+    target_include_directories (nvperf
+        INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nvperf/redist/include"
+        INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nvperf/redist/NvPerfUtility/include"
+        INTERFACE "${nvperf_metric_configurations_output_dir}")
+
+    add_dependencies (nvperf nvperf_codegen)
+endfunction ()
+
+build_nvperf_sdk()
 
 # ocornut/imgui
 set (imgui_backends
