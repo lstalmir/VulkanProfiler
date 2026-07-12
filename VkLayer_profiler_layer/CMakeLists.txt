@@ -123,8 +123,10 @@ add_custom_command (
     COMMAND "${Python3_EXECUTABLE}"
         "${PROFILER_SCRIPTS_DIR}/gen_config.py"
         "${PROFILER_LAYER_JSON_FILE}"
+        --aliases "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}_settings_aliases.json"
         --output "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
     DEPENDS "${PROFILER_LAYER_JSON_FILE}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}_settings_aliases.json"
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_config.py")
 list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h")
 
