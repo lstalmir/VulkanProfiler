@@ -433,7 +433,7 @@ namespace Profiler
     {
         // Fill in the properties.
         const size_t writeCount = std::min<size_t>( counterCount, m_Counters.size() );
-        for( size_t i = 0; i < counterCount; ++i )
+        for( size_t i = 0; i < writeCount; ++i )
         {
             FillPerformanceCounterProperties( m_Counters[i], pCounters[i] );
         }
