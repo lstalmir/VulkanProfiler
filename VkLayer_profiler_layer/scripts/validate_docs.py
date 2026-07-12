@@ -69,7 +69,7 @@ def validate_confvals(manifest, docs_root_dir, aliases_manifest):
 
     class alias_t:
         def __init__(self, entry):
-            self.name = entry['name']
+            self.name = entry['key']
             self.env = entry['env']
             self.settings = entry['settings']
 
