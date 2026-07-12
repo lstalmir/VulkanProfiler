@@ -149,7 +149,8 @@
                         {
                             "key": "nvidia",
                             "label": "NVIDIA",
-                            "description": "Enable NVIDIA NvPerf SDK (Requires administrative privileges)."
+                            "description": "Enable NVIDIA NvPerf SDK (Requires administrative privileges).",
+                            "status": "ALPHA"
                         }
                     ],
                     "settings": [
