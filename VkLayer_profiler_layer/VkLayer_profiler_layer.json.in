@@ -150,7 +150,7 @@
                     "settings": [
                         {
                             "key": "intel_performance_query",
-                            "label": "Intel Performance Query Settings",
+                            "label": "Intel performance query settings",
                             "description": "Settings specific to the Intel performance query extension.",
                             "type": "GROUP",
                             "settings": [
@@ -180,7 +180,12 @@
                                     "description": "Timer period in nanoseconds for performance stream collection mode.",
                                     "env": "VKPROF_intel_performance_stream_timer_period",
                                     "type": "INT",
+                                    "unit": "ns",
                                     "default": 25000,
+                                    "range": {
+                                        "min": 1,
+                                        "max": 1000000000
+                                    },
                                     "dependence": {
                                         "mode": "ANY",
                                         "settings": [

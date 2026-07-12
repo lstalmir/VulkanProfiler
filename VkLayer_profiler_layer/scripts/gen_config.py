@@ -27,10 +27,12 @@ class LayerSettingAlias:
         self.settings = list(str(s) for s in j.get( "settings", [] ))
 
 class LayerSettingFlag:
-    def __init__( self, j: dict ):
+    def __init__( self, j: dict, index: int ):
         self.key = str(j["key"])
         self.label = str(j["label"])
         self.description = str(j["description"])
+        self.platforms = list(j["platforms"] if "platforms" in j.keys() else [])
+        self.index = index
 
 class LayerSetting:
     def __init__( self, layer_info, j: dict, group: list[str] = [] ):
@@ -43,7 +45,7 @@ class LayerSetting:
         self.default = j.get( "default" )
         self.platforms = list(j["platforms"] if "platforms" in j.keys() else [])
         if self.type == "ENUM":
-            self.flags = [LayerSettingFlag(f) for f in j["flags"]]
+            self.flags = [LayerSettingFlag(f, i) for i, f in enumerate( j["flags"] )]
         subsettings_group = list(self.group)
         if self.type == "GROUP":
             subsettings_group.append( self.key )
@@ -83,13 +85,9 @@ class LayerSetting:
     def c_assign_from_string( self, string ):
         if self.type == "GROUP":
             raise Exception( "Cannot assign to GROUP setting from string." )
-        if self.type == "BOOL":
-            return f"bool_t::TryParse({string}.c_str(), {self.c_full_name()})"
-        if self.type == "ENUM":
-            return f"{self.c_type()}::TryParse({string}.c_str(), {self.c_full_name()})"
         if self.type in ["STRING", "LOAD_FILE", "SAVE_FILE"]:
             return f"{self.c_full_name()} = {string}"
-        return f"{self.c_full_name()} = static_cast<{self.c_type()}>(std::stoi({string}))"
+        return f"TryParse({string}, {self.c_full_name()})"
 
     @staticmethod
     def c_make_identifier( name: str ):
@@ -180,16 +178,20 @@ def def_c_enum( out, enum_setting: LayerSetting ):
     out.write( f"struct {typename} {{\n" )
     out.write( "  enum value_t {\n" )
     for flag in enum_setting.flags:
+        out.write( begin_platforms( flag.platforms ) )
         out.write( f"    // {flag.description}\n" )
-        out.write( f"    {flag.key},\n" )
+        out.write( f"    {flag.key} = {flag.index},\n" )
+        out.write( end_platforms( flag.platforms ) )
     out.write( "  } value;\n\n" )
     out.write( f"  {typename}(int v) : value(static_cast<value_t>(v)) {{}}\n" )
-    out.write( f"  {typename}(const std::string& name) : {typename}(name.c_str()) {{}}\n" )
-    out.write( f"  {typename}(const char* pName) : value({enum_setting.c_default()}) {{ TryParse(pName, *this); }}\n" )
+    out.write( f"  {typename}(const std::string& name) {{ TryParse(name, *this); }}\n" )
     out.write( "  operator value_t() const { return value; }\n\n" )
-    out.write( f"  static bool TryParse(const char* pName, {typename}& out) {{\n" )
-    for idx, flag in enumerate( enum_setting.flags ):
-        out.write( f"    if(PROFILER_STREQI(\"{idx}\", pName) || PROFILER_STREQI(\"{flag.key}\", pName)) {{ out.value = {flag.key}; return true; }}\n" )
+    out.write( f"  static bool TryParse(const std::string& value, {typename}& out) {{\n" )
+    out.write( "    const char* pValue = value.c_str();\n" )
+    for flag in enum_setting.flags:
+        out.write( begin_platforms( flag.platforms ) )
+        out.write( f"    if(PROFILER_STREQI(\"{flag.index}\", pValue) || PROFILER_STREQI(\"{flag.key}\", pValue)) {{ out.value = {flag.key}; return true; }}\n" )
+        out.write( end_platforms( flag.platforms ) )
     out.write( "    return false;\n" )
     out.write( "  }\n" )
     out.write( "};\n\n" )
@@ -233,11 +235,11 @@ def def_setting_LoadFromEnvironment( out, env: str, settings: list[LayerSetting]
 
 def def_settings_LoadFromEnvironment( out, settings: list[LayerSetting] ):
     for setting in settings:
+        out.write( begin_platforms( setting.platforms ) )
         if setting.env is not None:
-            out.write( begin_platforms( setting.platforms ) )
             def_setting_LoadFromEnvironment( out, setting.env, [setting] )
-            out.write( end_platforms( setting.platforms ) )
         def_settings_LoadFromEnvironment( out, setting.settings )
+        out.write( end_platforms( setting.platforms ) )
 
 def def_aliases_LoadFromEnvironment( out, aliases: list[LayerSettingAlias], layer: LayerInfo ):
     for alias in aliases:
@@ -257,11 +259,11 @@ def def_setting_LoadFromFile( out, name: str, value: str, key: str, settings: li
 
 def def_settings_LoadFromFile( out, name: str, value: str, settings: list[LayerSetting] ):
     for setting in settings:
+        out.write( begin_platforms( setting.platforms ) )
         if setting.type != "GROUP":
-            out.write( begin_platforms( setting.platforms ) )
             def_setting_LoadFromFile( out, name, value, setting.key, [setting] )
-            out.write( end_platforms( setting.platforms ) )
         def_settings_LoadFromFile( out, name, value, setting.settings )
+        out.write( end_platforms( setting.platforms ) )
 
 def def_aliases_LoadFromFile( out, name: str, value: str, aliases: list[LayerSettingAlias], layer: LayerInfo ):
     for alias in aliases:
@@ -284,21 +286,12 @@ if __name__ == "__main__":
     with open( args.output, mode="w" ) as out:
         out.write( "#pragma once\n" )
         out.write( "#include <vulkan/layer/vk_layer_settings.hpp>\n" )
+        out.write( "#include <charconv>\n" )
         out.write( "#include <string>\n" )
         out.write( "#include <fstream>\n" )
         out.write( "#include <filesystem>\n\n" )
         out.write( "#include \"profiler/profiler_helpers.h\"\n\n" )
         out.write( "namespace Profiler {\n\n" )
-
-        out.write( "struct bool_t {\n" )
-        out.write( "  static bool TryParse(const char* pName, bool& out) {\n" )
-        out.write( "    if(PROFILER_STREQI(pName, \"1\") || PROFILER_STREQI(pName, \"yes\") || PROFILER_STREQI(pName, \"true\"))\n" )
-        out.write( "      return (out = true), true;\n" )
-        out.write( "    if(PROFILER_STREQI(pName, \"0\") || PROFILER_STREQI(pName, \"no\") || PROFILER_STREQI(pName, \"false\"))\n" )
-        out.write( "      return (out = false), true;\n" )
-        out.write( "    return false;\n" )
-        out.write( "  }\n" )
-        out.write( "};\n\n" )
 
         # Declare enums
         for setting in layer.enumerate_enums():
@@ -316,6 +309,35 @@ if __name__ == "__main__":
             if not setting.group:
                 def_c_var( out, setting )
         out.write( "\n" )
+
+        out.write( "  // Value parsers\n" )
+        out.write( "  template<typename T>\n" )
+        out.write( "  static bool TryParse(const std::string& value, T& out) {\n" )
+        out.write( "    return T::TryParse(value, out);\n" )
+        out.write( "  }\n\n" )
+
+        out.write( "  static bool TryParse(const std::string& value, bool& out) {\n" )
+        out.write( "    const char* pValue = value.c_str();\n" )
+        out.write( "    if(PROFILER_STREQI(pValue, \"1\") || PROFILER_STREQI(pValue, \"yes\") || PROFILER_STREQI(pValue, \"true\"))\n" )
+        out.write( "      return (out = true), true;\n" )
+        out.write( "    if(PROFILER_STREQI(pValue, \"0\") || PROFILER_STREQI(pValue, \"no\") || PROFILER_STREQI(pValue, \"false\"))\n" )
+        out.write( "      return (out = false), true;\n" )
+        out.write( "    return false;\n" )
+        out.write( "  }\n\n" )
+
+        out.write( "  static bool TryParse(const std::string& value, int& out) {\n" )
+        out.write( "    const char* pValue = value.c_str();\n" )
+        out.write( "    const char* pEnd = pValue + value.size();\n" )
+        out.write( "    if(pValue[0] == '0' && (pValue[1] == 'x' || pValue[1] == 'X'))\n" )
+        out.write( "      return std::from_chars(pValue + 2, pEnd, out, 16).ec == std::errc();\n" )
+        out.write( "    return std::from_chars(pValue, pEnd, out, 10).ec == std::errc();\n" )
+        out.write( "  }\n\n" )
+
+        out.write( "  static bool TryParse(const std::string& value, float& out) {\n" )
+        out.write( "    const char* pValue = value.c_str();\n" )
+        out.write( "    const char* pEnd = pValue + value.size();\n" )
+        out.write( "    return std::from_chars(pValue, pEnd, out).ec == std::errc();\n" )
+        out.write( "  }\n\n" )
 
         out.write( "  // Support Vulkan layer settings\n" )
         out.write( "  void LoadFromVulkanLayerSettings(const VkInstanceCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator) {\n" )
