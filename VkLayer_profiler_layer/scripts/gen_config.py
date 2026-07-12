@@ -19,11 +19,13 @@
 # SOFTWARE.
 
 import json
+from re import I, S
 
 class LayerSettingAlias:
     def __init__( self, j: dict ):
-        self.name = str(j["name"])
+        self.key = str(j["key"])
         self.env = str(j["env"]) if "env" in j.keys() else None
+        self.type = "ALIAS"
         self.settings = list(str(s) for s in j.get( "settings", [] ))
 
 class LayerSettingFlag:
@@ -173,78 +175,48 @@ def end_platforms( platforms: list[str] ):
     return ""
 
 # C code generators.
-def def_setting_LoadFromVulkanLayerSettings( out, layer_setting_set: str, key: str, settings: list[LayerSetting] ):
-    out.write( f"    if(vkuHasLayerSetting({layer_setting_set}, \"{key}\")) {{\n" )
-    for setting in settings:
-        if setting.type == "ENUM":
-            out.write( "      std::string value;\n" )
-            out.write( f"      vkuGetLayerSettingValue({layer_setting_set}, \"{key}\", value);\n" )
-            out.write( f"      {setting.c_assign_from_string( 'value' )};\n" )
-        else:
-            out.write( f"      vkuGetLayerSettingValue({layer_setting_set}, \"{key}\", {setting.c_full_name()});\n" )
-    out.write( "    }\n" )
+def def_setting_LoadFromVulkanLayerSettings( out, setting: LayerSetting | LayerSettingAlias, settings: list[LayerSetting] ):
+    if setting.type != "GROUP":
+        out.write( f"    if(vkuHasLayerSetting(layerSettingSet, \"{setting.key}\")) {{\n" )
+        for s in settings:
+            if s.type == "ENUM":
+                out.write( "      std::string value;\n" )
+                out.write( f"      vkuGetLayerSettingValue(layerSettingSet, \"{setting.key}\", value);\n" )
+                out.write( f"      {s.c_assign_from_string( 'value' )};\n" )
+            else:
+                out.write( f"      vkuGetLayerSettingValue(layerSettingSet, \"{setting.key}\", {s.c_full_name()});\n" )
+        out.write( "    }\n" )
 
-def def_settings_LoadFromVulkanLayerSettings( out, layer_setting_set: str, settings: list[LayerSetting] ):
-    for setting in settings:
-        out.write( begin_platforms( setting.platforms ) )
-        if setting.type != "GROUP":
-            def_setting_LoadFromVulkanLayerSettings( out, layer_setting_set, setting.key, [setting] )
-        def_settings_LoadFromVulkanLayerSettings( out, layer_setting_set, setting.settings )
-        out.write( end_platforms( setting.platforms ) )
+def def_setting_LoadFromEnvironment( out, setting: LayerSetting | LayerSettingAlias, settings: list[LayerSetting] ):
+    if setting.env is not None:
+        out.write( f"    if(auto var = ProfilerPlatformFunctions::GetEnvironmentVar(\"{setting.env}\"); var.has_value()) {{\n" )
+        for s in settings:
+            out.write( f"      {s.c_assign_from_string( 'var.value()' )};\n" )
+        out.write( "    }\n" )
 
-def def_aliases_LoadFromVulkanLayerSettings( out, layer_setting_set: str, aliases: list[LayerSettingAlias], layer: LayerInfo ):
-    for alias in aliases:
-        settings = [layer.get_var( name ) for name in alias.settings]
-        platforms = merge_platforms( settings )
-        out.write( begin_platforms( platforms ) )
-        def_setting_LoadFromVulkanLayerSettings( out, layer_setting_set, alias.name, settings )
-        out.write( end_platforms( platforms ) )
+def def_setting_LoadFromFile( out, setting: LayerSetting | LayerSettingAlias, settings: list[LayerSetting] ):
+    if setting.type != "GROUP":
+        out.write( f"        if(PROFILER_STREQI(name.c_str(), \"{setting.key}\")) {{\n" )
+        for s in settings:
+            out.write( f"          {s.c_assign_from_string( 'value' )};\n" )
+        out.write(  "          continue;\n" )
+        out.write(  "        }\n" )
 
-def def_setting_LoadFromEnvironment( out, env: str, settings: list[LayerSetting] ):
-    out.write( f"    if(auto var = ProfilerPlatformFunctions::GetEnvironmentVar(\"{env}\"); var.has_value()) {{\n" )
-    for setting in settings:
-        out.write( f"      {setting.c_assign_from_string( 'var.value()' )};\n" )
-    out.write( "    }\n" )
+def out_write_settings( out, settings: list[LayerSetting], aliases: list[LayerSettingAlias], write_func ):
+    if aliases:
+        for alias in aliases:
+            alias_settings = [layer.get_var( name ) for name in alias.settings]
+            alias_platforms = merge_platforms( alias_settings )
+            out.write( begin_platforms( alias_platforms ) )
+            write_func( out, alias, alias_settings )
+            out.write( end_platforms( alias_platforms ) )
+        out.write( "\n" )
 
-def def_settings_LoadFromEnvironment( out, settings: list[LayerSetting] ):
-    for setting in settings:
-        out.write( begin_platforms( setting.platforms ) )
-        if setting.env is not None:
-            def_setting_LoadFromEnvironment( out, setting.env, [setting] )
-        def_settings_LoadFromEnvironment( out, setting.settings )
-        out.write( end_platforms( setting.platforms ) )
-
-def def_aliases_LoadFromEnvironment( out, aliases: list[LayerSettingAlias], layer: LayerInfo ):
-    for alias in aliases:
-        if alias.env is not None:
-            settings = [layer.get_var( name ) for name in alias.settings]
-            platforms = merge_platforms( settings )
-            out.write( begin_platforms( platforms ) )
-            def_setting_LoadFromEnvironment( out, alias.env, settings )
-            out.write( end_platforms( platforms ) )
-
-def def_setting_LoadFromFile( out, name: str, value: str, key: str, settings: list[LayerSetting] ):
-    out.write( f"        if(PROFILER_STREQI({name}.c_str(), \"{key}\")) {{\n" )
-    for setting in settings:
-        out.write( f"          {setting.c_assign_from_string( value )};\n" )
-    out.write(  "          continue;\n" )
-    out.write(  "        }\n" )
-
-def def_settings_LoadFromFile( out, name: str, value: str, settings: list[LayerSetting] ):
     for setting in settings:
         out.write( begin_platforms( setting.platforms ) )
-        if setting.type != "GROUP":
-            def_setting_LoadFromFile( out, name, value, setting.key, [setting] )
-        def_settings_LoadFromFile( out, name, value, setting.settings )
+        write_func( out, setting, [setting] )
+        out_write_settings( out, setting.settings, [], write_func )
         out.write( end_platforms( setting.platforms ) )
-
-def def_aliases_LoadFromFile( out, name: str, value: str, aliases: list[LayerSettingAlias], layer: LayerInfo ):
-    for alias in aliases:
-        settings = [layer.get_var( name ) for name in alias.settings]
-        platforms = merge_platforms( settings )
-        out.write( begin_platforms( platforms ) )
-        def_setting_LoadFromFile( out, name, value, alias.name, settings )
-        out.write( end_platforms( platforms ) )
 
 # Generate configuration based on json file.
 if __name__ == "__main__":
@@ -339,20 +311,13 @@ if __name__ == "__main__":
         out.write( "    const VkLayerSettingsCreateInfoEXT* pLayerSettingsCreateInfo = vkuFindLayerSettingsCreateInfo(pCreateInfo);\n\n" )
         out.write( "    VkuLayerSettingSet layerSettingSet = VK_NULL_HANDLE;\n" )
         out.write( f"    vkuCreateLayerSettingSet(\"{layer.name}\", pLayerSettingsCreateInfo, pAllocator, nullptr, &layerSettingSet);\n\n" )
-        out.write( "    // Load aliases\n" )
-        def_aliases_LoadFromVulkanLayerSettings( out, "layerSettingSet", layer.aliases, layer )
-        out.write( "\n" )
-        out.write( "    // Load settings\n" )
-        def_settings_LoadFromVulkanLayerSettings( out, "layerSettingSet", layer.settings )
+        out_write_settings( out, layer.settings, layer.aliases, def_setting_LoadFromVulkanLayerSettings )
         out.write( "    vkuDestroyLayerSettingSet(layerSettingSet, pAllocator);\n" )
         out.write( "  }\n\n" )
 
         out.write( "  // Support loading from environment\n" )
         out.write( "  void LoadFromEnvironment() {\n" )
-        out.write( "    // Load aliases\n" )
-        def_aliases_LoadFromEnvironment( out, layer.aliases, layer )
-        out.write( "    // Load settings\n" )
-        def_settings_LoadFromEnvironment( out, layer.settings )
+        out_write_settings( out, layer.settings, layer.aliases, def_setting_LoadFromEnvironment )
         out.write( "  }\n\n" )
         
         out.write( "  // Support legacy config file\n" )
@@ -362,10 +327,7 @@ if __name__ == "__main__":
         out.write( "    while(in) {\n" )
         out.write( "      in >> name >> value;\n" )
         out.write( "      if(!name.empty()) {\n" )
-        out.write( "        // Load aliases\n" )
-        def_aliases_LoadFromFile( out, "name", "value", layer.aliases, layer )
-        out.write( "        // Load settings\n" )
-        def_settings_LoadFromFile( out, "name", "value", layer.settings )
+        out_write_settings( out, layer.settings, layer.aliases, def_setting_LoadFromFile )
         out.write( "      }\n" )
         out.write( "    }\n" )
         out.write( "  }\n" )
