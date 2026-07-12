@@ -53,6 +53,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#confval-intel_performance_query_mode"><code class="docutils literal notranslate"><span class="pre">intel_performance_query_mode</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-intel_performance_stream_timer_period"><code class="docutils literal notranslate"><span class="pre">intel_performance_stream_timer_period</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-intel_default_metrics_set"><code class="docutils literal notranslate"><span class="pre">intel_default_metrics_set</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#confval-nvidia_performance_stream_timer_period"><code class="docutils literal notranslate"><span class="pre">nvidia_performance_stream_timer_period</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-performance_query_mode"><code class="docutils literal notranslate"><span class="pre">performance_query_mode</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-performance_stream_timer_period"><code class="docutils literal notranslate"><span class="pre">performance_stream_timer_period</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#confval-default_metrics_set"><code class="docutils literal notranslate"><span class="pre">default_metrics_set</span></code></a></li>
@@ -168,6 +169,8 @@
 <p>The extension allows to collect more in more passes, but that requires resubmission of the command buffers, which could result in unexpected behavior when done from the layer without application’s knowledge. Because of that, the layer does not support multi-pass performance queries.</p>
 </div>
 </dd>
+<dt id="term-nvidia">nvidia<a class="headerlink" href="#term-nvidia" title="Link to this term"></a></dt><dd><p>Enables NVIDIA performance counters using NvPerf SDK. To use this option, copy <cite>nvperf_grfx_host.dll</cite> or <cite>libnvperf_grfx_host.so</cite> library (available in the NvPerf SDK: <a href="#id1"><span class="problematic" id="id2">`https://developer.nvidia.com/nsight-perf-sdk`_</span></a>) to the profiler’s installation directory.</p>
+</dd>
 </dl>
 </dd></dl>
 
@@ -218,6 +221,20 @@
 </dd></dl>
 
 <dl class="std confval">
+<dt class="sig sig-object std" id="confval-nvidia_performance_stream_timer_period">
+<span class="sig-name descname"><span class="pre">nvidia_performance_stream_timer_period</span></span><a class="headerlink" href="#confval-nvidia_performance_stream_timer_period" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd">int</dd>
+<dt class="field-even">Default<span class="colon">:</span></dt>
+<dd class="field-even">25000</dd>
+</dl>
+<p>This option controls the period of the timer triggering metrics samples collected using NVIDIA Perf SDK.</p>
+<p>The value is expressed in nanoseconds, and is recommended to be kept in range of 5000ns to 1000000ns (1ms). Smaller values may result in buffer overflows, and consequently the data loss, and higher values may expand over multiple frames, which may result in data presentation issues.</p>
+<p>Decreasing the period causes more samples to be generated and processed, so increase in CPU utilization is expected. If the application is CPU-bound or heavily multithreaded, this may impact its overall performance.</p>
+</dd></dl>
+
+<dl class="std confval">
 <dt class="sig sig-object std" id="confval-performance_query_mode">
 <span class="sig-name descname"><span class="pre">performance_query_mode</span></span><a class="headerlink" href="#confval-performance_query_mode" title="Link to this definition"></a></dt>
 <dd><dl class="field-list simple">
@@ -234,7 +251,7 @@
 <dt class="field-odd">Type<span class="colon">:</span></dt>
 <dd class="field-odd">int</dd>
 </dl>
-<p>Alias for <a class="reference internal" href="#confval-intel_performance_stream_timer_period"><code class="xref std std-confval docutils literal notranslate"><span class="pre">intel_performance_stream_timer_period</span></code></a>.</p>
+<p>Alias for <a class="reference internal" href="#confval-intel_performance_stream_timer_period"><code class="xref std std-confval docutils literal notranslate"><span class="pre">intel_performance_stream_timer_period</span></code></a> and <a class="reference internal" href="#confval-nvidia_performance_stream_timer_period"><code class="xref std std-confval docutils literal notranslate"><span class="pre">nvidia_performance_stream_timer_period</span></code></a>.</p>
 </dd></dl>
 
 <dl class="std confval">

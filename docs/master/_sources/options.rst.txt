@@ -56,6 +56,9 @@ This section describes in detail all available configuration options exposed by 
             .. NOTE::
                 The extension allows to collect more in more passes, but that requires resubmission of the command buffers, which could result in unexpected behavior when done from the layer without application's knowledge. Because of that, the layer does not support multi-pass performance queries.
 
+        nvidia
+            Enables NVIDIA performance counters using NvPerf SDK. To use this option, copy `nvperf_grfx_host.dll` or `libnvperf_grfx_host.so` library (available in the NvPerf SDK: `https://developer.nvidia.com/nsight-perf-sdk`_) to the profiler's installation directory.
+
 .. confval:: intel_performance_query_mode
     :type: enum
     :default: query
@@ -90,6 +93,16 @@ This section describes in detail all available configuration options exposed by 
 
     Name of the default metrics set selected immediately after initialization of the Intel performance query extension.
 
+.. confval:: nvidia_performance_stream_timer_period
+    :type: int
+    :default: 25000
+
+    This option controls the period of the timer triggering metrics samples collected using NVIDIA Perf SDK.
+    
+    The value is expressed in nanoseconds, and is recommended to be kept in range of 5000ns to 1000000ns (1ms). Smaller values may result in buffer overflows, and consequently the data loss, and higher values may expand over multiple frames, which may result in data presentation issues.
+
+    Decreasing the period causes more samples to be generated and processed, so increase in CPU utilization is expected. If the application is CPU-bound or heavily multithreaded, this may impact its overall performance.
+
 .. confval:: performance_query_mode
     :type: enum
 
@@ -98,7 +111,7 @@ This section describes in detail all available configuration options exposed by 
 .. confval:: performance_stream_timer_period
     :type: int
 
-    Alias for :confval:`intel_performance_stream_timer_period`.
+    Alias for :confval:`intel_performance_stream_timer_period` and :confval:`nvidia_performance_stream_timer_period`.
 
 .. confval:: default_metrics_set
     :type: string
