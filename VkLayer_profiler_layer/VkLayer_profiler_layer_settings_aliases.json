@@ -11,7 +11,8 @@
             "key": "performance_stream_timer_period",
             "env": "VKPROF_performance_stream_timer_period",
             "settings": [
-                "intel_performance_stream_timer_period"
+                "intel_performance_stream_timer_period",
+                "nvidia_performance_stream_timer_period"
             ]
         },
         {
