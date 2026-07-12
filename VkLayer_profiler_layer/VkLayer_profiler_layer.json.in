@@ -156,7 +156,7 @@
                         {
                             "key": "intel_performance_query",
                             "label": "Intel performance query settings",
-                            "description": "Settings for Intel performance query extension.",
+                            "description": "Settings specific to the Intel performance query extension.",
                             "type": "GROUP",
                             "settings": [
                                 {
@@ -187,6 +187,10 @@
                                     "type": "INT",
                                     "unit": "ns",
                                     "default": 25000,
+                                    "range": {
+                                        "min": 1,
+                                        "max": 1000000000
+                                    },
                                     "dependence": {
                                         "mode": "ANY",
                                         "settings": [
@@ -203,7 +207,7 @@
                                     "description": "Default metrics set to select after initializing performance query extension.",
                                     "env": "VKPROF_intel_default_metrics_set",
                                     "type": "STRING",
-                                    "default": ""
+                                    "default": "RenderBasic"
                                 }
                             ],
                             "dependence": {
@@ -229,7 +233,11 @@
                                     "env": "VKPROF_nvidia_performance_stream_timer_period",
                                     "type": "INT",
                                     "unit": "ns",
-                                    "default": 25000
+                                    "default": 25000,
+                                    "range": {
+                                        "min": 1,
+                                        "max": 1000000000
+                                    }
                                 }
                             ],
                             "dependence": {

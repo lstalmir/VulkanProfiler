@@ -81,8 +81,9 @@ jobs:
     - name: Validate documentation
       run: |
         python3 ${{github.workspace}}/VkLayer_profiler_layer/scripts/validate_docs.py \
-            ${{github.workspace}}/build/VkLayer_profiler_layer/VkLayer_profiler_layer.json \
-            ${{github.workspace}}/Docs
+            --json ${{github.workspace}}/build/VkLayer_profiler_layer/VkLayer_profiler_layer.json \
+            --aliases ${{github.workspace}}/VkLayer_profiler_layer/VkLayer_profiler_layer_settings_aliases.json \
+            --docs ${{github.workspace}}/Docs
 
     # Push documentation to docs-build branch
     - name: Publish documentation

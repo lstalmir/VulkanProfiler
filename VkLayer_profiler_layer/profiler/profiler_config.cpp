@@ -37,9 +37,10 @@ namespace Profiler
             {
                 const VkProfilerPerformanceCountersCreateInfoEXT& performanceCountersCreateInfo =
                     *reinterpret_cast<const VkProfilerPerformanceCountersCreateInfoEXT*>( s.pNext );
+
                 m_EnablePerformanceQueryExt = performanceCountersCreateInfo.backend;
 
-                switch( m_EnablePerformanceQueryExt )
+                switch( m_EnablePerformanceQueryExt.value )
                 {
                 case enable_performance_query_ext_t::intel:
                 {

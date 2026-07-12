@@ -106,7 +106,7 @@ Custom metrics sets created with this extension can be saved to JSON files.
 Those files can be then loaded in subsequent profiling runs to speed-up performance query setup.
 
 Additionally, Intel backend supports **stream mode**, which allows to inspect the metrics well below a single command level.
-The mode can be selected with :confval:`performance_query_mode` option.
+The mode can be selected with :confval:`intel_performance_query_mode` option, or alternatively with a vendor-independent alias :confval:`performance_query_mode`.
 
 In **query mode**, available for both KHR and Intel extensions, the layer collects detailed metrics for each command buffer using VkQueryPool queries inserted at the beginning and end of each command buffer.
 The layer does not support collecting the queries below the command buffer level (i.e., at VkRenderPass/VkPipeline/drawcall level).
