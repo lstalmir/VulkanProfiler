@@ -173,33 +173,6 @@ def end_platforms( platforms: list[str] ):
     return ""
 
 # C code generators.
-def def_c_enum( out, enum_setting: LayerSetting ):
-    typename = enum_setting.c_type()
-    out.write( f"struct {typename} {{\n" )
-    out.write( "  enum value_t {\n" )
-    for flag in enum_setting.flags:
-        out.write( begin_platforms( flag.platforms ) )
-        out.write( f"    // {flag.description}\n" )
-        out.write( f"    {flag.key} = {flag.index},\n" )
-        out.write( end_platforms( flag.platforms ) )
-    out.write( "  } value;\n\n" )
-    out.write( f"  {typename}(int v) : value(static_cast<value_t>(v)) {{}}\n" )
-    out.write( f"  {typename}(const std::string& name) {{ TryParse(name, *this); }}\n" )
-    out.write( "  operator value_t() const { return value; }\n\n" )
-    out.write( f"  static bool TryParse(const std::string& value, {typename}& out) {{\n" )
-    out.write( "    const char* pValue = value.c_str();\n" )
-    for flag in enum_setting.flags:
-        out.write( begin_platforms( flag.platforms ) )
-        out.write( f"    if(PROFILER_STREQI(\"{flag.index}\", pValue) || PROFILER_STREQI(\"{flag.key}\", pValue)) {{ out.value = {flag.key}; return true; }}\n" )
-        out.write( end_platforms( flag.platforms ) )
-    out.write( "    return false;\n" )
-    out.write( "  }\n" )
-    out.write( "};\n\n" )
-
-def def_c_var( out, setting: LayerSetting ):
-    out.write( f"  // {setting.description}\n" )
-    out.write( f"  {setting.c_type()} {setting.c_name()} = {setting.c_default()};\n" )
-
 def def_setting_LoadFromVulkanLayerSettings( out, layer_setting_set: str, key: str, settings: list[LayerSetting] ):
     out.write( f"    if(vkuHasLayerSetting({layer_setting_set}, \"{key}\")) {{\n" )
     for setting in settings:
@@ -295,19 +268,41 @@ if __name__ == "__main__":
 
         # Declare enums
         for setting in layer.enumerate_enums():
-            def_c_enum( out, setting )
+            typename = setting.c_type()
+            out.write( f"struct {typename} {{\n" )
+            out.write( "  enum value_t {\n" )
+            for flag in setting.flags:
+                out.write( begin_platforms( flag.platforms ) )
+                out.write( f"    // {flag.description}\n" )
+                out.write( f"    {flag.key} = {flag.index},\n" )
+                out.write( end_platforms( flag.platforms ) )
+            out.write( "  } value;\n\n" )
+            out.write( f"  {typename}(int v) : value(static_cast<value_t>(v)) {{}}\n" )
+            out.write( f"  {typename}(const std::string& name) {{ TryParse(name, *this); }}\n" )
+            out.write( "  operator value_t() const { return value; }\n\n" )
+            out.write( f"  static bool TryParse(const std::string& value, {typename}& out) {{\n" )
+            out.write( "    const char* pValue = value.c_str();\n" )
+            for flag in setting.flags:
+                out.write( begin_platforms( flag.platforms ) )
+                out.write( f"    if(PROFILER_STREQI(\"{flag.index}\", pValue) || PROFILER_STREQI(\"{flag.key}\", pValue)) {{ out.value = {flag.key}; return true; }}\n" )
+                out.write( end_platforms( flag.platforms ) )
+            out.write( "    return false;\n" )
+            out.write( "  }\n" )
+            out.write( "};\n\n" )
 
         # Declare groups
         for setting in layer.enumerate_groups():
             out.write( f"struct {setting.c_type()} {{\n" )
             for s in setting.settings:
-                def_c_var( out, s )
+                out.write( f"  // {s.description}\n" )
+                out.write( f"  {s.c_type()} {s.c_name()} = {s.c_default()};\n" )
             out.write( "};\n\n" )
 
         out.write( "struct ProfilerLayerSettings {\n" )
         for setting in layer.enumerate_vars():
             if not setting.group:
-                def_c_var( out, setting )
+                out.write( f"  // {setting.description}\n" )
+                out.write( f"  {setting.c_type()} {setting.c_name()} = {setting.c_default()};\n" )
         out.write( "\n" )
 
         out.write( "  // Value parsers\n" )
