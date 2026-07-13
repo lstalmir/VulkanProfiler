@@ -1,0 +1,26 @@
+{
+    "aliases": [
+        {
+            "key": "performance_query_mode",
+            "env": "VKPROF_performance_query_mode",
+            "settings": [
+                "intel_performance_query_mode"
+            ]
+        },
+        {
+            "key": "performance_stream_timer_period",
+            "env": "VKPROF_performance_stream_timer_period",
+            "settings": [
+                "intel_performance_stream_timer_period",
+                "nvidia_performance_stream_timer_period"
+            ]
+        },
+        {
+            "key": "default_metrics_set",
+            "env": "VKPROF_default_metrics_set",
+            "settings": [
+                "intel_default_metrics_set"
+            ]
+        }
+    ]
+}

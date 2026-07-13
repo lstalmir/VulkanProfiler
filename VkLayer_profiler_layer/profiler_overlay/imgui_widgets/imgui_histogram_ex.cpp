@@ -22,6 +22,7 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 
 #include "imgui_histogram_ex.h"
+#include "imgui_ex.h"
 #include <imgui_internal.h>
 #include <algorithm>
 
@@ -242,7 +243,7 @@ namespace ImGuiX
                     { x_pos - 5.0f * g.IO.FontGlobalScale, y_pos },
                     { x_pos + 5.0f * g.IO.FontGlobalScale, y_pos },
                     { x_pos, y_pos + 5.0f * g.IO.FontGlobalScale },
-                    data.color );
+                    ColorAlpha( data.color, style.Alpha, ColorAlphaOp_Multiply ) );
 
                 // Check if mouse is over the event
                 const ImRect event_bb(
@@ -292,10 +293,14 @@ namespace ImGuiX
                     ( data.flags & HistogramColumnFlags_NoHover ) == 0 &&
                     column_bb.ContainsWithPad( g.IO.MousePos, style.TouchExtraPadding );
 
+                ImU32 color = ColorAlpha( data.color, style.Alpha, ColorAlphaOp_Multiply );
+                if( hovered_column )
+                    color = ColorSaturation( color, 1.5f );
+
                 window->DrawList->AddRectFilled(
                     column_bb.Min,
                     column_bb.Max,
-                    hovered_column ? ColorSaturation( data.color, 1.5f ) : data.color );
+                    color );
 
                 if( hovered_column )
                 {

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -122,12 +122,12 @@ namespace Profiler
         void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo2* );
         void DestroyRenderPass( VkRenderPass );
 
-        void CreateSubmitBatchInfo( VkQueue, uint32_t, const VkSubmitInfo*, DeviceProfilerSubmitBatch* );
-        void CreateSubmitBatchInfo( VkQueue, uint32_t, const VkSubmitInfo2*, DeviceProfilerSubmitBatch* );
-        void PreSubmitCommandBuffers( const DeviceProfilerSubmitBatch& );
-        void PostSubmitCommandBuffers( const DeviceProfilerSubmitBatch& );
+        void PreSubmitCommandBuffers( VkQueue );
+        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo* );
+        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo2* );
 
         void FinishFrame();
+        void FinishFrame( const VkPresentInfoKHR* );
 
         void AllocateMemory( VkDeviceMemory, const VkMemoryAllocateInfo* );
         void FreeMemory( VkDeviceMemory );
@@ -137,6 +137,8 @@ namespace Profiler
 
         void CreateMicromap( VkMicromapEXT, const VkMicromapCreateInfoEXT* );
         void DestroyMicromap( VkMicromapEXT );
+
+        void BindSparseMemory( VkQueue, uint32_t, const VkBindSparseInfo* );
 
         void SetupBufferCreateInfo( VkBufferCreateInfo* );
         void CreateBuffer( VkBuffer, const VkBufferCreateInfo* );
@@ -156,6 +158,8 @@ namespace Profiler
         template<typename VkObjectTypeEnumT>
         void SetObjectName( uint64_t, VkObjectTypeEnumT, const char* );
 
+        DeviceProfilerSynchronizationTimestamps GetSynchronizationTimestamps();
+
     public:
         VkDevice_Object*        m_pDevice;
 
@@ -167,7 +171,7 @@ namespace Profiler
         DeviceProfilerMemoryManager m_MemoryManager;
         ProfilerDataAggregator  m_DataAggregator;
 
-        uint32_t                m_NextFrameIndex;
+        uint32_t                m_FrameIndex;
         uint32_t                m_DataBufferSize;
         uint32_t                m_MinDataBufferSize;
         uint64_t                m_LastFrameBeginTimestamp;
@@ -194,6 +198,9 @@ namespace Profiler
         std::unique_ptr<DeviceProfilerPerformanceCounters> m_pPerformanceCounters;
 
         DeviceProfilerSynchronization m_Synchronization;
+        DeviceProfilerSynchronizationTimestamps m_SynchronizationTimestamps;
+
+        std::mutex              m_SubmitMutex;
 
         // Whether VK_KHR_pipeline_executable_properties is available for the profiled device.
         // In such case the internal representations of pipelines may be inspected to give more insight on potential performance issues.
@@ -213,9 +220,8 @@ namespace Profiler
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator );
 
         template<typename SubmitInfoT>
-        void CreateSubmitBatchInfoImpl( VkQueue, uint32_t, const SubmitInfoT*, DeviceProfilerSubmitBatch* );
+        void PostSubmitCommandBuffersImpl( VkQueue, uint32_t, const SubmitInfoT* );
 
-        void BeginNextFrame();
         void ResolveFrameData( TipRangeId& tip );
 
         template<typename VkObjectHandleT>

@@ -50,16 +50,6 @@ namespace Profiler
         uint64_t                                        m_Timestamp = {};
         uint32_t                                        m_ThreadId = {};
     };
-    
-    struct DeviceProfilerFrame
-    {
-        uint32_t                                        m_FrameIndex = 0;
-        uint32_t                                        m_ThreadId = 0;
-        uint64_t                                        m_Timestamp = 0;
-        float                                           m_FramesPerSec = 0;
-        VkProfilerFrameDelimiterEXT                     m_FrameDelimiter = {};
-        DeviceProfilerSynchronizationTimestamps         m_SyncTimestamps = {};
-    };
 
     /***********************************************************************************\
 
@@ -88,16 +78,21 @@ namespace Profiler
             {}
         };
 
-        struct Frame : DeviceProfilerFrame
+        struct Frame
         {
+            uint32_t                                    m_FrameIndex = 0;
+            uint32_t                                    m_ThreadId = 0;
+            uint64_t                                    m_Timestamp = 0;
+            float                                       m_FramesPerSec = 0;
+            VkProfilerFrameDelimiterEXT                 m_FrameDelimiter = {};
+            DeviceProfilerSynchronizationTimestamps     m_SyncTimestamps = {};
+
             std::list<SubmitBatch>                      m_PendingSubmits = {};
             std::deque<DeviceProfilerSubmitBatchData>   m_CompleteSubmits = {};
 
             uint64_t                                    m_EndTimestamp = {};
 
-            Frame( const DeviceProfilerFrame& frame )
-                : DeviceProfilerFrame( frame )
-            {}
+            bool                                        m_Ended = false;
         };
 
     public:
@@ -111,8 +106,10 @@ namespace Profiler
         bool IsDataCollectionThreadRunning() const { return m_DataCollectionThreadRunning; }
         void StopDataCollectionThread();
 
-        void AppendFrame( const DeviceProfilerFrame& );
-        void AppendSubmit( const DeviceProfilerSubmitBatch& );
+        void AppendSubmit( uint32_t, const DeviceProfilerSubmitBatch& );
+        void EndFrame( uint32_t );
+        void EndPendingFrames();
+
         void Aggregate( ProfilerCommandBuffer* = nullptr );
 
         std::list<std::shared_ptr<DeviceProfilerFrameData>> GetAggregatedData();
@@ -127,12 +124,13 @@ namespace Profiler
         std::list<std::shared_ptr<Frame>> m_pPendingFrames;
 
         std::shared_mutex m_Mutex;
-        uint32_t m_FrameIndex;
 
         uint32_t m_MaxResolvedFrameCount;
 
         // Command pools used for copying query data
         std::unordered_map<VkQueue, DeviceProfilerInternalCommandPool> m_CopyCommandPools;
+
+        std::shared_ptr<Frame> GetPendingFrame( uint32_t ) const;
 
         void DataCollectionThreadProc();
 

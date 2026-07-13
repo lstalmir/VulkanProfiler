@@ -3,7 +3,7 @@
     "layer": {
         "name": "@PROFILER_LAYER_NAME@",
         "type": "GLOBAL",
-        "library_path": "@THIS_DIR@$<TARGET_FILE_NAME:@PROFILER_LAYER_PROJECTNAME@>",
+        "library_path": "@PROFILER_LAYER_JSON_DLL_PREFIX@$<TARGET_FILE_NAME:@PROFILER_LAYER_PROJECTNAME@>",
         "api_version": "@PROFILER_LAYER_API_VERSION@",
         "implementation_version": "@PROFILER_LAYER_VER_BUILD@",
         "description": "@PROFILER_LAYER_FILEDESCRIPTION@",
@@ -31,7 +31,7 @@
         "device_extensions": [
             {
                 "name": "VK_EXT_profiler",
-                "spec_version": "4",
+                "spec_version": "6",
                 "entrypoints": [
                     "vkSetProfilerSamplingModeEXT",
                     "vkGetProfilerSamplingModeEXT",
@@ -63,6 +63,10 @@
                 "entrypoints": [
                     "vkGetPhysicalDeviceToolPropertiesEXT"
                 ]
+            },
+            {
+                "name": "VK_EXT_frame_boundary",
+                "spec_version": "1"
             }
         ],
         "features": {
@@ -102,7 +106,10 @@
                             "dependence": {
                                 "mode": "ALL",
                                 "settings": [
-                                    { "key": "output", "value": "trace" }
+                                    {
+                                        "key": "output",
+                                        "value": "trace"
+                                    }
                                 ]
                             }
                         }
@@ -138,61 +145,109 @@
                             "key": "khr",
                             "label": "KHR",
                             "description": "Enable VK_KHR_performance_query extension."
+                        },
+                        {
+                            "key": "nvidia",
+                            "label": "NVIDIA",
+                            "description": "Enable NVIDIA NvPerf SDK (Requires administrative privileges).",
+                            "status": "ALPHA"
                         }
                     ],
                     "settings": [
                         {
-                            "key": "performance_query_mode",
-                            "label": "Performance query mode",
-                            "description": "Mode of operation for performance query extension.",
-                            "env": "VKPROF_performance_query_mode",
-                            "type": "ENUM",
-                            "default": "query",
-                            "flags": [
+                            "key": "intel_performance_query",
+                            "label": "Intel performance query settings",
+                            "description": "Settings specific to the Intel performance query extension.",
+                            "type": "GROUP",
+                            "settings": [
                                 {
-                                    "key": "query",
-                                    "label": "Query",
-                                    "description": "Collect performance metrics using performance queries inserted into the command buffers."
+                                    "key": "intel_performance_query_mode",
+                                    "label": "Performance query mode",
+                                    "description": "Mode of operation for performance query extension.",
+                                    "env": "VKPROF_intel_performance_query_mode",
+                                    "type": "ENUM",
+                                    "default": "query",
+                                    "flags": [
+                                        {
+                                            "key": "query",
+                                            "label": "Query",
+                                            "description": "Collect performance metrics using performance queries inserted into the command buffers."
+                                        },
+                                        {
+                                            "key": "stream",
+                                            "label": "Stream",
+                                            "description": "Continuously collect performance metrics in the background."
+                                        }
+                                    ]
                                 },
                                 {
-                                    "key": "stream",
-                                    "label": "Stream",
-                                    "description": "Continuously collect performance metrics in the background."
+                                    "key": "intel_performance_stream_timer_period",
+                                    "label": "Performance stream timer period",
+                                    "description": "Timer period in nanoseconds for performance stream collection mode.",
+                                    "env": "VKPROF_intel_performance_stream_timer_period",
+                                    "type": "INT",
+                                    "unit": "ns",
+                                    "default": 25000,
+                                    "range": {
+                                        "min": 1,
+                                        "max": 1000000000
+                                    },
+                                    "dependence": {
+                                        "mode": "ANY",
+                                        "settings": [
+                                            {
+                                                "key": "intel_performance_query_mode",
+                                                "value": "stream"
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "key": "intel_default_metrics_set",
+                                    "label": "Default metrics set",
+                                    "description": "Default metrics set to select after initializing performance query extension.",
+                                    "env": "VKPROF_intel_default_metrics_set",
+                                    "type": "STRING",
+                                    "default": "RenderBasic"
                                 }
                             ],
                             "dependence": {
                                 "mode": "ALL",
                                 "settings": [
-                                    { "key": "enable_performance_query_ext", "value": "intel" }
+                                    {
+                                        "key": "enable_performance_query_ext",
+                                        "value": "intel"
+                                    }
                                 ]
                             }
                         },
                         {
-                            "key": "performance_stream_timer_period",
-                            "label": "Performance stream timer period",
-                            "description": "Timer period in nanoseconds for performance stream collection mode.",
-                            "env": "VKPROF_performance_stream_timer_period",
-                            "type": "INT",
-                            "default": 25000,
+                            "key": "nvidia_performance_query",
+                            "label": "NVIDIA performance query settings",
+                            "description": "Settings for NVIDIA performance query extension.",
+                            "type": "GROUP",
+                            "settings": [
+                                {
+                                    "key": "nvidia_performance_stream_timer_period",
+                                    "label": "Performance stream timer period",
+                                    "description": "Timer period in nanoseconds for performance stream collection mode.",
+                                    "env": "VKPROF_nvidia_performance_stream_timer_period",
+                                    "type": "INT",
+                                    "unit": "ns",
+                                    "default": 25000,
+                                    "range": {
+                                        "min": 1,
+                                        "max": 1000000000
+                                    }
+                                }
+                            ],
                             "dependence": {
                                 "mode": "ALL",
                                 "settings": [
-                                    { "key": "enable_performance_query_ext", "value": "intel" },
-                                    { "key": "performance_query_mode", "value": "stream" }
-                                ]
-                            }
-                        },
-                        {
-                            "key": "default_metrics_set",
-                            "label": "Default metrics set",
-                            "description": "Default metrics set to select after initializing performance query extension.",
-                            "env": "VKPROF_default_metrics_set",
-                            "type": "STRING",
-                            "default": "RenderBasic",
-                            "dependence": {
-                                "mode": "ALL",
-                                "settings": [
-                                    { "key": "enable_performance_query_ext", "value": "intel" }
+                                    {
+                                        "key": "enable_performance_query_ext",
+                                        "value": "nvidia"
+                                    }
                                 ]
                             }
                         }
@@ -272,6 +327,11 @@
                             "key": "submit",
                             "label": "Submit",
                             "description": "Delimit frames on each submission. Recommended for applications rendering offscreen or compute-only workloads."
+                        },
+                        {
+                            "key": "frame_boundary_ext",
+                            "label": "Frame Boundary EXT",
+                            "description": "Delimit frames using VK_EXT_frame_boundary extension. The profiled application must use the extension to provide frame boundary information."
                         }
                     ]
                 },
@@ -320,6 +380,14 @@
                     "env": "VKPROF_ref_metrics",
                     "type": "LOAD_FILE",
                     "default": ""
+                },
+                {
+                    "key": "synchronize_queues",
+                    "label": "Synchronize queues",
+                    "description": "Synchronize all command buffer submissions to prevent concurrent execution on multiple queues during measurements.",
+                    "env": "VKPROF_synchronize_queues",
+                    "type": "BOOL",
+                    "default": false
                 }
             ]
         }

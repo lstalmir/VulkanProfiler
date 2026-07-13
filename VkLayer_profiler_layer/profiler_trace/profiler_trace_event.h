@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,9 +19,10 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler_helpers/profiler_json_builder.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
-#include <nlohmann/json.hpp>
+#include <functional>
 
 #include "profiler_ext/VkProfilerEXT.h"
 
@@ -41,6 +42,8 @@ namespace Profiler
     \*************************************************************************/
     struct TraceEvent
     {
+        typedef std::function<void( DeviceProfilerJsonValueBuilder& )> BuildCallback;
+
         enum class Phase
         {
             eDurationBegin = 'B',
@@ -67,13 +70,13 @@ namespace Profiler
             eContextEnd = ')'
         };
 
-        Phase          m_Phase;
-        std::string    m_Name;
-        std::string    m_Category;
-        Microseconds   m_Timestamp;
-        std::string    m_Track;
-        nlohmann::json m_Color;
-        nlohmann::json m_Args;
+        Phase            m_Phase;
+        std::string_view m_Name;
+        std::string_view m_Category;
+        Microseconds     m_Timestamp;
+        std::string_view m_Track;
+        BuildCallback    m_Color;
+        BuildCallback    m_Args;
 
         TraceEvent() = default;
 
@@ -84,19 +87,19 @@ namespace Profiler
             std::string_view category,
             TimestampType timestamp,
             std::string_view track,
-            const nlohmann::json& color = {},
-            const nlohmann::json& args = {} )
+            BuildCallback color = {},
+            BuildCallback args = {} )
             : m_Phase( phase )
             , m_Name( name )
             , m_Category( category )
-            , m_Timestamp( std::chrono::duration_cast<decltype(m_Timestamp)>(timestamp) )
+            , m_Timestamp( std::chrono::duration_cast<decltype( m_Timestamp )>( timestamp ) )
             , m_Track( track )
-            , m_Color( color )
-            , m_Args( args )
+            , m_Color( std::move( color ) )
+            , m_Args( std::move( args ) )
         {
         }
 
-        virtual void Serialize( nlohmann::json& j ) const;
+        virtual void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const;
     };
 
     /*************************************************************************\
@@ -131,14 +134,14 @@ namespace Profiler
             std::string_view category,
             TimestampType timestamp,
             std::string_view track,
-            const nlohmann::json& color = {},
-            const nlohmann::json& args = {} )
-            : TraceEvent( Phase::eInstant, name, category, timestamp, track, color, args )
+            BuildCallback color = {},
+            BuildCallback args = {} )
+            : TraceEvent( Phase::eInstant, name, category, timestamp, track, std::move( color ), std::move( args ) )
             , m_Scope( scope )
         {
         }
 
-        void Serialize( nlohmann::json& j ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -167,9 +170,9 @@ namespace Profiler
             std::string_view category,
             TimestampType timestamp,
             std::string_view track,
-            const nlohmann::json& color = {},
-            const nlohmann::json& args = {} )
-            : TraceEvent( phase, name, category, timestamp, track, color, args )
+            BuildCallback color = {},
+            BuildCallback args = {} )
+            : TraceEvent( phase, name, category, timestamp, track, std::move( color ), std::move( args ) )
             , m_Id( id )
         {
             assert( (m_Phase == Phase::eAsyncStart)
@@ -177,7 +180,7 @@ namespace Profiler
                 || (m_Phase == Phase::eAsyncInstant) );
         }
 
-        void Serialize( nlohmann::json& j ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -205,14 +208,14 @@ namespace Profiler
             TimestampType timestamp,
             DurationType duration,
             std::string_view track,
-            const nlohmann::json& color = {},
-            const nlohmann::json& args = {} )
-            : TraceEvent( Phase::eComplete, name, category, timestamp, track, color, args )
-            , m_Duration( std::chrono::duration_cast<decltype(m_Duration)>(duration) )
+            BuildCallback color = {},
+            BuildCallback args = {} )
+            : TraceEvent( Phase::eComplete, name, category, timestamp, track, std::move( color ), std::move( args ) )
+            , m_Duration( std::chrono::duration_cast<decltype( m_Duration )>( duration ) )
         {
         }
 
-        void Serialize( nlohmann::json& j ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -242,15 +245,15 @@ namespace Profiler
             size_t counterCount,
             const VkProfilerPerformanceCounterProperties2EXT* pCounterProperties,
             const VkProfilerPerformanceCounterResultEXT* pCounterResults,
-            const nlohmann::json& color = {} )
-            : TraceEvent( Phase::eCounter, "", "", timestamp, track, color )
+            BuildCallback color = {} )
+            : TraceEvent( Phase::eCounter, "", "", timestamp, track, std::move( color ) )
             , m_CounterCount( counterCount )
             , m_pCounterProperties( pCounterProperties )
             , m_pCounterResults( pCounterResults )
         {
         }
 
-        void Serialize( nlohmann::json& j ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -272,13 +275,13 @@ namespace Profiler
             Phase phase,
             std::string_view name,
             TimestampType timestamp,
-            const nlohmann::json& color = {},
-            const nlohmann::json& args = {} )
-            : TraceEvent( phase, name, "Debug", timestamp, std::string_view(), color, args )
+            BuildCallback color = {},
+            BuildCallback args = {} )
+            : TraceEvent( phase, name, "Debug", timestamp, std::string_view(), std::move( color ), std::move( args ) )
         {
         }
 
-        void Serialize( nlohmann::json& j ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
 
     /*************************************************************************\
@@ -303,16 +306,13 @@ namespace Profiler
             std::string_view name,
             uint32_t threadId,
             TimestampType timestamp,
-            const nlohmann::json& color = {},
-            const nlohmann::json& args = {} )
-            : TraceEvent( phase, name, "API", timestamp, std::string_view(), color, args )
+            BuildCallback color = {},
+            BuildCallback args = {} )
+            : TraceEvent( phase, name, "API", timestamp, std::string_view(), std::move( color ), std::move( args ) )
             , m_ThreadId( threadId )
         {
         }
 
-        void Serialize( nlohmann::json& j ) const override;
+        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
     };
-
-    // Conversion functions
-    void to_json( nlohmann::json& j, const TraceEvent& event );
 }

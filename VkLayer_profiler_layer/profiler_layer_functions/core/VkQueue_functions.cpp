@@ -42,22 +42,17 @@ namespace Profiler
         // Synchronize host access to the queue object in case the overlay tries to use it.
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        DeviceProfilerSubmitBatch submitBatch;
-        dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
-        dd.Profiler.PreSubmitCommandBuffers( submitBatch );
+        dd.Profiler.PreSubmitCommandBuffers( queue );
 
         // Submit the command buffers
         VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+        dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
 
         // Consume the collected data
-        if( dd.Profiler.m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        if( dd.pOutput )
         {
-            if( dd.pOutput )
-            {
-                dd.pOutput->Update();
-            }
+            dd.pOutput->Update();
         }
 
         return result;
@@ -83,22 +78,17 @@ namespace Profiler
         // Synchronize host access to the queue object in case the overlay tries to use it.
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        DeviceProfilerSubmitBatch submitBatch;
-        dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
-        dd.Profiler.PreSubmitCommandBuffers( submitBatch );
+        dd.Profiler.PreSubmitCommandBuffers( queue );
 
         // Submit the command buffers
         VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, submitCount, pSubmits, fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+        dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
 
         // Consume the collected data
-        if( dd.Profiler.m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        if( dd.pOutput )
         {
-            if( dd.pOutput )
-            {
-                dd.pOutput->Update();
-            }
+            dd.pOutput->Update();
         }
 
         return result;
@@ -129,40 +119,7 @@ namespace Profiler
 
         if( result == VK_SUCCESS )
         {
-            for( uint32_t i = 0; i < bindInfoCount; ++i )
-            {
-                const VkBindSparseInfo& bindInfo = pBindInfo[i];
-
-                // Register buffer memory bindings
-                for( uint32_t j = 0; j < bindInfo.bufferBindCount; ++j )
-                {
-                    const VkSparseBufferMemoryBindInfo& bufferBind = bindInfo.pBufferBinds[j];
-                    dd.Profiler.BindBufferMemory(
-                        bufferBind.buffer,
-                        bufferBind.bindCount,
-                        bufferBind.pBinds );
-                }
-
-                // Register image opaque memory bindings
-                for( uint32_t j = 0; j < bindInfo.imageOpaqueBindCount; ++j )
-                {
-                    const VkSparseImageOpaqueMemoryBindInfo& imageBind = bindInfo.pImageOpaqueBinds[j];
-                    dd.Profiler.BindImageMemory(
-                        imageBind.image,
-                        imageBind.bindCount,
-                        imageBind.pBinds );
-                }
-
-                // Register image block memory bindings
-                for( uint32_t j = 0; j < bindInfo.imageBindCount; ++j )
-                {
-                    const VkSparseImageMemoryBindInfo& imageBind = bindInfo.pImageBinds[j];
-                    dd.Profiler.BindImageMemory(
-                        imageBind.image,
-                        imageBind.bindCount,
-                        imageBind.pBinds );
-                }
-            }
+            dd.Profiler.BindSparseMemory( queue, bindInfoCount, pBindInfo );
         }
 
         return result;

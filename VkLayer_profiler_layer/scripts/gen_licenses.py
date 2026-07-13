@@ -97,7 +97,7 @@ if __name__ == "__main__":
     parser.add_argument( "--output", "-o", dest="output", required=True )
     args = parser.parse_args()
 
-    with open( args.output, mode="w" ) as out:
+    with open( args.output, mode="w", encoding="utf-8" ) as out:
         for lib, path in args.license_paths:
             info = library_info( lib, path )
             append_license_file( out, info )

@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Lukasz Stalmirski
+# Copyright (c) 2023-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,10 @@ cmake_minimum_required (VERSION 3.8...3.31)
 find_package (X11)
 
 if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.16.0)
+    # Suppress CMake version warnings in ECM by requiring at least 3.16+
+    # once we checked that it is indeed 3.16+.
+    cmake_minimum_required (VERSION 3.16...3.31)
+
     # ECM is required on Linux to find Wayland and XCB.
     find_package (ECM NO_MODULE)
     if (ECM_FOUND)

@@ -76,22 +76,9 @@ project (${PROFILER_LAYER_PROJECTNAME})
 message ("-- Profiler version: ${PROFILER_LAYER_VER_MAJOR}.${PROFILER_LAYER_VER_MINOR}.${PROFILER_LAYER_VER_BUILD}.${PROFILER_LAYER_VER_PATCH}")
 message ("-- Vulkan version: ${PROFILER_LAYER_API_VERSION}")
 
-# Generate layer manifest file
-set (json
-    "${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json"
-    )
-
-if (WIN32)
-    # WA: Windows uses backslash as directory separator, which needs to be
-    # escaped twice (once here and once in the json, thus 4 backslashes)
-    set (THIS_DIR ".\\\\")
-else ()
-    set (THIS_DIR "./")
-endif ()
-
 function (configure_and_generate_file IN_FILE OUT_FILE)
-    get_filename_component (IN_FILE_NAME "${IN_FILE}" NAME)
-    set (CONFIGURED_FILE "${CMAKE_CURRENT_BINARY_DIR}/${IN_FILE_NAME}.configured")
+    get_filename_component (OUT_FILE_NAME "${OUT_FILE}" NAME)
+    set (CONFIGURED_FILE "${CMAKE_CURRENT_BINARY_DIR}/${OUT_FILE_NAME}.configured.in")
 
     configure_file (
         "${IN_FILE}"
@@ -103,17 +90,43 @@ function (configure_and_generate_file IN_FILE OUT_FILE)
         INPUT "${CONFIGURED_FILE}")
 endfunction ()
 
+# Generate layer manifest file
+set (PROFILER_LAYER_JSON_FILENAME "${PROFILER_LAYER_PROJECTNAME}.json")
+set (PROFILER_LAYER_JSON_FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_JSON_FILENAME}")
+set (PROFILER_LAYER_JSON_INSTALL_FILE "${PROFILER_LAYER_JSON_FILE}")
+
+if (WIN32)
+    # WA: Windows uses backslash as directory separator, which needs to be
+    # escaped twice (once here and once in the json, thus 4 backslashes)
+    set (PROFILER_LAYER_JSON_DLL_PREFIX ".\\\\")
+else ()
+    set (PROFILER_LAYER_JSON_DLL_PREFIX "./")
+endif ()
+
 configure_and_generate_file (
-    "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in"
-    "${json}")
+    "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_JSON_FILENAME}.in"
+    "${PROFILER_LAYER_JSON_FILE}")
+
+if (NOT WIN32)
+    # On Linux the layer library is installed in <prefix>/lib directory and the manifest
+    # is placed in <prefix>/shared/vulkan/explicit_layers.d.
+    # Remove the local directory prefix to use system library load paths.
+    set (PROFILER_LAYER_JSON_DLL_PREFIX "")
+    set (PROFILER_LAYER_JSON_INSTALL_FILE "${PROFILER_LAYER_JSON_FILE}.install")
+    configure_and_generate_file (
+        "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_JSON_FILENAME}.in"
+        "${PROFILER_LAYER_JSON_INSTALL_FILE}")
+endif ()
 
 add_custom_command (
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
     COMMAND "${Python3_EXECUTABLE}"
         "${PROFILER_SCRIPTS_DIR}/gen_config.py"
-        "${json}"
+        "${PROFILER_LAYER_JSON_FILE}"
+        --aliases "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}_settings_aliases.json"
         --output "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
-    DEPENDS "${json}"
+    DEPENDS "${PROFILER_LAYER_JSON_FILE}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}_settings_aliases.json"
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_config.py")
 list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h")
 
@@ -187,7 +200,8 @@ target_link_libraries (profiler_common
     INTERFACE spirv-cross-c
     INTERFACE farmhash
     INTERFACE fmt
-    INTERFACE nlohmann_json)
+    INTERFACE simdjson
+    INTERFACE ryml)
 target_include_directories (profiler_common
     INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}"
     INTERFACE "${CMAKE_CURRENT_BINARY_DIR}"
@@ -283,6 +297,8 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkMeshShaderExt_functions.h"
     "profiler_layer_functions/extensions/VkMeshShaderNv_functions.cpp"
     "profiler_layer_functions/extensions/VkMeshShaderNv_functions.h"
+    "profiler_layer_functions/extensions/VkMultiDrawExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkMultiDrawExt_functions.h"
     "profiler_layer_functions/extensions/VkOpacityMicromapExt_functions.cpp"
     "profiler_layer_functions/extensions/VkOpacityMicromapExt_functions.h"
     "profiler_layer_functions/extensions/VkPipelineExecutablePropertiesKhr_functions.h"
@@ -369,7 +385,8 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME}
 
 add_custom_command (TARGET ${PROFILER_LAYER_PROJECTNAME} POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy
-        "${json}" "$<TARGET_FILE_DIR:${PROFILER_LAYER_PROJECTNAME}>/${PROFILER_LAYER_PROJECTNAME}.json")
+        "${PROFILER_LAYER_JSON_FILE}"
+        "$<TARGET_FILE_DIR:${PROFILER_LAYER_PROJECTNAME}>/${PROFILER_LAYER_JSON_FILENAME}")
 
 # Set include path
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
@@ -384,11 +401,24 @@ install (TARGETS ${PROFILER_LAYER_PROJECTNAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 
-install (FILES "${PROFILER_LICENSES_FILE}" DESTINATION .)
-
-# Copy JSON to the path where DLL/SO is installed
 if (WIN32)
-install (FILES ${json} DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    # Copy JSON to the path where the DLL is installed.
+    install (FILES "${PROFILER_LAYER_JSON_INSTALL_FILE}"
+        DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        RENAME "${PROFILER_LAYER_JSON_FILENAME}")
+
+    # Include a file with all third-party software licenses.
+    install (FILES "${PROFILER_LICENSES_FILE}"
+        DESTINATION .
+        RENAME "${PROFILER_LAYER_PROJECTNAME}_licenses.rst")
 else ()
-install (FILES ${json} DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+    # Copy JSON to shared directory.
+    install (FILES "${PROFILER_LAYER_JSON_INSTALL_FILE}"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/vulkan/explicit_layer.d"
+        RENAME "${PROFILER_LAYER_JSON_FILENAME}")
+
+    # Include a file with all third-party software licenses.
+    install (FILES "${PROFILER_LICENSES_FILE}"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/vulkan/explicit_layer.d"
+        RENAME "${PROFILER_LAYER_PROJECTNAME}_licenses.rst")
 endif ()

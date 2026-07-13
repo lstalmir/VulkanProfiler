@@ -28,7 +28,7 @@ RE_CONFVAL_DEFINITION = re.compile(r'\.\.\s+confval::\s+(?P<name>\w+)$')
 RE_CONFVAL_REFERENCE = re.compile(r':confval:`(?P<name>\w+)`( is set to (?:\*\*)?(?P<value>\w+)(?:\*\*)?)?')
 RE_CONFVAL_GLOSSARY = re.compile(r'\.\.\s+glossary::$')
 
-def validate_confvals(manifest, docs_root_dir):
+def validate_confvals(manifest, docs_root_dir, aliases_manifest):
     class cval_def_t:
         def __init__(self, name):
             self.name = name
@@ -66,6 +66,15 @@ def validate_confvals(manifest, docs_root_dir):
 
         def __repr__(self):
             return f'{{name={self.name}, env={self.env}, type={self.type}, default={self.default}, flags={self.flags}}}'
+
+    class alias_t:
+        def __init__(self, entry):
+            self.name = entry['key']
+            self.env = entry['env']
+            self.settings = entry['settings']
+
+        def __repr__(self):
+            return f'{{name={self.name}, env={self.env}, settings={self.settings}}}'
 
     def process_line(line, state, f):
         match = RE_CONFVAL_DEFINITION.search(line)
@@ -113,10 +122,16 @@ def validate_confvals(manifest, docs_root_dir):
 
     def read_settings_from_manifest(manifest, settings_dict):
         for setting in manifest:
-            s = setting_t(setting)
-            settings_dict[s.name] = s
+            if setting['type'] != 'GROUP':
+                s = setting_t(setting)
+                settings_dict[s.name] = s
             if 'settings' in setting.keys():
                 read_settings_from_manifest(setting['settings'], settings_dict)
+
+    def read_aliases_from_manifest(manifest, aliases_dict):
+        for alias in manifest:
+            a = alias_t(alias)
+            aliases_dict[a.name] = a
 
     state = state_t()
     read_confvals_from_dir(state, docs_root_dir)
@@ -124,18 +139,27 @@ def validate_confvals(manifest, docs_root_dir):
     settings = {}
     read_settings_from_manifest(manifest['layer']['features']['settings'], settings)
 
+    aliases = {}
+    read_aliases_from_manifest(aliases_manifest['aliases'] if aliases_manifest else [], aliases)
+
     # First, validate that all settings have corresponding env vars defined, and their names are matching.
     for setting in settings.values():
         if setting.env != 'VKPROF_' + setting.name:
             raise Exception(f'Incorrect env variable name found for setting \'{setting.name}\'')
+    for alias in aliases.values():
+        if alias.env != 'VKPROF_' + alias.name:
+            raise Exception(f'Incorrect env variable name found for setting alias \'{alias.name}\'')
 
     # Check if all settings are defined as confvals in the documentation.
     for setting in settings.values():
         if not setting.name in state.confval_defs.keys():
             raise Exception(f'Missing documentation for setting \'{setting.name}\'')
     for confval in state.confval_defs:
-        if not confval in settings.keys():
+        if not confval in settings.keys() and not confval in aliases.keys():
             raise Exception(f'Unexpected documentation for setting \'{confval.name}\'')
+    for alias in aliases.values():
+        if not alias.name in state.confval_defs.keys():
+            raise Exception(f'Missing documentation for setting alias \'{alias.name}\'')
 
     # Check if enum settings are correctly defined.
     for setting in settings.values():
@@ -150,7 +174,7 @@ def validate_confvals(manifest, docs_root_dir):
 
     # Check if all references are valid.
     for ref in state.confval_refs:
-        if ref.name not in state.confval_defs.keys():
+        if ref.name not in state.confval_defs.keys() and ref.name not in aliases.keys():
             raise Exception(f'Reference to an undefined setting \'{ref.name}\'')
         if ref.value:
             confval = state.confval_defs[ref.name]
@@ -158,12 +182,21 @@ def validate_confvals(manifest, docs_root_dir):
                 raise Exception(f'Reference to an undefined setting value \'{ref.name}\':\'{ref.value}\'')
 
 if __name__ == "__main__":
-    LAYER_JSON_PATH = sys.argv[1]
-    LAYER_DOCS_PATH = sys.argv[2]
+    import argparse
+    parser = argparse.ArgumentParser( description="Validate documentation against the json file." )
+    parser.add_argument( "--json", help="Path to the layer manifest json file.", type=str )
+    parser.add_argument( "--aliases", help="Path to the layer setting aliases json file.", type=str )
+    parser.add_argument( "--docs", help="Path to the documentation.", type=str )
+    args = parser.parse_args()
 
     # Read layer manifest that defines the configuration vars.
-    with open(LAYER_JSON_PATH) as f:
+    with open(args.json) as f:
         manifest = json.load(f)
 
+    aliases = {}
+    if args.aliases:
+        with open(args.aliases) as f:
+            aliases = json.load(f)
+
     # Validate the documentation.
-    validate_confvals(manifest, LAYER_DOCS_PATH)
+    validate_confvals(manifest, args.docs, aliases)

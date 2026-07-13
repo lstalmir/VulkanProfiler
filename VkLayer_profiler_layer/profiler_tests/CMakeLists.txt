@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 Lukasz Stalmirski
+# Copyright (c) 2019-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -64,5 +64,8 @@ if (BUILD_TESTS)
         PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
         )
 
-    install (TARGETS profiler_tests)
+    install (TARGETS profiler_tests
+        COMPONENT Tests
+        EXCLUDE_FROM_ALL
+        )
 endif (BUILD_TESTS)

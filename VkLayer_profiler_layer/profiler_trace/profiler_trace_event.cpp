@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,24 +32,37 @@ namespace Profiler
         Serialize TraceEvent to JSON object.
 
     \*************************************************************************/
-    void TraceEvent::Serialize( nlohmann::json& jsonObject ) const
+    void TraceEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
     {
-        jsonObject = {
-            { "name", m_Name },
-            { "cat", m_Category },
-            { "ph", std::string( 1, static_cast<char>(m_Phase) ) },
-            { "ts", m_Timestamp.count() },
-            { "pid", 0 },
-            { "tid", m_Track } };
-
-        if( !m_Color.empty() )
+        if( !m_Name.empty() )
         {
-            jsonObject[ "cname" ] = m_Color;
+            builder.Add( "name", m_Name );
         }
 
-        if( !m_Args.empty() )
+        if( !m_Category.empty() )
         {
-            jsonObject[ "args" ] = m_Args;
+            builder.Add( "cat", m_Category );
+        }
+
+        builder.Add( "ph", static_cast<char>( m_Phase ) );
+        builder.Add( "ts", m_Timestamp.count() );
+        builder.Add( "pid", 0 );
+
+        if( !m_Track.empty() )
+        {
+            builder.Add( "tid", m_Track );
+        }
+
+        if( m_Color )
+        {
+            auto cnameBuilder = builder.Add( "cname" );
+            m_Color( cnameBuilder );
+        }
+
+        if( m_Args )
+        {
+            auto argsBuilder = builder.Add( "args" );
+            m_Args( argsBuilder );
         }
     }
 
@@ -62,12 +75,12 @@ namespace Profiler
         Serialize TraceInstantEvent to JSON object.
 
     \*************************************************************************/
-    void TraceInstantEvent::Serialize( nlohmann::json& jsonObject ) const
+    void TraceInstantEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
     {
-        TraceEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( builder );
 
         // Instant events contain additional 's' parameter
-        jsonObject[ "s" ] = std::string( 1, static_cast<char>(m_Scope));
+        builder.Add( "s", static_cast<char>( m_Scope ) );
     }
 
     /*************************************************************************\
@@ -79,12 +92,12 @@ namespace Profiler
         Serialize TraceAsyncEvent to JSON object.
 
     \*************************************************************************/
-    void TraceAsyncEvent::Serialize( nlohmann::json& jsonObject ) const
+    void TraceAsyncEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
     {
-        TraceEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( builder );
 
         // Async events contain additional 'id' parameter
-        jsonObject[ "id" ] = m_Id;
+        builder.Add( "id", m_Id );
     }
 
     /*************************************************************************\
@@ -96,12 +109,12 @@ namespace Profiler
         Serialize TraceCompleteEvent to JSON object.
 
     \*************************************************************************/
-    void TraceCompleteEvent::Serialize( nlohmann::json& jsonObject ) const
+    void TraceCompleteEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
     {
-        TraceEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( builder );
 
         // Complete events contain additional 'dur' parameter
-        jsonObject[ "dur" ] = m_Duration.count();
+        builder.Add( "dur", m_Duration.count() );
     }
 
     /*************************************************************************\
@@ -113,17 +126,12 @@ namespace Profiler
         Serialize TraceCounterEvent to JSON object.
 
     \*************************************************************************/
-    void TraceCounterEvent::Serialize( nlohmann::json& jsonObject ) const
+    void TraceCounterEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
     {
-        TraceEvent::Serialize( jsonObject );
-
-        jsonObject.erase( "name" );
-        jsonObject.erase( "cat" );
-        jsonObject.erase( "args" );
+        TraceEvent::Serialize( builder );
 
         // Counter events contain all metrics in 'args' parameter
-        nlohmann::json& args = jsonObject["args"];
-
+        auto args = builder.AddObject( "args" );
         for( uint32_t i = 0; i < m_CounterCount; ++i )
         {
             const VkProfilerPerformanceCounterProperties2EXT& properties = m_pCounterProperties[i];
@@ -132,25 +140,26 @@ namespace Profiler
             switch( properties.storage )
             {
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
-                args[properties.shortName] = result.int32;
+                args.Add( properties.shortName, result.int32 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
-                args[properties.shortName] = result.uint32;
+                args.Add( properties.shortName, result.uint32 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
-                args[properties.shortName] = result.int64;
+                args.Add( properties.shortName, result.int64 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
-                args[properties.shortName] = result.uint64;
+                args.Add( properties.shortName, result.uint64 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
-                args[properties.shortName] = result.float32;
+                args.Add( properties.shortName, result.float32 );
                 break;
             case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
-                args[properties.shortName] = result.float64;
+                args.Add( properties.shortName, result.float64 );
                 break;
             }
         }
+        args.End();
     }
 
     /*************************************************************************\
@@ -162,16 +171,16 @@ namespace Profiler
         Serialize DebugTraceEvent to JSON object.
 
     \*************************************************************************/
-    void DebugTraceEvent::Serialize( nlohmann::json& jsonObject ) const
+    void DebugTraceEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
     {
-        TraceEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( builder );
 
         // Set thread id
-        jsonObject[ "tid" ] = "Debug labels";
+        builder.Add( "tid", "Debug labels" );
 
         if( m_Phase == Phase::eInstant )
         {
-            jsonObject[ "s" ] = std::string( 1, static_cast<char>(TraceInstantEvent::Scope::eThread) );
+            builder.Add( "s", static_cast<char>( TraceInstantEvent::Scope::eThread ) );
         }
     }
 
@@ -184,25 +193,11 @@ namespace Profiler
         Serialize ApiTraceEvent to JSON object.
 
     \*************************************************************************/
-    void ApiTraceEvent::Serialize( nlohmann::json& jsonObject ) const
+    void ApiTraceEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
     {
-        TraceEvent::Serialize( jsonObject );
+        TraceEvent::Serialize( builder );
 
         // Set thread id
-        jsonObject[ "tid" ] = "Thread " + std::to_string( m_ThreadId );
-    }
-
-    /*************************************************************************\
-
-    Function:
-        to_json
-
-    Description:
-        Serialize TraceEvent to JSON object.
-
-    \*************************************************************************/
-    void to_json( nlohmann::json& jsonObject, const TraceEvent& event )
-    {
-        event.Serialize( jsonObject );
+        builder.Add( "tid", "Thread " + std::to_string( m_ThreadId ) );
     }
 }

@@ -53,20 +53,20 @@ The layer uses CMake build management tool, so building it is straightforward.
 
 1.  Clone the repository.
 
-    .. code::
+    .. code:: bash
 
         git clone --recursive https://github.com/lstalmir/VulkanProfiler
         cd VulkanProfiler
 
 2.  Install Python packages.
 
-    .. code::
+    .. code:: bash
 
         python3 -m pip install -r VkLayer_profiler_layer/scripts/requirements.txt
 
 3.  Generate the project files / makefiles in the build directory.
 
-    .. code::
+    .. code:: bash
 
         mkdir cmake_build
         cd cmake_build
@@ -74,9 +74,9 @@ The layer uses CMake build management tool, so building it is straightforward.
 
 4.  Build the layer.
 
-    .. code::
+    .. code:: bash
 
-        cmake --build . --config Release
+        cmake --build . --config Release -j
 
 Building with Visual Studio
 ---------------------------
@@ -93,7 +93,7 @@ Unix makefiles is the default CMake generator on Linux systems. Build directory 
 
 Once generated, the project can be built by running make:
 
-.. code::
+.. code:: bash
 
     make all
 
@@ -102,11 +102,15 @@ Packaging
 
 CMake install step can be used to collect all files into a single directory:
 
-.. code::
+.. code:: bash
 
     cmake --install . --config Release --prefix <install_dir>
 
-The layer files will be placed in ``<install_dir>/bin`` on Windows, ``<install_dir>/lib`` on Linux, or in ``<install_dir>/lib/<arch>`` on multiarch Linux distributions (e.g., ``<install_dir>/lib/x86_64-linux-gnu``).
+The layer libraries will be placed in ``<install_dir>/bin`` on Windows, ``<install_dir>/lib`` on Linux, or in ``<install_dir>/lib/<arch>`` on multiarch Linux distributions (e.g., ``<install_dir>/lib/x86_64-linux-gnu``).
+
+On Windows, the JSON manifest file is located next to the DLL. On Linux, it is placed in ``<install_dir>/share/vulkan/explicit_layer.d`` directory.
+
+On Linux, the layer can be also installed directly to the current system by providing ``/usr/local`` or ``/usr`` prefix.
 
 Building documentation
 ----------------------
@@ -121,6 +125,6 @@ The packages required for building are listed in Docs/requirements.txt:
 
 With the packages installed, sphinx-build tool can be used:
 
-.. code::
+.. code:: bash
 
     sphinx-build -M html ./Docs ./docs_build

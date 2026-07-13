@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -123,6 +123,7 @@ typedef enum VkProfilerFrameDelimiterEXT
 {
     VK_PROFILER_FRAME_DELIMITER_PRESENT_EXT,
     VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT,
+    VK_PROFILER_FRAME_DELIMITER_FRAME_BOUNDARY_EXT,
     VK_PROFILER_FRAME_DELIMITER_MAX_ENUM_EXT = 0x7FFFFFFF
 } VkProfilerFrameDelimiterEXT;
 
@@ -166,6 +167,7 @@ typedef enum VkProfilerPerformanceCountersBackendEXT
     VK_PROFILER_PERFORMANCE_COUNTERS_BACKEND_NONE_EXT,
     VK_PROFILER_PERFORMANCE_COUNTERS_BACKEND_INTEL_EXT,
     VK_PROFILER_PERFORMANCE_COUNTERS_BACKEND_KHR_EXT,
+    VK_PROFILER_PERFORMANCE_COUNTERS_BACKEND_NVIDIA_EXT,
     VK_PROFILER_PERFORMANCE_COUNTERS_BACKEND_MAX_ENUM_EXT = 0x7FFFFFFF
 } VkProfilerPerformanceCountersBackendEXT;
 

@@ -21,6 +21,7 @@
 #include "profiler_performance_counters_intel.h"
 #include "profiler/profiler_config.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler_helpers/profiler_json_parser.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 
 #ifndef NDEBUG
@@ -46,7 +47,6 @@
 #define PROFILER_METRICS_DLL_INTEL "libigdmd.so"
 #endif
 
-#include <nlohmann/json.hpp>
 #include <fstream>
 
 namespace MD = MetricsDiscovery;
@@ -105,6 +105,17 @@ namespace
             return nullptr;
         }
     }
+
+    template<typename T>
+    PROFILER_FORCE_INLINE T MD_TTypedValue_Cast( const MD::TTypedValue_1_0* pValue )
+    {
+        if( pValue != nullptr )
+        {
+            return MD_TTypedValue_Cast<T>( *pValue );
+        }
+
+        return T();
+    }
 }
 
 namespace Profiler
@@ -160,14 +171,14 @@ namespace Profiler
         // Read device properties
         if( result == VK_SUCCESS )
         {
-            const MD::TTypedValue_1_0* pGpuTimestampFrequency = m_pDevice->GetGlobalSymbolValueByName( "GpuTimestampFrequency" );
-            const MD::TTypedValue_1_0* pGpuTimestampMax = m_pDevice->GetGlobalSymbolValueByName( "MaxTimestamp" );
+            const uint64_t gpuTimestampFrequency = MD_TTypedValue_Cast<uint64_t>( m_pDevice->GetGlobalSymbolValueByName( "GpuTimestampFrequency" ) );
+            const uint64_t gpuTimestampMax = MD_TTypedValue_Cast<uint64_t>( m_pDevice->GetGlobalSymbolValueByName( "MaxTimestamp" ) );
 
-            if( pGpuTimestampFrequency && pGpuTimestampMax )
+            if( gpuTimestampFrequency && gpuTimestampMax )
             {
                 m_GpuTimestampQueryPeriod = m_pVulkanDevice->pPhysicalDevice->Properties.limits.timestampPeriod;
-                m_GpuTimestampPeriod = 1e9 / MD_TTypedValue_Cast<uint64_t>( *pGpuTimestampFrequency );
-                m_GpuTimestampMax = MD_TTypedValue_Cast<uint64_t>( *pGpuTimestampMax );
+                m_GpuTimestampPeriod = 1e9 / gpuTimestampFrequency;
+                m_GpuTimestampMax = gpuTimestampMax;
                 m_GpuTimestampIs32Bit = ( m_GpuTimestampMax <= static_cast<uint64_t>( UINT32_MAX * m_GpuTimestampPeriod ) );
             }
             else
@@ -179,14 +190,14 @@ namespace Profiler
         // Setup sampling mode
         if( result == VK_SUCCESS )
         {
-            switch( config.m_PerformanceQueryMode )
+            switch( config.m_IntelPerformanceQuery.m_IntelPerformanceQueryMode )
             {
-            case performance_query_mode_t::query:
+            case intel_performance_query_mode_t::query:
                 m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
                 break;
-            case performance_query_mode_t::stream:
+            case intel_performance_query_mode_t::stream:
                 m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT;
-                m_SamplingPeriodInNanoseconds = config.m_PerformanceStreamTimerPeriod;
+                m_SamplingPeriodInNanoseconds = config.m_IntelPerformanceQuery.m_IntelPerformanceStreamTimerPeriod;
                 break;
             default:
                 // Unsupported mode
@@ -287,7 +298,12 @@ namespace Profiler
             assert( oaMetricSetCount > 0 );
 
             uint32_t defaultMetricsSetIndex = UINT32_MAX;
-            const char* pDefaultMetricsSetName = config.m_DefaultMetricsSet.c_str();
+            const char* pDefaultMetricsSetName = config.m_IntelPerformanceQuery.m_IntelDefaultMetricsSet.c_str();
+
+            if( config.m_IntelPerformanceQuery.m_IntelDefaultMetricsSet.empty() )
+            {
+                pDefaultMetricsSetName = "RenderBasic";
+            }
 
             uint32_t apiMask = ( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT ) ?
                 MD::API_TYPE_IOSTREAM :
@@ -464,6 +480,7 @@ namespace Profiler
         m_pConcurrentGroupParams = nullptr;
 
         m_SamplingMode = VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT;
+        m_SamplingPeriodInNanoseconds = 25'000;
 
         m_GpuTimestampQueryPeriod = 1.0;
         m_GpuTimestampPeriod = 1.0;
@@ -1094,12 +1111,31 @@ namespace Profiler
             vulkanDriverName[ vulkanDriverNameLength ] = 0;
 
             // Parse JSON file.
-            nlohmann::json icd = nlohmann::json::parse( std::ifstream( vulkanDriverName ) );
+            DeviceProfilerJsonParser parser;
+            if( !parser.ParseFile( vulkanDriverName ) )
+            {
+                RegCloseKey( hDeviceRegistryKey );
+                continue;
+            }
 
-            if( icd[ "file_format_version" ] == "1.0.0" )
+            auto manifest = parser.GetParsedDocument().ReadObject();
+            if( !manifest.IsValid() )
+            {
+                RegCloseKey( hDeviceRegistryKey );
+                continue;
+            }
+
+            if( manifest.Read( "file_format_version" ).ToStringView() == "1.0.0" )
             {
                 // Get path to the DLL.
-                std::filesystem::path vulkanModulePath = icd[ "ICD" ][ "library_path" ];
+                std::filesystem::path vulkanModulePath;
+
+                if( !manifest.ReadObject( "ICD" ).Read( "library_path", vulkanModulePath ) )
+                {
+                    // Failed to read library_path from JSON.
+                    RegCloseKey( hDeviceRegistryKey );
+                    continue;
+                }
 
                 if( !vulkanModulePath.is_absolute() )
                 {

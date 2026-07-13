@@ -22,6 +22,7 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 
 #include "imgui_breakdown_ex.h"
+#include "imgui_ex.h"
 #include <imgui_internal.h>
 
 #include <random>
@@ -56,7 +57,7 @@ namespace ImGuiX
             return;
 
         const ImGuiStyle& style = g.Style;
-        const ImGuiID id = window->GetID( label ? label : "" );
+        const ImGuiID id = window->GetID( label );
 
         PushItemWidth( -1 );
 
@@ -130,6 +131,8 @@ namespace ImGuiX
                 else
                     color = col_base + random();
 
+                color = ColorAlpha( color, style.Alpha, ColorAlphaOp_Multiply );
+
                 window->DrawList->AddRectFilled( rect.Min, rect.Max, color );
 
                 t0 = t1;
@@ -137,7 +140,7 @@ namespace ImGuiX
             }
         }
 
-        if( label )
+        if( label != label_end )
         {
             ImRect label_bb( frame_bb );
             label_bb.Expand( -g.Style.FramePadding );

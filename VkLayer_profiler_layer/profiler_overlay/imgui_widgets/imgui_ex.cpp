@@ -182,11 +182,25 @@ namespace ImGuiX
         Set color alpha.
 
     \*************************************************************************/
-    ImU32 ColorAlpha( ImU32 color, float alpha )
+    ImU32 ColorAlpha( ImU32 color, float alpha, ColorAlphaOp op )
     {
-        ImU32 c = color & 0x00FFFFFF;
-        ImU8 a = ImClamp( 255.f * alpha, 0.f, 255.f );
-        return ( c & 0x00FFFFFF ) | ( a << 24 );
+        ImU32 a = ( color & IM_COL32_A_MASK ) >> IM_COL32_A_SHIFT;
+        switch( op )
+        {
+        case ColorAlphaOp_Set:
+            a = ImClamp<ImU32>( 255 * alpha, 0, 255 );
+            break;
+        case ColorAlphaOp_Add:
+            a = ImClamp<ImU32>( a + 255 * alpha, 0, 255 );
+            break;
+        case ColorAlphaOp_Multiply:
+            a = ImClamp<ImU32>( a * alpha, 0, 255 );
+            break;
+        default:
+            IM_ASSERT( false );
+            break;
+        }
+        return ( color & ~IM_COL32_A_MASK ) | ( a << IM_COL32_A_SHIFT );
     }
 
     /*************************************************************************\

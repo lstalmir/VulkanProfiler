@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
-// 
+// Copyright (c) 2019-2026 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -50,8 +50,10 @@ namespace Profiler
         Serialize command arguments into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetCommandArgs( const DeviceProfilerDrawcall& drawcall ) const
+    void DeviceProfilerJsonSerializer::WriteCommandArgs( DeviceProfilerJsonValueBuilder& builder, const DeviceProfilerDrawcall& drawcall ) const
     {
+        auto argsBuilder = builder.MakeObject();
+
         switch( drawcall.m_Type )
         {
         default:
@@ -59,311 +61,391 @@ namespace Profiler
         case DeviceProfilerDrawcallType::eInsertDebugLabel:
         case DeviceProfilerDrawcallType::eBeginDebugLabel:
         case DeviceProfilerDrawcallType::eEndDebugLabel:
-            return {};
+            break;
 
         case DeviceProfilerDrawcallType::eDraw:
-            return {
-                { "vertexCount", drawcall.m_Payload.m_Draw.m_VertexCount },
-                { "instanceCount", drawcall.m_Payload.m_Draw.m_InstanceCount },
-                { "firstVertex", drawcall.m_Payload.m_Draw.m_FirstVertex },
-                { "firstInstance", drawcall.m_Payload.m_Draw.m_FirstInstance } };
+            argsBuilder
+                .Add( "vertexCount", drawcall.m_Payload.m_Draw.m_VertexCount )
+                .Add( "instanceCount", drawcall.m_Payload.m_Draw.m_InstanceCount )
+                .Add( "firstVertex", drawcall.m_Payload.m_Draw.m_FirstVertex )
+                .Add( "firstInstance", drawcall.m_Payload.m_Draw.m_FirstInstance );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndexed:
-            return {
-                { "indexCount", drawcall.m_Payload.m_DrawIndexed.m_IndexCount },
-                { "instanceCount", drawcall.m_Payload.m_DrawIndexed.m_InstanceCount },
-                { "firstIndex", drawcall.m_Payload.m_DrawIndexed.m_FirstIndex },
-                { "vertexOffset", drawcall.m_Payload.m_DrawIndexed.m_VertexOffset },
-                { "firstInstance", drawcall.m_Payload.m_DrawIndexed.m_FirstInstance } };
+            argsBuilder
+                .Add( "indexCount", drawcall.m_Payload.m_DrawIndexed.m_IndexCount )
+                .Add( "instanceCount", drawcall.m_Payload.m_DrawIndexed.m_InstanceCount )
+                .Add( "firstIndex", drawcall.m_Payload.m_DrawIndexed.m_FirstIndex )
+                .Add( "vertexOffset", drawcall.m_Payload.m_DrawIndexed.m_VertexOffset )
+                .Add( "firstInstance", drawcall.m_Payload.m_DrawIndexed.m_FirstInstance );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndirect.m_Stride } };
+            argsBuilder
+                .Add( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirect.m_Buffer ) )
+                .Add( "offset", drawcall.m_Payload.m_DrawIndirect.m_Offset )
+                .Add( "drawCount", drawcall.m_Payload.m_DrawIndirect.m_DrawCount )
+                .Add( "stride", drawcall.m_Payload.m_DrawIndirect.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride } };
+            argsBuilder
+                .Add( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirect.m_Buffer ) )
+                .Add( "offset", drawcall.m_Payload.m_DrawIndexedIndirect.m_Offset )
+                .Add( "drawCount", drawcall.m_Payload.m_DrawIndexedIndirect.m_DrawCount )
+                .Add( "stride", drawcall.m_Payload.m_DrawIndexedIndirect.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndirectCount.m_Stride } };
+            argsBuilder
+                .Add( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_Buffer ) )
+                .Add( "offset", drawcall.m_Payload.m_DrawIndirectCount.m_Offset )
+                .Add( "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndirectCount.m_CountBuffer ) )
+                .Add( "countOffset", drawcall.m_Payload.m_DrawIndirectCount.m_CountOffset )
+                .Add( "maxDrawCount", drawcall.m_Payload.m_DrawIndirectCount.m_MaxDrawCount )
+                .Add( "stride", drawcall.m_Payload.m_DrawIndirectCount.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawIndexedIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Stride } };
+            argsBuilder
+                .Add( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Buffer ) )
+                .Add( "offset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Offset )
+                .Add( "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountBuffer ) )
+                .Add( "countOffset", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_CountOffset )
+                .Add( "maxDrawCount", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_MaxDrawCount )
+                .Add( "stride", drawcall.m_Payload.m_DrawIndexedIndirectCount.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasks:
-            return {
-                { "groupCountX", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountX },
-                { "groupCountY", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountY },
-                { "groupCountZ", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountZ }
-            };
+            argsBuilder
+                .Add( "groupCountX", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountX )
+                .Add( "groupCountY", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountY )
+                .Add( "groupCountZ", drawcall.m_Payload.m_DrawMeshTasks.m_GroupCountZ );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Stride }
-            };
+            argsBuilder
+                .Add( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Buffer ) )
+                .Add( "offset", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Offset )
+                .Add( "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_DrawCount )
+                .Add( "stride", drawcall.m_Payload.m_DrawMeshTasksIndirect.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride }
-            };
+            argsBuilder
+                .Add( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Buffer ) )
+                .Add( "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Offset )
+                .Add( "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountBuffer ) )
+                .Add( "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_CountOffset )
+                .Add( "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_MaxDrawCount )
+                .Add( "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCount.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksNV:
-            return {
-                { "taskCount", drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount },
-                { "firstTask", drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask }
-            };
+            argsBuilder
+                .Add( "taskCount", drawcall.m_Payload.m_DrawMeshTasksNV.m_TaskCount )
+                .Add( "firstTask", drawcall.m_Payload.m_DrawMeshTasksNV.m_FirstTask );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset },
-                { "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride }
-            };
+            argsBuilder
+                .Add( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Buffer ) )
+                .Add( "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Offset )
+                .Add( "drawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_DrawCount )
+                .Add( "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectNV.m_Stride );
+            break;
 
         case DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset },
-                { "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ) },
-                { "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset },
-                { "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount },
-                { "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride }
-            };
+            argsBuilder
+                .Add( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Buffer ) )
+                .Add( "offset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Offset )
+                .Add( "countBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountBuffer ) )
+                .Add( "countOffset", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_CountOffset )
+                .Add( "maxDrawCount", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_MaxDrawCount )
+                .Add( "stride", drawcall.m_Payload.m_DrawMeshTasksIndirectCountNV.m_Stride );
+            break;
+
+        case DeviceProfilerDrawcallType::eDrawMulti:
+        {
+            argsBuilder
+                .Add( "drawCount", drawcall.m_Payload.m_DrawMulti.m_DrawCount )
+                .Add( "instanceCount", drawcall.m_Payload.m_DrawMulti.m_InstanceCount )
+                .Add( "firstInstance", drawcall.m_Payload.m_DrawMulti.m_FirstInstance )
+                .Add( "stride", drawcall.m_Payload.m_DrawMulti.m_Stride );
+
+            auto vertexInfosBuilder = argsBuilder.AddArray( "vertexInfos" );
+            for( uint32_t i = 0; i < drawcall.m_Payload.m_DrawMulti.m_DrawCount; i++ )
+            {
+                const auto& vertexInfo = drawcall.m_Payload.m_DrawMulti.m_pVertexInfo[i];
+                vertexInfosBuilder.AddObject()
+                    .Add( "firstVertex", vertexInfo.firstVertex )
+                    .Add( "vertexCount", vertexInfo.vertexCount );
+            }
+
+            vertexInfosBuilder.End();
+            break;
+        }
+
+        case DeviceProfilerDrawcallType::eDrawMultiIndexed:
+        {
+            argsBuilder
+                .Add( "drawCount", drawcall.m_Payload.m_DrawMultiIndexed.m_DrawCount )
+                .Add( "instanceCount", drawcall.m_Payload.m_DrawMultiIndexed.m_InstanceCount )
+                .Add( "firstInstance", drawcall.m_Payload.m_DrawMultiIndexed.m_FirstInstance )
+                .Add( "stride", drawcall.m_Payload.m_DrawMultiIndexed.m_Stride );
+
+            auto indexInfosBuilder = argsBuilder.AddArray( "indexInfos" );
+            for( uint32_t i = 0; i < drawcall.m_Payload.m_DrawMultiIndexed.m_DrawCount; i++ )
+            {
+                const auto& indexInfo = drawcall.m_Payload.m_DrawMultiIndexed.m_pIndexInfo[i];
+                indexInfosBuilder.AddObject()
+                    .Add( "firstIndex", indexInfo.firstIndex )
+                    .Add( "indexCount", indexInfo.indexCount )
+                    .Add( "vertexOffset", indexInfo.vertexOffset );
+            }
+
+            indexInfosBuilder.End();
+            break;
+        }
 
         case DeviceProfilerDrawcallType::eDispatch:
-            return {
-                { "groupCountX", drawcall.m_Payload.m_Dispatch.m_GroupCountX },
-                { "groupCountY", drawcall.m_Payload.m_Dispatch.m_GroupCountY },
-                { "groupCountZ", drawcall.m_Payload.m_Dispatch.m_GroupCountZ } };
+            argsBuilder
+                .Add( "groupCountX", drawcall.m_Payload.m_Dispatch.m_GroupCountX )
+                .Add( "groupCountY", drawcall.m_Payload.m_Dispatch.m_GroupCountY )
+                .Add( "groupCountZ", drawcall.m_Payload.m_Dispatch.m_GroupCountZ );
+            break;
 
         case DeviceProfilerDrawcallType::eDispatchIndirect:
-            return {
-                { "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DispatchIndirect.m_Buffer ) },
-                { "offset", drawcall.m_Payload.m_DispatchIndirect.m_Offset } };
+            argsBuilder
+                .Add( "buffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_DispatchIndirect.m_Buffer ) )
+                .Add( "offset", drawcall.m_Payload.m_DispatchIndirect.m_Offset );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyBuffer:
-            return {
-                { "srcBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer ) },
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_DstBuffer ) } };
+            argsBuilder
+                .Add( "srcBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_SrcBuffer ) )
+                .Add( "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBuffer.m_DstBuffer ) );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyBufferToImage:
-            return {
-                { "srcBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_DstImage ) } };
+            argsBuilder
+                .Add( "srcBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_SrcBuffer ) )
+                .Add( "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyBufferToImage.m_DstImage ) );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyImage:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_SrcImage ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_DstImage ) } };
+            argsBuilder
+                .Add( "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_SrcImage ) )
+                .Add( "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImage.m_DstImage ) );
+            break;
 
         case DeviceProfilerDrawcallType::eCopyImageToBuffer:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage ) },
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer ) } };
+            argsBuilder
+                .Add( "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_SrcImage ) )
+                .Add( "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_CopyImageToBuffer.m_DstBuffer ) );
+            break;
 
         case DeviceProfilerDrawcallType::eClearAttachments:
-            return {
-                { "attachmentCount", drawcall.m_Payload.m_ClearAttachments.m_Count } };
+            argsBuilder
+                .Add( "attachmentCount", drawcall.m_Payload.m_ClearAttachments.m_Count );
+            break;
 
         case DeviceProfilerDrawcallType::eClearColorImage:
-            return {
-                { "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearColorImage.m_Image ) },
-                { "value", GetColorClearValue( drawcall.m_Payload.m_ClearColorImage.m_Value ) } };
+        {
+            argsBuilder
+                .Add( "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearColorImage.m_Image ) );
+
+            auto valueBuilder = argsBuilder.Add( "value" );
+            WriteColorClearValue( valueBuilder, drawcall.m_Payload.m_ClearColorImage.m_Value );
+
+            break;
+        }
 
         case DeviceProfilerDrawcallType::eClearDepthStencilImage:
-            return {
-                { "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearDepthStencilImage.m_Image ) },
-                { "value", GetDepthStencilClearValue( drawcall.m_Payload.m_ClearDepthStencilImage.m_Value ) } };
+        {
+            argsBuilder
+                .Add( "image", m_pStringSerializer->GetName( drawcall.m_Payload.m_ClearDepthStencilImage.m_Image ) );
+
+            auto valueBuilder = argsBuilder.Add( "value" );
+            WriteDepthStencilClearValue( valueBuilder, drawcall.m_Payload.m_ClearDepthStencilImage.m_Value );
+
+            break;
+        }
 
         case DeviceProfilerDrawcallType::eResolveImage:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_SrcImage ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_DstImage ) } };
+            argsBuilder
+                .Add( "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_SrcImage ) )
+                .Add( "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_ResolveImage.m_DstImage ) );
+            break;
 
         case DeviceProfilerDrawcallType::eBlitImage:
-            return {
-                { "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_SrcImage ) },
-                { "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_DstImage ) } };
+            argsBuilder
+                .Add( "srcImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_SrcImage ) )
+                .Add( "dstImage", m_pStringSerializer->GetName( drawcall.m_Payload.m_BlitImage.m_DstImage ) );
+            break;
 
         case DeviceProfilerDrawcallType::eFillBuffer:
-            return {
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_FillBuffer.m_Buffer ) },
-                { "dstOffset", drawcall.m_Payload.m_FillBuffer.m_Offset },
-                { "size", drawcall.m_Payload.m_FillBuffer.m_Size },
-                { "data", drawcall.m_Payload.m_FillBuffer.m_Data } };
+            argsBuilder
+                .Add( "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_FillBuffer.m_Buffer ) )
+                .Add( "dstOffset", drawcall.m_Payload.m_FillBuffer.m_Offset )
+                .Add( "size", drawcall.m_Payload.m_FillBuffer.m_Size )
+                .Add( "data", drawcall.m_Payload.m_FillBuffer.m_Data );
+            break;
 
         case DeviceProfilerDrawcallType::eUpdateBuffer:
-            return {
-                { "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_UpdateBuffer.m_Buffer ) },
-                { "dstOffset", drawcall.m_Payload.m_UpdateBuffer.m_Offset },
-                { "dataSize", drawcall.m_Payload.m_UpdateBuffer.m_Size } };
+            argsBuilder
+                .Add( "dstBuffer", m_pStringSerializer->GetName( drawcall.m_Payload.m_UpdateBuffer.m_Buffer ) )
+                .Add( "dstOffset", drawcall.m_Payload.m_UpdateBuffer.m_Offset )
+                .Add( "dataSize", drawcall.m_Payload.m_UpdateBuffer.m_Size );
+            break;
 
         case DeviceProfilerDrawcallType::eTraceRaysKHR:
-            return {
-                { "width", drawcall.m_Payload.m_TraceRays.m_Width },
-                { "height", drawcall.m_Payload.m_TraceRays.m_Height },
-                { "depth", drawcall.m_Payload.m_TraceRays.m_Depth } };
+            argsBuilder
+                .Add( "width", drawcall.m_Payload.m_TraceRays.m_Width )
+                .Add( "height", drawcall.m_Payload.m_TraceRays.m_Height )
+                .Add( "depth", drawcall.m_Payload.m_TraceRays.m_Depth );
+            break;
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirectKHR:
-            return {
-                { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress } };
+            argsBuilder
+                .Add( "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect.m_IndirectAddress );
+            break;
 
         case DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR:
-            return {
-                { "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress } };
+            argsBuilder
+                .Add( "indirectDeviceAddress", drawcall.m_Payload.m_TraceRaysIndirect2.m_IndirectAddress );
+            break;
 
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
         case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
         {
             const uint32_t infoCount = drawcall.m_Payload.m_BuildAccelerationStructures.m_InfoCount;
 
-            std::vector<nlohmann::json> infos;
-            infos.reserve( infoCount );
+            argsBuilder
+                .Add( "infoCount", infoCount );
 
+            auto infosBuilder = argsBuilder.AddArray( "infos" );
             for( uint32_t i = 0; i < infoCount; ++i )
             {
-                const auto& info = drawcall.m_Payload.m_BuildAccelerationStructures.m_pInfos[ i ];
+                const auto& info = drawcall.m_Payload.m_BuildAccelerationStructures.m_pInfos[i];
 
-                std::vector<nlohmann::json> geometries;
-                if( info.pGeometries )
+                auto infoBuilder = infosBuilder.AddObject();
+                infoBuilder
+                    .Add( "type", m_pStringSerializer->GetAccelerationStructureTypeName( info.type ) )
+                    .Add( "flags", m_pStringSerializer->GetBuildAccelerationStructureFlagNames( info.flags ) )
+                    .Add( "mode", m_pStringSerializer->GetBuildAccelerationStructureModeName( info.mode ) )
+                    .Add( "src", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.srcAccelerationStructure ) ) )
+                    .Add( "dst", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.dstAccelerationStructure ) ) )
+                    .Add( "geometryCount", info.geometryCount );
+
+                if( auto geometriesBuilder = infoBuilder.AddArrayOrNull( "geometries", info.pGeometries ) )
                 {
-                    geometries.reserve( info.geometryCount );
                     for( uint32_t j = 0; j < info.geometryCount; ++j )
                     {
-                        const auto& geometry = info.pGeometries[ j ];
-                        nlohmann::json geometryData;
+                        const auto& geometry = info.pGeometries[j];
 
+                        auto geometryBuilder = geometriesBuilder.AddObject();
+                        geometryBuilder
+                            .Add( "type", m_pStringSerializer->GetGeometryTypeName( geometry.geometryType ) )
+                            .Add( "flags", m_pStringSerializer->GetGeometryFlagNames( geometry.flags ) );
+
+                        auto dataBuilder = geometryBuilder.AddObject( "data" );
                         switch( geometry.geometryType )
                         {
                         case VK_GEOMETRY_TYPE_TRIANGLES_KHR:
-                            geometryData = {
-                                { "vertexFormat", m_pStringSerializer->GetFormatName( geometry.geometry.triangles.vertexFormat ) },
-                                { "vertexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.vertexData.hostAddress ) },
-                                { "vertexStride", geometry.geometry.triangles.vertexStride },
-                                { "maxVertex", geometry.geometry.triangles.maxVertex },
-                                { "indexType", m_pStringSerializer->GetIndexTypeName( geometry.geometry.triangles.indexType ) },
-                                { "indexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.indexData.hostAddress ) },
-                                { "transformData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.transformData.hostAddress ) } };
+                            dataBuilder
+                                .Add( "vertexFormat", m_pStringSerializer->GetFormatName( geometry.geometry.triangles.vertexFormat ) )
+                                .Add( "vertexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.vertexData.hostAddress ) )
+                                .Add( "vertexStride", geometry.geometry.triangles.vertexStride )
+                                .Add( "maxVertex", geometry.geometry.triangles.maxVertex )
+                                .Add( "indexType", m_pStringSerializer->GetIndexTypeName( geometry.geometry.triangles.indexType ) )
+                                .Add( "indexData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.indexData.hostAddress ) )
+                                .Add( "transformData", m_pStringSerializer->GetPointer( geometry.geometry.triangles.transformData.hostAddress ) );
                             break;
 
                         case VK_GEOMETRY_TYPE_AABBS_KHR:
-                            geometryData = {
-                                { "data", m_pStringSerializer->GetPointer( geometry.geometry.aabbs.data.hostAddress ) },
-                                { "stride", geometry.geometry.aabbs.stride } };
+                            dataBuilder
+                                .Add( "data", m_pStringSerializer->GetPointer( geometry.geometry.aabbs.data.hostAddress ) )
+                                .Add( "stride", geometry.geometry.aabbs.stride );
                             break;
 
                         case VK_GEOMETRY_TYPE_INSTANCES_KHR:
-                            geometryData = {
-                                { "arrayOfPointers", static_cast<bool>( geometry.geometry.instances.arrayOfPointers ) },
-                                { "data", m_pStringSerializer->GetPointer( geometry.geometry.instances.data.hostAddress ) } };
+                            dataBuilder
+                                .Add( "arrayOfPointers", static_cast<bool>( geometry.geometry.instances.arrayOfPointers ) )
+                                .Add( "data", m_pStringSerializer->GetPointer( geometry.geometry.instances.data.hostAddress ) );
                             break;
                         }
+                        dataBuilder.End();
 
-                        nlohmann::json geometryRange;
-                        if( drawcall.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR )
+                        auto rangeBuilder = geometryBuilder.AddObject( "range" );
+                        switch( drawcall.m_Type )
                         {
-                            const auto& range = drawcall.m_Payload.m_BuildAccelerationStructures.m_ppRanges[ i ][ j ];
-                            geometryRange = {
-                                { "primitiveCount", range.primitiveCount },
-                                { "primitiveOffset", range.primitiveOffset },
-                                { "firstVertex", range.firstVertex },
-                                { "transformOffset", range.transformOffset } };
-                        }
-                        else //( drawcall.m_Type == DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR )
+                        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR:
                         {
-                            geometryRange = {
-                                { "maxPrimitiveCount", drawcall.m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts[ i ][ j ] } };
+                            const auto& range = drawcall.m_Payload.m_BuildAccelerationStructures.m_ppRanges[i][j];
+                            rangeBuilder
+                                .Add( "primitiveCount", range.primitiveCount )
+                                .Add( "primitiveOffset", range.primitiveOffset )
+                                .Add( "firstVertex", range.firstVertex )
+                                .Add( "transformOffset", range.transformOffset );
+                            break;
                         }
-
-                        geometries.push_back({
-                            { "type", m_pStringSerializer->GetGeometryTypeName( geometry.geometryType ) },
-                            { "flags", m_pStringSerializer->GetGeometryFlagNames( geometry.flags ) },
-                            { "data", geometryData },
-                            { "range", geometryRange } });
+                        case DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR:
+                        {
+                            rangeBuilder
+                                .Add( "maxPrimitiveCount", drawcall.m_Payload.m_BuildAccelerationStructuresIndirect.m_ppMaxPrimitiveCounts[i][j] );
+                            break;
+                        }
+                        }
+                        rangeBuilder.End();
                     }
                 }
-
-                infos.push_back({
-                    { "type", m_pStringSerializer->GetAccelerationStructureTypeName( info.type ) },
-                    { "flags", m_pStringSerializer->GetBuildAccelerationStructureFlagNames( info.flags ) },
-                    { "mode", m_pStringSerializer->GetBuildAccelerationStructureModeName( info.mode ) },
-                    { "src", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.srcAccelerationStructure ) ) },
-                    { "dst", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.dstAccelerationStructure ) ) },
-                    { "geometryCount", info.geometryCount },
-                    { "geometries", geometries } });
             }
 
-            return {
-                { "infoCount", infoCount },
-                { "infos", infos } };
+            infosBuilder.End();
+            break;
         }
 
         case DeviceProfilerDrawcallType::eBuildMicromapsEXT:
         {
             const uint32_t infoCount = drawcall.m_Payload.m_BuildMicromaps.m_InfoCount;
 
-            std::vector<nlohmann::json> infos;
-            infos.reserve( infoCount );
+            argsBuilder
+                .Add( "infoCount", infoCount );
 
+            auto infosBuilder = argsBuilder.AddArray( "infos" );
             for( uint32_t i = 0; i < infoCount; ++i )
             {
                 const auto& info = drawcall.m_Payload.m_BuildMicromaps.m_pInfos[i];
 
-                std::vector<nlohmann::json> usageCounts;
-                usageCounts.reserve( info.usageCountsCount );
+                auto infoBuilder = infosBuilder.AddObject();
+                infoBuilder
+                    .Add( "type", m_pStringSerializer->GetMicromapTypeName( info.type ) )
+                    .Add( "flags", m_pStringSerializer->GetBuildMicromapFlagNames( info.flags ) )
+                    .Add( "mode", m_pStringSerializer->GetBuildMicromapModeName( info.mode ) )
+                    .Add( "dst", m_pStringSerializer->GetName( VkMicromapEXTHandle( info.dstMicromap ) ) )
+                    .Add( "usageCountsCount", info.usageCountsCount );
 
+                auto usageCountsBuilder = infoBuilder.AddArray( "usageCounts" );
                 for( uint32_t j = 0; j < info.usageCountsCount; ++j )
                 {
                     const auto& usageCount = info.pUsageCounts[j];
-                    usageCounts.push_back( {
-                        { "count", usageCount.count },
-                        { "format", usageCount.format },
-                        { "subdivisionLevel", usageCount.subdivisionLevel } } );
+                    usageCountsBuilder.AddObject()
+                        .Add( "count", usageCount.count )
+                        .Add( "format", usageCount.format )
+                        .Add( "subdivisionLevel", usageCount.subdivisionLevel );
                 }
+                usageCountsBuilder.End();
 
-                infos.push_back( {
-                    { "type", m_pStringSerializer->GetMicromapTypeName( info.type ) },
-                    { "flags", m_pStringSerializer->GetBuildMicromapFlagNames( info.flags ) },
-                    { "mode", m_pStringSerializer->GetBuildMicromapModeName( info.mode ) },
-                    { "dst", m_pStringSerializer->GetName( VkMicromapEXTHandle( info.dstMicromap ) ) },
-                    { "usageCountsCount", info.usageCountsCount },
-                    { "usageCounts", usageCounts },
-                    { "data", m_pStringSerializer->GetPointer( info.data.hostAddress ) },
-                    { "scratchData", m_pStringSerializer->GetPointer( info.scratchData.hostAddress ) },
-                    { "triangleArray", m_pStringSerializer->GetPointer( info.triangleArray.hostAddress ) },
-                    { "triangleArrayStride", info.triangleArrayStride } } );
+                infoBuilder
+                    .Add( "data", m_pStringSerializer->GetPointer( info.data.hostAddress ) )
+                    .Add( "scratchData", m_pStringSerializer->GetPointer( info.scratchData.hostAddress ) )
+                    .Add( "triangleArray", m_pStringSerializer->GetPointer( info.triangleArray.hostAddress ) )
+                    .Add( "triangleArrayStride", info.triangleArrayStride );
             }
 
-            return {
-                { "infoCount", infoCount },
-                { "infos", infos } };
+            infosBuilder.End();
+            break;
         }
         }
     }
@@ -377,18 +459,18 @@ namespace Profiler
         Serialize pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetPipelineArgs( const DeviceProfilerPipeline& pipeline ) const
+    void DeviceProfilerJsonSerializer::WritePipelineArgs( DeviceProfilerJsonValueBuilder& builder, const DeviceProfilerPipeline& pipeline ) const
     {
-        nlohmann::json args = {};
+        auto argsBuilder = builder.MakeObject();
 
         // Append shader stages info.
         if( !pipeline.m_ShaderTuple.m_Shaders.empty() )
         {
-            nlohmann::json& shaderStages = args["shaders"];
-
+            auto shadersBuilder = argsBuilder.AddArray( "shaders" );
             for( const ProfilerShader& shader : pipeline.m_ShaderTuple.m_Shaders )
             {
-                shaderStages.push_back( GetShaderStageArgs( shader ) );
+                auto shaderBuilder = shadersBuilder.Add();
+                WriteShaderStageArgs( shaderBuilder, shader );
             }
         }
 
@@ -399,26 +481,24 @@ namespace Profiler
             {
             case DeviceProfilerPipelineType::eGraphics:
             {
-                args.update( GetGraphicsPipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo ) );
+                WriteGraphicsPipelineCreateInfoArgs( argsBuilder,
+                    pipeline.m_pCreateInfo->m_GraphicsPipelineCreateInfo );
                 break;
             }
             case DeviceProfilerPipelineType::eCompute:
             {
-                args.update( GetComputePipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_ComputePipelineCreateInfo ) );
+                WriteComputePipelineCreateInfoArgs( argsBuilder,
+                    pipeline.m_pCreateInfo->m_ComputePipelineCreateInfo );
                 break;
             }
             case DeviceProfilerPipelineType::eRayTracingKHR:
             {
-                args.update( GetRayTracingPipelineCreateInfoArgs(
-                    pipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR ) );
+                WriteRayTracingPipelineCreateInfoArgs( argsBuilder,
+                    pipeline.m_pCreateInfo->m_RayTracingPipelineCreateInfoKHR );
                 break;
             }
             }
         }
-
-        return args;
     }
 
     /*************************************************************************\
@@ -430,24 +510,13 @@ namespace Profiler
         Serialize VkClearColorValue struct into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetColorClearValue( const VkClearColorValue& value ) const
+    void DeviceProfilerJsonSerializer::WriteColorClearValue( DeviceProfilerJsonValueBuilder& builder, const VkClearColorValue& value ) const
     {
-        return { "VkClearColorValue", {
-            { "float32", {
-                value.float32[ 0 ],
-                value.float32[ 1 ],
-                value.float32[ 2 ],
-                value.float32[ 3 ] } },
-            { "int32", {
-                value.int32[ 0 ],
-                value.int32[ 1 ],
-                value.int32[ 2 ],
-                value.int32[ 3 ] } },
-            { "uint32", {
-                value.uint32[ 0 ],
-                value.uint32[ 1 ],
-                value.uint32[ 2 ],
-                value.uint32[ 3 ] } } } };
+        builder.MakeObject()
+            .AddObject( "VkClearColorValue" )
+            .AddArray( "float32", value.float32 )
+            .AddArray( "int32", value.int32 )
+            .AddArray( "uint32", value.uint32 );
     }
 
     /*************************************************************************\
@@ -459,11 +528,12 @@ namespace Profiler
         Serialize VkClearDepthStencilValue struct into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetDepthStencilClearValue( const VkClearDepthStencilValue& value ) const
+    void DeviceProfilerJsonSerializer::WriteDepthStencilClearValue( DeviceProfilerJsonValueBuilder& builder, const VkClearDepthStencilValue& value ) const
     {
-        return { "VkClearDepthStencilValue", {
-            { "depth", value.depth },
-            { "stencil", value.stencil } } };
+        builder.MakeObject()
+            .AddObject( "VkClearDepthStencilValue" )
+            .Add( "depth", value.depth )
+            .Add( "stencil", value.stencil );
     }
 
     /*************************************************************************\
@@ -475,12 +545,12 @@ namespace Profiler
         Serialize shader stage into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetShaderStageArgs( const ProfilerShader& shader ) const
+    void DeviceProfilerJsonSerializer::WriteShaderStageArgs( DeviceProfilerJsonValueBuilder& builder, const ProfilerShader& shader ) const
     {
-        nlohmann::json shaderStage = {
-            { "stage", m_pStringSerializer->GetShaderStageName( shader.m_Stage ) },
-            { "entryPoint", shader.m_EntryPoint }
-        };
+        auto shaderBuilder = builder.MakeObject();
+        shaderBuilder
+            .Add( "stage", m_pStringSerializer->GetShaderStageName( shader.m_Stage ) )
+            .Add( "entryPoint", shader.m_EntryPoint );
 
         if( shader.m_pShaderModule )
         {
@@ -506,10 +576,8 @@ namespace Profiler
                 }
             }
 
-            shaderStage["shaderIdentifier"] = shaderIdentifier;
+            shaderBuilder.Add( "shaderIdentifier", shaderIdentifier );
         }
-
-        return shaderStage;
     }
 
     /*************************************************************************\
@@ -521,224 +589,197 @@ namespace Profiler
         Serialize graphics pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetGraphicsPipelineCreateInfoArgs( const VkGraphicsPipelineCreateInfo& createInfo ) const
+    void DeviceProfilerJsonSerializer::WriteGraphicsPipelineCreateInfoArgs( DeviceProfilerJsonObjectBuilder& builder, const VkGraphicsPipelineCreateInfo& createInfo ) const
     {
-        nlohmann::json args = {};
-        args["vertexInputState"] = nullptr;
-        args["inputAssemblyState"] = nullptr;
-        args["tessellationState"] = nullptr;
-        args["viewportState"] = nullptr;
-        args["rasterizationState"] = nullptr;
-        args["multisampleState"] = nullptr;
-        args["depthStencilState"] = nullptr;
-        args["colorBlendState"] = nullptr;
-        args["dynamicStates"] = nlohmann::json::array();
-
         // VkPipelineVertexInputStateCreateInfo
-        if( createInfo.pVertexInputState )
+        if( auto vertexInputStateBuilder = builder.AddObjectOrNull( "vertexInputState", createInfo.pVertexInputState ) )
         {
             const auto& state = *createInfo.pVertexInputState;
-            args["vertexInputState"] = {
-                { "attributeCount", state.vertexAttributeDescriptionCount },
-                { "attributes", nullptr },
-                { "bindingCount", state.vertexBindingDescriptionCount },
-                { "bindings", nullptr }
-            };
+            vertexInputStateBuilder
+                .Add( "attributeCount", state.vertexAttributeDescriptionCount )
+                .Add( "bindingCount", state.vertexBindingDescriptionCount );
 
-            if( state.pVertexAttributeDescriptions )
+            if( auto attributesBuilder = vertexInputStateBuilder.AddArrayOrNull( "attributes", state.pVertexAttributeDescriptions ) )
             {
-                auto& attributesArgs = args["vertexInputState"]["attributes"] = nlohmann::json::array();
                 for( uint32_t i = 0; i < state.vertexAttributeDescriptionCount; ++i )
                 {
                     const auto& attribute = state.pVertexAttributeDescriptions[i];
-                    attributesArgs.push_back( {
-                        { "location", attribute.location },
-                        { "binding", attribute.binding },
-                        { "format", m_pStringSerializer->GetFormatName( attribute.format ) },
-                        { "offset", attribute.offset } } );
+                    attributesBuilder.AddObject()
+                        .Add( "location", attribute.location )
+                        .Add( "binding", attribute.binding )
+                        .Add( "format", m_pStringSerializer->GetFormatName( attribute.format ) )
+                        .Add( "offset", attribute.offset );
                 }
             }
 
-            if( state.pVertexBindingDescriptions )
+            if( auto bindingsBuilder = vertexInputStateBuilder.AddArrayOrNull( "bindings", state.pVertexBindingDescriptions ) )
             {
-                auto& bindingsArgs = args["vertexInputState"]["bindings"] = nlohmann::json::array();
                 for( uint32_t i = 0; i < state.vertexBindingDescriptionCount; ++i )
                 {
                     const auto& binding = state.pVertexBindingDescriptions[i];
-                    bindingsArgs.push_back( {
-                        { "binding", binding.binding },
-                        { "stride", binding.stride },
-                        { "inputRate", m_pStringSerializer->GetVertexInputRateName( binding.inputRate ) } } );
+                    bindingsBuilder.AddObject()
+                        .Add( "binding", binding.binding )
+                        .Add( "stride", binding.stride )
+                        .Add( "inputRate", m_pStringSerializer->GetVertexInputRateName( binding.inputRate ) );
                 }
             }
         }
 
         // VkPipelineInputAssemblyStateCreateInfo
-        if( createInfo.pInputAssemblyState )
+        if( auto inputAssemblyStateBuilder = builder.AddObjectOrNull( "inputAssemblyState", createInfo.pInputAssemblyState ) )
         {
             const auto& state = *createInfo.pInputAssemblyState;
-            args["inputAssemblyState"] = {
-                { "topology", m_pStringSerializer->GetPrimitiveTopologyName( state.topology ) },
-                { "primitiveRestartEnable", static_cast<bool>( state.primitiveRestartEnable ) }
-            };
+            inputAssemblyStateBuilder
+                .Add( "topology", m_pStringSerializer->GetPrimitiveTopologyName( state.topology ) )
+                .Add( "primitiveRestartEnable", static_cast<bool>( state.primitiveRestartEnable ) );
         }
 
         // VkPipelineTessellationStateCreateInfo
-        if( createInfo.pTessellationState )
+        if( auto tessellationStateBuilder = builder.AddObjectOrNull( "tessellationState", createInfo.pTessellationState ) )
         {
             const auto& state = *createInfo.pTessellationState;
-            args["tessellationState"] = {
-                { "patchControlPoints", state.patchControlPoints }
-            };
+            tessellationStateBuilder
+                .Add( "patchControlPoints", state.patchControlPoints );
         }
 
         // VkPipelineViewportStateCreateInfo
-        if( createInfo.pViewportState )
+        if( auto viewportStateBuilder = builder.AddObjectOrNull( "viewportState", createInfo.pViewportState ) )
         {
             const auto& state = *createInfo.pViewportState;
-            args["viewportState"] = {
-                { "viewportCount", state.viewportCount },
-                { "viewports", nullptr },
-                { "scissorCount", state.scissorCount },
-                { "scissors", nullptr }
-            };
+            viewportStateBuilder
+                .Add( "viewportCount", state.viewportCount )
+                .Add( "scissorCount", state.scissorCount );
 
-            if( state.pViewports )
+            if( auto viewportsBuilder = viewportStateBuilder.AddArrayOrNull( "viewports", state.pViewports ) )
             {
-                auto& viewportsArgs = args["viewportState"]["viewports"] = nlohmann::json::array();
                 for( uint32_t i = 0; i < state.viewportCount; ++i )
                 {
                     const auto& viewport = state.pViewports[i];
-                    viewportsArgs.push_back( {
-                        { "x", viewport.x },
-                        { "y", viewport.y },
-                        { "width", viewport.width },
-                        { "height", viewport.height },
-                        { "minDepth", viewport.minDepth },
-                        { "maxDepth", viewport.maxDepth } } );
+                    viewportsBuilder.AddObject()
+                        .Add( "x", viewport.x )
+                        .Add( "y", viewport.y )
+                        .Add( "width", viewport.width )
+                        .Add( "height", viewport.height )
+                        .Add( "minDepth", viewport.minDepth )
+                        .Add( "maxDepth", viewport.maxDepth );
                 }
             }
 
-            if( state.pScissors )
+            if( auto scissorsBuilder = viewportStateBuilder.AddArrayOrNull( "scissors", state.pScissors ) )
             {
-                auto& scissorsArgs = args["viewportState"]["scissors"] = nlohmann::json::array();
                 for( uint32_t i = 0; i < state.scissorCount; ++i )
                 {
                     const auto& scissor = state.pScissors[i];
-                    scissorsArgs.push_back( {
-                        { "offsetX", scissor.offset.x },
-                        { "offsetY", scissor.offset.y },
-                        { "extentWidth", scissor.extent.width },
-                        { "extentHeight", scissor.extent.height } } );
+                    scissorsBuilder.AddObject()
+                        .Add( "offsetX", scissor.offset.x )
+                        .Add( "offsetY", scissor.offset.y )
+                        .Add( "extentWidth", scissor.extent.width )
+                        .Add( "extentHeight", scissor.extent.height );
                 }
             }
         }
 
         // VkPipelineRasterizationStateCreateInfo
-        if( createInfo.pRasterizationState )
+        if( auto rasterizationStateBuilder = builder.AddObjectOrNull( "rasterizationState", createInfo.pRasterizationState ) )
         {
             const auto& state = *createInfo.pRasterizationState;
-            args["rasterizationState"] = {
-                { "depthClampEnable", static_cast<bool>( state.depthClampEnable ) },
-                { "rasterizerDiscardEnable", static_cast<bool>( state.rasterizerDiscardEnable ) },
-                { "polygonMode", m_pStringSerializer->GetPolygonModeName( state.polygonMode ) },
-                { "cullMode", m_pStringSerializer->GetCullModeName( state.cullMode ) },
-                { "frontFace", m_pStringSerializer->GetFrontFaceName( state.frontFace ) },
-                { "depthBiasEnable", static_cast<bool>( state.depthBiasEnable ) },
-                { "depthBiasConstantFactor", state.depthBiasConstantFactor },
-                { "depthBiasClamp", state.depthBiasClamp },
-                { "depthBiasSlopeFactor", state.depthBiasSlopeFactor },
-                { "lineWidth", state.lineWidth }
-            };
+            rasterizationStateBuilder
+                .Add( "depthClampEnable", static_cast<bool>( state.depthClampEnable ) )
+                .Add( "rasterizerDiscardEnable", static_cast<bool>( state.rasterizerDiscardEnable ) )
+                .Add( "polygonMode", m_pStringSerializer->GetPolygonModeName( state.polygonMode ) )
+                .Add( "cullMode", m_pStringSerializer->GetCullModeName( state.cullMode ) )
+                .Add( "frontFace", m_pStringSerializer->GetFrontFaceName( state.frontFace ) )
+                .Add( "depthBiasEnable", static_cast<bool>( state.depthBiasEnable ) )
+                .Add( "depthBiasConstantFactor", state.depthBiasConstantFactor )
+                .Add( "depthBiasClamp", state.depthBiasClamp )
+                .Add( "depthBiasSlopeFactor", state.depthBiasSlopeFactor )
+                .Add( "lineWidth", state.lineWidth );
         }
 
         // VkPipelineMultisampleStateCreateInfo
-        if( createInfo.pMultisampleState )
+        if( auto multisampleStateBuilder = builder.AddObjectOrNull( "multisampleState", createInfo.pMultisampleState ) )
         {
             const auto& state = *createInfo.pMultisampleState;
-            args["multisampleState"] = {
-                { "rasterizationSamples", state.rasterizationSamples },
-                { "sampleShadingEnable", static_cast<bool>( state.sampleShadingEnable ) },
-                { "minSampleShading", state.minSampleShading },
-                { "sampleMask", fmt::format( "0x{:08X}", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF ) },
-                { "alphaToCoverateEnable", static_cast<bool>( state.alphaToCoverageEnable ) },
-                { "alphaToOneEnable", static_cast<bool>( state.alphaToOneEnable ) }
-            };
+            multisampleStateBuilder
+                .Add( "rasterizationSamples", static_cast<uint32_t>( state.rasterizationSamples ) )
+                .Add( "sampleShadingEnable", static_cast<bool>( state.sampleShadingEnable ) )
+                .Add( "minSampleShading", state.minSampleShading )
+                .Add( "sampleMask", fmt::format( "0x{:08X}", state.pSampleMask ? *state.pSampleMask : 0xFFFFFFFF ) )
+                .Add( "alphaToCoverageEnable", static_cast<bool>( state.alphaToCoverageEnable ) )
+                .Add( "alphaToOneEnable", static_cast<bool>( state.alphaToOneEnable ) );
         }
 
         // VkPipelineDepthStencilStateCreateInfo
-        if( createInfo.pDepthStencilState )
+        if( auto depthStencilStateBuilder = builder.AddObjectOrNull( "depthStencilState", createInfo.pDepthStencilState ) )
         {
             const auto& state = *createInfo.pDepthStencilState;
-            args["depthStencilState"] = {
-                { "depthTestEnable", static_cast<bool>( state.depthTestEnable ) },
-                { "depthWriteEnable", static_cast<bool>( state.depthWriteEnable ) },
-                { "depthCompareOp", m_pStringSerializer->GetCompareOpName( state.depthCompareOp ) },
-                { "depthBoundsTestEnable", static_cast<bool>( state.depthBoundsTestEnable ) },
-                { "minDepthBounds", state.minDepthBounds },
-                { "maxDepthBounds", state.maxDepthBounds },
-                { "stencilTestEnable", static_cast<bool>( state.stencilTestEnable ) },
-                { "front", {
-                    { "failOp", state.front.failOp },
-                    { "passOp", state.front.passOp },
-                    { "depthFailOp", state.front.depthFailOp },
-                    { "compareOp", m_pStringSerializer->GetCompareOpName( state.front.compareOp ) },
-                    { "compareMask", fmt::format( "0x{:02X}", state.front.compareMask ) },
-                    { "writeMask", fmt::format( "0x{:02X}", state.front.writeMask ) },
-                    { "reference", fmt::format( "0x{:02X}", state.front.reference ) } } },
-                { "back", {
-                    { "failOp", state.back.failOp },
-                    { "passOp", state.back.passOp },
-                    { "depthFailOp", state.back.depthFailOp },
-                    { "compareOp", m_pStringSerializer->GetCompareOpName( state.back.compareOp ) },
-                    { "compareMask", fmt::format( "0x{:02X}", state.back.compareMask ) },
-                    { "writeMask", fmt::format( "0x{:02X}", state.back.writeMask ) },
-                    { "reference", fmt::format( "0x{:02X}", state.back.reference ) } } }
-            };
+            depthStencilStateBuilder
+                .Add( "depthTestEnable", static_cast<bool>( state.depthTestEnable ) )
+                .Add( "depthWriteEnable", static_cast<bool>( state.depthWriteEnable ) )
+                .Add( "depthCompareOp", m_pStringSerializer->GetCompareOpName( state.depthCompareOp ) )
+                .Add( "depthBoundsTestEnable", static_cast<bool>( state.depthBoundsTestEnable ) )
+                .Add( "minDepthBounds", state.minDepthBounds )
+                .Add( "maxDepthBounds", state.maxDepthBounds )
+                .Add( "stencilTestEnable", static_cast<bool>( state.stencilTestEnable ) );
+
+            depthStencilStateBuilder
+                .AddObject( "front" )
+                .Add( "failOp", static_cast<uint32_t>( state.front.failOp ) )
+                .Add( "passOp", static_cast<uint32_t>( state.front.passOp ) )
+                .Add( "depthFailOp", static_cast<uint32_t>( state.front.depthFailOp ) )
+                .Add( "compareOp", m_pStringSerializer->GetCompareOpName( state.front.compareOp ) )
+                .Add( "compareMask", fmt::format( "0x{:02X}", state.front.compareMask ) )
+                .Add( "writeMask", fmt::format( "0x{:02X}", state.front.writeMask ) )
+                .Add( "reference", fmt::format( "0x{:02X}", state.front.reference ) );
+
+            depthStencilStateBuilder
+                .AddObject( "back" )
+                .Add( "failOp", static_cast<uint32_t>( state.back.failOp ) )
+                .Add( "passOp", static_cast<uint32_t>( state.back.passOp ) )
+                .Add( "depthFailOp", static_cast<uint32_t>( state.back.depthFailOp ) )
+                .Add( "compareOp", m_pStringSerializer->GetCompareOpName( state.back.compareOp ) )
+                .Add( "compareMask", fmt::format( "0x{:02X}", state.back.compareMask ) )
+                .Add( "writeMask", fmt::format( "0x{:02X}", state.back.writeMask ) )
+                .Add( "reference", fmt::format( "0x{:02X}", state.back.reference ) );
         }
 
         // VkPipelineColorBlendStateCreateInfo
-        if( createInfo.pColorBlendState )
+        if( auto colorBlendStateBuilder = builder.AddObjectOrNull( "colorBlendState", createInfo.pColorBlendState ) )
         {
             const auto& state = *createInfo.pColorBlendState;
-            args["colorBlendState"] = {
-                { "logicOpEnable", static_cast<bool>( state.logicOpEnable ) },
-                { "logicOp", m_pStringSerializer->GetLogicOpName( state.logicOp ) },
-                { "blendConstants", state.blendConstants },
-                { "attachments", nullptr }
-            };
+            colorBlendStateBuilder
+                .Add( "logicOpEnable", static_cast<bool>( state.logicOpEnable ) )
+                .Add( "logicOp", m_pStringSerializer->GetLogicOpName( state.logicOp ) )
+                .AddArray( "blendConstants", state.blendConstants );
 
-            if( state.pAttachments )
+            if( auto attachmentsBuilder = colorBlendStateBuilder.AddArrayOrNull( "attachments", state.pAttachments ) )
             {
-                auto& attachmentsArgs = args["colorBlendState"]["attachments"] = nlohmann::json::array();
                 for( uint32_t i = 0; i < state.attachmentCount; ++i )
                 {
                     const auto& attachment = state.pAttachments[i];
-                    attachmentsArgs.push_back( {
-                        { "blendEnable", static_cast<bool>( attachment.blendEnable ) },
-                        { "srcColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ) },
-                        { "dstColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ) },
-                        { "colorBlendOp", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ) },
-                        { "srcAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcAlphaBlendFactor ) },
-                        { "dstAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ) },
-                        { "alphaBlendOp", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ) },
-                        { "colorWriteMask", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ) } } );
+                    attachmentsBuilder.AddObject()
+                        .Add( "blendEnable", static_cast<bool>( attachment.blendEnable ) )
+                        .Add( "srcColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcColorBlendFactor ) )
+                        .Add( "dstColorBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstColorBlendFactor ) )
+                        .Add( "colorBlendOp", m_pStringSerializer->GetBlendOpName( attachment.colorBlendOp ) )
+                        .Add( "srcAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.srcAlphaBlendFactor ) )
+                        .Add( "dstAlphaBlendFactor", m_pStringSerializer->GetBlendFactorName( attachment.dstAlphaBlendFactor ) )
+                        .Add( "alphaBlendOp", m_pStringSerializer->GetBlendOpName( attachment.alphaBlendOp ) )
+                        .Add( "colorWriteMask", m_pStringSerializer->GetColorComponentFlagNames( attachment.colorWriteMask ) );
                 }
             }
         }
 
         // VkPipelineDynamicStateCreateInfo
-        if( createInfo.pDynamicState )
+        if( auto dynamicStatesBuilder = builder.AddArrayOrNull( "dynamicStates", createInfo.pDynamicState ) )
         {
             const auto& state = *createInfo.pDynamicState;
             for( uint32_t i = 0; i < state.dynamicStateCount; ++i )
             {
-                args["dynamicStates"].push_back(
+                dynamicStatesBuilder.Add(
                     m_pStringSerializer->GetDynamicStateName( state.pDynamicStates[i] ) );
             }
         }
-
-        return args;
     }
 
     /*************************************************************************\
@@ -750,13 +791,9 @@ namespace Profiler
         Serialize compute pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetComputePipelineCreateInfoArgs( const VkComputePipelineCreateInfo& createInfo ) const
+    void DeviceProfilerJsonSerializer::WriteComputePipelineCreateInfoArgs( DeviceProfilerJsonObjectBuilder& builder, const VkComputePipelineCreateInfo& createInfo ) const
     {
-        nlohmann::json args = {};
-
         // No additional state to serialize for compute pipelines yet.
-
-        return args;
     }
 
     /*************************************************************************\
@@ -768,34 +805,28 @@ namespace Profiler
         Serialize ray-tracing pipeline state into JSON object.
 
     \*************************************************************************/
-    nlohmann::json DeviceProfilerJsonSerializer::GetRayTracingPipelineCreateInfoArgs( const VkRayTracingPipelineCreateInfoKHR& createInfo ) const
+    void DeviceProfilerJsonSerializer::WriteRayTracingPipelineCreateInfoArgs( DeviceProfilerJsonObjectBuilder& builder, const VkRayTracingPipelineCreateInfoKHR& createInfo ) const
     {
-        nlohmann::json args = {};
-        args["maxPipelineRayRecursionDepth"] = createInfo.maxPipelineRayRecursionDepth;
-        args["libraryInterface"] = nullptr;
-        args["dynamicStates"] = nlohmann::json::array();
+        builder.Add( "maxPipelineRayRecursionDepth", createInfo.maxPipelineRayRecursionDepth );
 
         // VkRayTracingPipelineInterfaceCreateInfoKHR
-        if( createInfo.pLibraryInterface )
+        if( auto libraryInterfaceBuilder = builder.AddObjectOrNull( "libraryInterface", createInfo.pLibraryInterface ) )
         {
             const auto& state = *createInfo.pLibraryInterface;
-            args["libraryInterface"] = {
-                { "maxPipelineRayPayloadSize", state.maxPipelineRayPayloadSize },
-                { "maxPipelineRayHitAttributeSize", state.maxPipelineRayHitAttributeSize }
-            };
+            libraryInterfaceBuilder
+                .Add( "maxPipelineRayPayloadSize", state.maxPipelineRayPayloadSize )
+                .Add( "maxPipelineRayHitAttributeSize", state.maxPipelineRayHitAttributeSize );
         }
 
         // VkPipelineDynamicStateCreateInfo
-        if( createInfo.pDynamicState )
+        if( auto dynamicStatesBuilder = builder.AddArrayOrNull( "dynamicStates", createInfo.pDynamicState ) )
         {
             const auto& state = *createInfo.pDynamicState;
             for( uint32_t i = 0; i < state.dynamicStateCount; ++i )
             {
-                args["dynamicStates"].push_back(
+                dynamicStatesBuilder.Add(
                     m_pStringSerializer->GetDynamicStateName( state.pDynamicStates[i] ) );
             }
         }
-
-        return args;
     }
 }
