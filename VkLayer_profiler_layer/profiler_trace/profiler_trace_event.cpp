@@ -1,15 +1,15 @@
 // Copyright (c) 2019-2026 Lukasz Stalmirski
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -20,6 +20,8 @@
 
 #include "profiler_trace_event.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler_layer_objects/VkObject.h"
+#include <fmt/format.h>
 
 namespace Profiler
 {
@@ -34,27 +36,12 @@ namespace Profiler
     \*************************************************************************/
     void TraceEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
     {
-        if( !m_Name.empty() )
-        {
-            builder.Add( "name", m_Name );
-        }
-
-        if( !m_Category.empty() )
-        {
-            builder.Add( "cat", m_Category );
-        }
-
+        builder.Add( "name", m_Name );
+        builder.Add( "cat", m_Category );
         builder.Add( "ph", static_cast<char>( m_Phase ) );
         builder.Add( "ts", m_Timestamp.count() );
-        builder.Add( "pid", 0 );
-
-        if( m_Queue != VK_NULL_HANDLE )
-        {
-            char queueHexHandle[32] = "VkQueue 0x";
-            ProfilerStringFunctions::Hex( queueHexHandle + 10, reinterpret_cast<uint64_t>( m_Queue ) );
-
-            builder.Add( "tid", std::string_view( queueHexHandle ) );
-        }
+        builder.Add( "pid", "0" );
+        builder.Add( "tid", GetTrackName() );
 
         if( m_Color )
         {
@@ -72,52 +59,36 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
-        Serialize
+        GetTrackName
 
     Description:
-        Serialize TraceInstantEvent to JSON object.
+        Return track name for host trace events.
 
     \*************************************************************************/
-    void TraceInstantEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
+    std::string TraceHostEvent::GetTrackName() const
     {
-        TraceEvent::Serialize( builder );
-
-        // Instant events contain additional 's' parameter
-        builder.Add( "s", static_cast<char>( m_Scope ) );
+        return "CPU Thread " + std::to_string( m_ThreadId );
     }
 
     /*************************************************************************\
 
     Function:
-        Serialize
+        GetTrackName
 
     Description:
-        Serialize TraceAsyncEvent to JSON object.
+        Return track name for host trace events.
 
     \*************************************************************************/
-    void TraceAsyncEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
+    std::string TraceDeviceEvent::GetTrackName() const
     {
-        TraceEvent::Serialize( builder );
+        if( m_Queue != VK_NULL_HANDLE )
+        {
+            return fmt::format( "GPU Queue 0x{:016x} [{}]",
+                VkObjectTraits<VkQueue>::GetObjectHandleAsUint64( m_Queue ),
+                m_Track );
+        }
 
-        // Async events contain additional 'id' parameter
-        builder.Add( "id", m_Id );
-    }
-
-    /*************************************************************************\
-
-    Function:
-        Serialize
-
-    Description:
-        Serialize TraceCompleteEvent to JSON object.
-
-    \*************************************************************************/
-    void TraceCompleteEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
-    {
-        TraceEvent::Serialize( builder );
-
-        // Complete events contain additional 'dur' parameter
-        builder.Add( "dur", m_Duration.count() );
+        return fmt::format( "GPU [{}]", m_Track );
     }
 
     /*************************************************************************\
@@ -168,23 +139,69 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
-        Serialize
+        GetTrackName
 
     Description:
-        Serialize DebugTraceEvent to JSON object.
+        Get track name for counter trace events.
 
     \*************************************************************************/
-    void DebugTraceEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
+    std::string TraceCounterEvent::GetTrackName() const
     {
-        TraceEvent::Serialize( builder );
+        return "Counters";
+    }
 
-        // Set thread id
-        builder.Add( "tid", "Debug labels" );
+    /*************************************************************************\
 
-        if( m_Phase == Phase::eInstant )
-        {
-            builder.Add( "s", static_cast<char>( TraceInstantEvent::Scope::eThread ) );
-        }
+    Function:
+        GetTrackName
+
+    Description:
+        Get track name for debug trace events.
+
+    \*************************************************************************/
+    std::string TraceDebugEvent::GetTrackName() const
+    {
+        return "Debug labels";
+    }
+
+    /*************************************************************************\
+
+    Function:
+        TraceMetadataEvent
+
+    Description:
+        Constructor.
+
+    \*************************************************************************/
+    TraceMetadataEvent::TraceMetadataEvent(
+        MetadataType type,
+        std::string_view track,
+        std::string_view stringValue )
+        : TraceEvent( Phase::eMetadata, GetEventName( type ), "Metadata", Microseconds( 0 ) )
+        , m_Type( type )
+        , m_Track( track )
+        , m_Args( stringValue )
+    {
+    }
+
+    /*************************************************************************\
+
+    Function:
+        TraceMetadataEvent
+
+    Description:
+        Constructor.
+
+    \*************************************************************************/
+    TraceMetadataEvent::TraceMetadataEvent(
+        MetadataType type,
+        std::string_view track,
+        uint32_t intValue )
+        : TraceEvent( Phase::eMetadata, GetEventName( type ), "Metadata", Microseconds( 0 ) )
+        , m_Type( type )
+        , m_Track( track )
+        , m_Args( intValue )
+    {
     }
 
     /*************************************************************************\
@@ -193,14 +210,63 @@ namespace Profiler
         Serialize
 
     Description:
-        Serialize ApiTraceEvent to JSON object.
+        Serialize TraceMetadataEvent to JSON object.
 
     \*************************************************************************/
-    void ApiTraceEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
+    void TraceMetadataEvent::Serialize( DeviceProfilerJsonObjectBuilder& builder ) const
     {
         TraceEvent::Serialize( builder );
 
-        // Set thread id
-        builder.Add( "tid", "Thread " + std::to_string( m_ThreadId ) );
+        // The metadata is contained in 'args' parameter
+        auto args = builder.AddObject( "args" );
+        switch( m_Type )
+        {
+        case MetadataType::eTrackName:
+        {
+            args.Add( "name", std::get<std::string_view>( m_Args ) );
+            break;
+        }
+        case MetadataType::eTrackSortIndex:
+        {
+            args.Add( "sort_index", std::get<uint32_t>( m_Args ) );
+            break;
+        }
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        GetTrackName
+
+    Description:
+        Return track name for metadata trace events.
+
+    \*************************************************************************/
+    std::string TraceMetadataEvent::GetTrackName() const
+    {
+        return std::string( m_Track );
+    }
+
+    /*************************************************************************\
+
+    Function:
+        GetTrackName
+
+    Description:
+        Return track name for metadata trace events.
+
+    \*************************************************************************/
+    std::string_view TraceMetadataEvent::GetEventName( MetadataType type )
+    {
+        switch( type )
+        {
+        case MetadataType::eTrackName:
+            return "thread_name";
+        case MetadataType::eTrackSortIndex:
+            return "thread_sort_index";
+        default:
+            return std::string_view();
+        }
     }
 }

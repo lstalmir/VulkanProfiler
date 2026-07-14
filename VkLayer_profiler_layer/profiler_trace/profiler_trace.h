@@ -35,6 +35,8 @@
 namespace Profiler
 {
     struct TraceEvent;
+    struct TraceHostEvent;
+    struct TraceDeviceEvent;
 
     /*************************************************************************\
 
@@ -100,7 +102,12 @@ namespace Profiler
         const struct DeviceProfilerFrameData* m_pData;
 
         // Target command queue for the current batch
-        VkQueue      m_CommandQueue;
+        VkQueueHandle  m_CommandQueue;
+        std::string    m_CommandQueueName;
+        std::vector<uint64_t> m_CommandQueueEventTracks;
+
+        std::unordered_set<uint32_t> m_SortedHostThreads;
+        std::unordered_set<uint32_t> m_SortedDeviceThreads;
 
         // Serialized events
         DeviceProfilerJsonBuilder m_JsonBuilder;
@@ -126,6 +133,15 @@ namespace Profiler
             return (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_GpuTimestampPeriod;
         }
 
+        // Track management
+        uint64_t AssignTrackForEvent( uint64_t beginTimestamp, uint64_t endTimestamp );
+
+        template<typename DataStructType>
+        inline uint64_t AssignTrackForEvent( const DataStructType& data )
+        {
+            return AssignTrackForEvent( data.GetBeginTimestamp().m_Value, data.GetEndTimestamp().m_Value );
+        }
+
         // Serialization
         void Serialize( const struct DeviceProfilerCommandBufferData& );
         void Serialize( const struct DeviceProfilerRenderPassData& );
@@ -135,6 +151,8 @@ namespace Profiler
         void Serialize( const std::vector<struct TipRange>& );
 
         void AppendEvent( const TraceEvent& event );
+        void AppendEvent( const TraceHostEvent& event );
+        void AppendEvent( const TraceDeviceEvent& event );
         bool AppendEventsToOutputFile();
     };
 
