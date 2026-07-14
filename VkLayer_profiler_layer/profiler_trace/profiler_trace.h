@@ -35,6 +35,8 @@
 namespace Profiler
 {
     struct TraceEvent;
+    struct TraceHostEvent;
+    struct TraceDeviceEvent;
 
     /*************************************************************************\
 
@@ -104,6 +106,9 @@ namespace Profiler
         std::string    m_CommandQueueName;
         std::vector<uint64_t> m_CommandQueueEventTracks;
 
+        std::unordered_set<uint32_t> m_SortedHostThreads;
+        std::unordered_set<uint32_t> m_SortedDeviceThreads;
+
         // Serialized events
         DeviceProfilerJsonBuilder m_JsonBuilder;
 
@@ -129,10 +134,10 @@ namespace Profiler
         }
 
         // Track management
-        std::string AssignTrackForEvent( uint64_t beginTimestamp, uint64_t endTimestamp );
+        uint64_t AssignTrackForEvent( uint64_t beginTimestamp, uint64_t endTimestamp );
 
         template<typename DataStructType>
-        inline std::string AssignTrackForEvent( const DataStructType& data )
+        inline uint64_t AssignTrackForEvent( const DataStructType& data )
         {
             return AssignTrackForEvent( data.GetBeginTimestamp().m_Value, data.GetEndTimestamp().m_Value );
         }
@@ -146,6 +151,8 @@ namespace Profiler
         void Serialize( const std::vector<struct TipRange>& );
 
         void AppendEvent( const TraceEvent& event );
+        void AppendEvent( const TraceHostEvent& event );
+        void AppendEvent( const TraceDeviceEvent& event );
         bool AppendEventsToOutputFile();
     };
 
