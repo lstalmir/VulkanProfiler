@@ -35,6 +35,8 @@
 
 #include "VkLayer_profiler_layer.generated.h"
 
+#include <immintrin.h>
+
 // Exit current function without fixing the state
 #define RETURNONFAIL( VKRESULT )            \
     {                                       \
@@ -276,6 +278,62 @@ namespace Profiler
     PROFILER_FORCE_INLINE void Fill( Iterable& iterable, const ValueType& value )
     {
         std::fill( std::begin( iterable ), std::end( iterable ), value );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BitScanMSB
+
+    Description:
+        Find index of the most significant set bit in the given value.
+
+    \***********************************************************************************/
+    template<typename T>
+    PROFILER_FORCE_INLINE uint8_t BitScanMSB( T value )
+    {
+        unsigned long index = UINT8_MAX;
+
+#ifdef _MSC_VER
+        // Use compiler intrinsic for MSVC.
+        if constexpr( sizeof( T ) == sizeof( uint64_t ) )
+        {
+            if( _BitScanReverse64( &index, static_cast<uint64_t>( value ) ) )
+            {
+                return static_cast<uint8_t>( index );
+            }
+        }
+        else
+        {
+            if( _BitScanReverse( &index, static_cast<uint32_t>( value ) ) )
+            {
+                return static_cast<uint8_t>( index );
+            }
+        }
+#elif defined( __GNUC__ ) || defined( __clang__ )
+        // Use compiler built-in function for GCC/Clang.
+        if constexpr( sizeof( T ) == sizeof( uint64_t ) )
+        {
+            index = 63 - __builtin_clzll( static_cast<uint64_t>( value ) );
+        }
+        else
+        {
+            index = 31 - __builtin_clz( static_cast<uint32_t>( value ) );
+        }
+#else
+        // Calculate the index of the most significant set bit manually.
+        for( index = sizeof( T ) * 8; index > 0; index-- )
+        {
+            if( value & ( static_cast<T>( 1 ) << ( index - 1 ) ) )
+            {
+                return static_cast<uint8_t>( index - 1 );
+            }
+        }
+
+        index = UINT8_MAX;
+#endif
+
+        return static_cast<uint8_t>( index );
     }
 
     /***********************************************************************************\

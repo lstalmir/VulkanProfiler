@@ -386,6 +386,22 @@ static VkAccelerationStructureBuildGeometryInfoKHR* CopyAccelerationStructureBui
     for( uint32_t i = 0; i < infoCount; ++i )
     {
         totalSize += pInfos[i].geometryCount * sizeof( VkAccelerationStructureGeometryKHR );
+
+        for( uint32_t j = 0; j < pInfos[i].geometryCount; ++j )
+        {
+            const VkAccelerationStructureGeometryKHR& geometry =
+                ( pInfos[i].pGeometries != nullptr ) ? pInfos[i].pGeometries[j] : *pInfos[i].ppGeometries[j];
+
+            for( auto& structure : Profiler::PNextIterator( geometry.pNext ) )
+            {
+                switch( structure.sType )
+                {
+                case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
+                    totalSize += sizeof( VkAccelerationStructureGeometryMicromapDataKHR );
+                    break;
+                }
+            }
+        }
     }
 
     void* pAllocation = malloc( totalSize );
@@ -421,6 +437,37 @@ static VkAccelerationStructureBuildGeometryInfoKHR* CopyAccelerationStructureBui
             {
                 pDuplicatedGeometries[j] = *pInfos[i].ppGeometries[j];
             }
+        }
+
+        // Copy pNext chains of the geometries.
+        for( uint32_t j = 0; j < geometryCount; ++j )
+        {
+            VkAccelerationStructureGeometryKHR& geometry = pDuplicatedGeometries[j];
+
+            // Immediately after the copy pNext of each geometry is still valid.
+            const void** ppNext = &geometry.pNext;
+
+            for( auto& structure : Profiler::PNextIterator( geometry.pNext ) )
+            {
+                switch( structure.sType )
+                {
+                case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
+                {
+                    auto* pMicromapData = reinterpret_cast<VkAccelerationStructureGeometryMicromapDataKHR*>( pAllocation );
+                    memcpy( pMicromapData, &structure, sizeof( VkAccelerationStructureGeometryMicromapDataKHR ) );
+                    *ppNext = pMicromapData;
+                    ppNext = &pMicromapData->pNext;
+                    pAllocation = pMicromapData + 1;
+                    break;
+                }
+                default:
+                    *ppNext = nullptr;
+                    break;
+                }
+            }
+
+            // Terminate the pNext chain of the geometry.
+            *ppNext = nullptr;
         }
     }
 

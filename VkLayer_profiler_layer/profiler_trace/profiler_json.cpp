@@ -374,6 +374,37 @@ namespace Profiler
                                 .Add( "arrayOfPointers", static_cast<bool>( geometry.geometry.instances.arrayOfPointers ) )
                                 .Add( "data", m_pStringSerializer->GetPointer( geometry.geometry.instances.data.hostAddress ) );
                             break;
+
+                        case VK_GEOMETRY_TYPE_MICROMAP_KHR:
+                        {
+                            const auto pMicromapData =
+                                PNextChain( geometry.pNext )
+                                    .Find<VkAccelerationStructureGeometryMicromapDataKHR>( VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR );
+
+                            if( pMicromapData )
+                            {
+                                dataBuilder
+                                    .Add( "usageCountsCount", pMicromapData->usageCountsCount );
+
+                                auto usageCountsBuilder = dataBuilder.AddArray( "usageCounts" );
+                                for( uint32_t k = 0; k < pMicromapData->usageCountsCount; ++k )
+                                {
+                                    const auto& usageCount = pMicromapData->pUsageCounts[k];
+                                    usageCountsBuilder.AddObject()
+                                        .Add( "count", usageCount.count )
+                                        .Add( "format", usageCount.format )
+                                        .Add( "subdivisionLevel", usageCount.subdivisionLevel );
+                                }
+
+                                usageCountsBuilder.End();
+
+                                dataBuilder
+                                    .Add( "data", pMicromapData->data )
+                                    .Add( "triangleArray", pMicromapData->triangleArray )
+                                    .Add( "triangleArrayStride", pMicromapData->triangleArrayStride );
+                            }
+                            break;
+                        }
                         }
                         dataBuilder.End();
 

@@ -121,13 +121,11 @@ namespace Profiler
         VK_IMAGE_USAGE_VIDEO_ENCODE_QUANTIZATION_DELTA_MAP_BIT_KHR |
         VK_IMAGE_USAGE_VIDEO_ENCODE_EMPHASIS_MAP_BIT_KHR;
 
-    static constexpr VkFlags g_KnownAccelerationStructureTypes =
-        1 << VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR |
-        1 << VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR |
-        1 << VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR;
-
-    static constexpr VkFlags g_KnownMicromapTypes =
-        1 << VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT;
+    static constexpr VkProfilerAccelerationStructureTypeFlagsEXT g_KnownAccelerationStructureTypes =
+        VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_BIT_EXT |
+        VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_BIT_EXT |
+        VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_GENERIC_BIT_EXT |
+        VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_BIT_EXT;
 
     static constexpr ImU32 g_MemoryTypesBreakdownColorMap[] = {
         IM_COL32( 110, 177, 165, 255 ),
@@ -173,8 +171,7 @@ namespace Profiler
         std::string m_NameFilter;
         VkBufferUsageFlags m_BufferUsageFilter;
         VkImageUsageFlags m_ImageUsageFilter;
-        VkFlags m_AccelerationStructureTypeFilter;
-        VkFlags m_MicromapTypeFilter;
+        VkProfilerAccelerationStructureTypeFlagsEXT m_AccelerationStructureTypeFilter;
     };
 
     struct ProfilerOverlayOutput::PerformanceQueryExporter
@@ -675,7 +672,6 @@ namespace Profiler
         m_ResourceBrowserBufferUsageFilter = g_KnownBufferUsageFlags;
         m_ResourceBrowserImageUsageFilter = g_KnownImageUsageFlags;
         m_ResourceBrowserAccelerationStructureTypeFilter = g_KnownAccelerationStructureTypes;
-        m_ResourceBrowserMicromapTypeFilter = g_KnownMicromapTypes;
         m_ResourceBrowserShowDifferences = false;
         m_ResourceInspectorImageMapSubresource = {};
         m_ResourceInspectorImageMapBlockSize = 16.f;
@@ -3997,7 +3993,6 @@ namespace Profiler
             m_pResourceListExporter->m_BufferUsageFilter = m_ResourceBrowserBufferUsageFilter;
             m_pResourceListExporter->m_ImageUsageFilter = m_ResourceBrowserImageUsageFilter;
             m_pResourceListExporter->m_AccelerationStructureTypeFilter = m_ResourceBrowserAccelerationStructureTypeFilter;
-            m_pResourceListExporter->m_MicromapTypeFilter = m_ResourceBrowserMicromapTypeFilter;
         }
         ImGui::EndDisabled();
 
@@ -4065,13 +4060,6 @@ namespace Profiler
             m_ResourceBrowserAccelerationStructureTypeFilter,
             g_KnownAccelerationStructureTypes,
             &DeviceProfilerStringSerializer::GetAccelerationStructureTypeFlagNames );
-
-        ImGui::SameLine( 0, 10.f * interfaceScale );
-        ResourceUsageFlagsFilterComboBox(
-            "Micromaps###MicromapFilter",
-            m_ResourceBrowserMicromapTypeFilter,
-            g_KnownMicromapTypes,
-            &DeviceProfilerStringSerializer::GetMicromapTypeFlagNames );
 
         ImGui::Separator();
 
@@ -4225,8 +4213,9 @@ namespace Profiler
                 {
                     bool selected = ( m_ResourceInspectorAccelerationStructure == accelerationStructure );
 
-                    // Acceleration structure types are a simple enum, convert to bitmask for filtering.
-                    VkFlags accelerationStructureTypeBit = ( 1U << accelerationStructureData.m_Type );
+                    // Convert acceleration structure type to bitmask for filtering.
+                    const VkProfilerAccelerationStructureTypeFlagsEXT accelerationStructureTypeBit =
+                        vkProfilerGetAccelerationStructureFlagsFromTypeEXT( accelerationStructureData.m_Type );
 
                     DrawResourceBrowserTableRow(
                         accelerationStructure,
@@ -4252,13 +4241,10 @@ namespace Profiler
                 {
                     bool selected = ( m_ResourceInspectorMicromap == micromap );
 
-                    // Micromap types are a simple enum, convert to bitmask for filtering.
-                    VkFlags micromapTypeBit = ( 1U << micromapData.m_Type );
-
                     DrawResourceBrowserTableRow(
                         micromap,
-                        micromapTypeBit,
-                        m_ResourceBrowserMicromapTypeFilter,
+                        VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_BIT_EXT,
+                        m_ResourceBrowserAccelerationStructureTypeFilter,
                         compareResult,
                         &selected );
 
@@ -5180,8 +5166,7 @@ namespace Profiler
                         m_pResourceListExporter->m_NameFilter,
                         m_pResourceListExporter->m_BufferUsageFilter,
                         m_pResourceListExporter->m_ImageUsageFilter,
-                        m_pResourceListExporter->m_AccelerationStructureTypeFilter,
-                        m_pResourceListExporter->m_MicromapTypeFilter );
+                        m_pResourceListExporter->m_AccelerationStructureTypeFilter );
                 }
 
                 // Destroy the exporter.
@@ -5204,8 +5189,7 @@ namespace Profiler
         const std::string& nameFilter,
         VkBufferUsageFlags bufferUsageFilter,
         VkImageUsageFlags imageUsageFilter,
-        VkFlags accelerationStructureTypeFilter,
-        VkFlags micromapTypeFilter )
+        VkFlags accelerationStructureTypeFilter )
     {
         DeviceProfilerCsvSerializer serializer;
 
@@ -5453,8 +5437,9 @@ namespace Profiler
 
                 for( const auto& [accelerationStructureHandle, accelerationStructure] : pData->m_Memory.m_AccelerationStructures )
                 {
-                    // Acceleration structure types are a simple enum, convert to bitmask for filtering.
-                    VkFlags accelerationStructureTypeBit = ( 1U << accelerationStructure.m_Type );
+                    // Convert acceleration structure type to bitmask for filtering.
+                    const VkProfilerAccelerationStructureTypeFlagsEXT accelerationStructureTypeBit =
+                        vkProfilerGetAccelerationStructureFlagsFromTypeEXT( accelerationStructure.m_Type );
 
                     const std::string accelerationStructureName = m_pStringSerializer->GetName( accelerationStructureHandle );
                     if( !FilterResourceByNameAndUsage( accelerationStructureName, accelerationStructureTypeBit, accelerationStructureTypeFilter ) )
@@ -5492,11 +5477,12 @@ namespace Profiler
 
                 for( const auto& [micromapHandle, micromap] : pData->m_Memory.m_Micromaps )
                 {
-                    // Micromap types are a simple enum, convert to bitmask for filtering.
-                    VkFlags micromapTypeBit = ( 1U << micromap.m_Type );
+                    // Convert micromap type to bitmask for filtering.
+                    const VkProfilerAccelerationStructureTypeFlagsEXT micromapTypeBit =
+                        VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_BIT_EXT;
 
                     const std::string micromapName = m_pStringSerializer->GetName( micromapHandle );
-                    if( !FilterResourceByNameAndUsage( micromapName, micromapTypeBit, micromapTypeFilter ) )
+                    if( !FilterResourceByNameAndUsage( micromapName, micromapTypeBit, accelerationStructureTypeFilter ) )
                     {
                         continue;
                     }
