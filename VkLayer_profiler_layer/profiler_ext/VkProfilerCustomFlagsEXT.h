@@ -35,7 +35,7 @@ typedef enum VkProfilerAccelerationStructureTypeFlagBitsEXT
 } VkProfilerAccelerationStructureTypeFlagBitsEXT;
 typedef VkFlags VkProfilerAccelerationStructureTypeFlagsEXT;
 
-inline VkAccelerationStructureTypeKHR vkProfilerGetAccelerationStructureTypeFromFlagsEXT(
+static inline VkAccelerationStructureTypeKHR vkProfilerGetAccelerationStructureTypeFromFlagsEXT(
     VkProfilerAccelerationStructureTypeFlagsEXT flags )
 {
     switch( flags )
@@ -57,7 +57,7 @@ inline VkAccelerationStructureTypeKHR vkProfilerGetAccelerationStructureTypeFrom
     }
 }
 
-inline VkProfilerAccelerationStructureTypeFlagsEXT vkProfilerGetAccelerationStructureFlagsFromTypeEXT(
+static inline VkProfilerAccelerationStructureTypeFlagsEXT vkProfilerGetAccelerationStructureFlagsFromTypeEXT(
     VkAccelerationStructureTypeKHR type )
 {
     switch( type )
