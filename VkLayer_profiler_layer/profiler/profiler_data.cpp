@@ -397,8 +397,12 @@ static VkAccelerationStructureBuildGeometryInfoKHR* CopyAccelerationStructureBui
                 switch( structure.sType )
                 {
                 case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
+                {
+                    auto* pMicromapData = reinterpret_cast<const VkAccelerationStructureGeometryMicromapDataKHR*>( &structure );
                     totalSize += sizeof( VkAccelerationStructureGeometryMicromapDataKHR );
+                    totalSize += pMicromapData->usageCountsCount * sizeof( VkMicromapUsageKHR );
                     break;
+                }
                 }
             }
         }
@@ -455,9 +459,27 @@ static VkAccelerationStructureBuildGeometryInfoKHR* CopyAccelerationStructureBui
                 {
                     auto* pMicromapData = reinterpret_cast<VkAccelerationStructureGeometryMicromapDataKHR*>( pAllocation );
                     memcpy( pMicromapData, &structure, sizeof( VkAccelerationStructureGeometryMicromapDataKHR ) );
+
+                    auto* pUsageCounts = reinterpret_cast<VkMicromapUsageKHR*>( pMicromapData + 1 );
+                    if( pMicromapData->pUsageCounts != nullptr )
+                    {
+                        memcpy( pUsageCounts, pMicromapData->pUsageCounts, pMicromapData->usageCountsCount * sizeof( VkMicromapUsageKHR ) );
+                    }
+                    else if( pMicromapData->ppUsageCounts != nullptr )
+                    {
+                        for( uint32_t k = 0; k < pMicromapData->usageCountsCount; ++k )
+                        {
+                            pUsageCounts[k] = *pMicromapData->ppUsageCounts[k];
+                        }
+                    }
+
+                    pMicromapData->pUsageCounts = pUsageCounts;
+                    pMicromapData->ppUsageCounts = nullptr;
+
                     *ppNext = pMicromapData;
                     ppNext = &pMicromapData->pNext;
-                    pAllocation = pMicromapData + 1;
+
+                    pAllocation = pUsageCounts + pMicromapData->usageCountsCount;
                     break;
                 }
                 default:
