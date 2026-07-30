@@ -2776,10 +2776,6 @@ namespace Profiler
             return "AABBs";
         case VK_GEOMETRY_TYPE_INSTANCES_KHR:
             return "Instances";
-        case VK_GEOMETRY_TYPE_SPHERES_NV:
-            return "Spheres";
-        case VK_GEOMETRY_TYPE_LINEAR_SWEPT_SPHERES_NV:
-            return "Linear swept spheres";
         case VK_GEOMETRY_TYPE_MICROMAP_KHR:
             return "Micromap";
         }

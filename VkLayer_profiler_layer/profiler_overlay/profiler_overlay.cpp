@@ -4056,7 +4056,7 @@ namespace Profiler
 
         ImGui::SameLine( 0, 10.f * interfaceScale );
         ResourceUsageFlagsFilterComboBox(
-            "Acceleration structures###AccelerationStructureFilter",
+            "Acceleration structures & Micromaps###AccelerationStructureFilter",
             m_ResourceBrowserAccelerationStructureTypeFilter,
             g_KnownAccelerationStructureTypes,
             &DeviceProfilerStringSerializer::GetAccelerationStructureTypeFlagNames );
