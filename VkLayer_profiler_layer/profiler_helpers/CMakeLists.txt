@@ -23,6 +23,7 @@ cmake_minimum_required (VERSION 3.8...3.31)
 project (profiler_helpers)
 
 set (headers
+    "profiler_copy_builder.h"
     "profiler_csv_helpers.h"
     "profiler_json_common.h"
     "profiler_json_builder.h"
