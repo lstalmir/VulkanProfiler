@@ -55,10 +55,13 @@ template<typename T>
 size_t GetStructureArraySize( const T* const* ppStructures, size_t count )
 {
     size_t size = 0;
-    for( size_t i = 0; i < count; ++i )
+    if( ppStructures != nullptr )
     {
-        size += sizeof( T* ) +
-                GetStructureSize( ppStructures[i] );
+        for( size_t i = 0; i < count; ++i )
+        {
+            size += sizeof( T* ) +
+                    GetStructureSize( ppStructures[i] );
+        }
     }
     return size;
 }
