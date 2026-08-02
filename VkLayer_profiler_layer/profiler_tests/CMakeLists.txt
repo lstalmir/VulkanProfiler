@@ -39,6 +39,7 @@ if (BUILD_TESTS)
     set (tests
         "profiler_command_buffer_tests.cpp"
         "profiler_config_tests.cpp"
+        "profiler_data_tests.cpp"
         "profiler_extensions_tests.cpp"
         "profiler_memory_tests.cpp"
         "profiler_testing_common.h"
@@ -58,6 +59,7 @@ if (BUILD_TESTS)
         PRIVATE ${Vulkan_LIBRARIES}
         PRIVATE gtest_main
         PRIVATE profiler
+        PRIVATE profiler_helpers
         )
 
     target_include_directories (profiler_tests
