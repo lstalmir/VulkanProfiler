@@ -19,29 +19,19 @@
 // SOFTWARE.
 
 #include "profiler_data.h"
-#include "profiler_helpers/profiler_copy_builder.h"
 
 template<typename T>
-constexpr size_t GetPNextChainSize( const T* )
+constexpr size_t GetPNextChainSize( const T* pStructure )
 {
     // By default no pNext chains are captured.
     return 0;
 }
 
-template<>
-size_t GetPNextChainSize( const VkAccelerationStructureBuildGeometryInfoKHR* pStructure )
+template<typename T>
+constexpr void* CopyPNextChain( const T* pStructure, std::byte** ppNext )
 {
-    size_t size = 0;
-    for( const auto& structure : Profiler::PNextIterator( pStructure->pNext ) )
-    {
-        switch( structure.sType )
-        {
-        case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
-            size += GetStructureSize( reinterpret_cast<const VkAccelerationStructureGeometryMicromapDataKHR*>( &structure ) );
-            break;
-        }
-    }
-    return size;
+    // By default no pNext chains are captured.
+    return nullptr;
 }
 
 template<typename T>
@@ -67,7 +57,89 @@ size_t GetStructureArraySize( const T* const* ppStructures, size_t count )
     size_t size = 0;
     for( size_t i = 0; i < count; ++i )
     {
-        size += GetStructureSize( ppStructures[i] );
+        size += sizeof( T* ) +
+                GetStructureSize( ppStructures[i] );
+    }
+    return size;
+}
+
+template<typename T>
+void CopyStructureTo( T* pDst, const T* pSrc, std::byte** ppNext )
+{
+    if( pSrc != nullptr )
+    {
+        memcpy( pDst, pSrc, sizeof( T ) );
+    }
+}
+
+template<typename T>
+T* CopyStructure( const T* pSrc, std::byte** ppNext )
+{
+    if( pSrc != nullptr )
+    {
+        T* pDst = reinterpret_cast<T*>( *ppNext );
+        *ppNext += sizeof( T );
+        CopyStructureTo( pDst, pSrc, ppNext );
+        return pDst;
+    }
+    return nullptr;
+}
+
+template<typename T>
+T* CopyStructureArray( const T* pSrc, uint32_t count, std::byte** ppNext )
+{
+    if( pSrc != nullptr && count > 0 )
+    {
+        T* pDst = reinterpret_cast<T*>( *ppNext );
+        *ppNext += sizeof( T ) * count;
+        for( uint32_t i = 0; i < count; ++i )
+        {
+            CopyStructureTo( &pDst[i], &pSrc[i], ppNext );
+        }
+        return pDst;
+    }
+    return nullptr;
+}
+
+template<typename T>
+T** CopyStructureArray( const T* const* ppSrc, uint32_t count, std::byte** ppNext )
+{
+    if( ppSrc != nullptr && count > 0 )
+    {
+        T** ppDst = reinterpret_cast<T**>( *ppNext );
+        *ppNext += sizeof( T* ) * count;
+        for( uint32_t i = 0; i < count; ++i )
+        {
+            ppDst[i] = CopyStructure( ppSrc[i], ppNext );
+        }
+        return ppDst;
+    }
+    return nullptr;
+}
+
+template<typename T>
+void* AllocateMemoryForStructures( const T* pStructure, size_t count = 1 )
+{
+    size_t size = GetStructureArraySize( pStructure, count );
+    if( size == 0 )
+    {
+        return nullptr;
+    }
+    return malloc( size );
+}
+
+template<>
+size_t GetPNextChainSize( const VkAccelerationStructureBuildGeometryInfoKHR* pStructure )
+{
+    size_t size = 0;
+    for( const auto& structure : Profiler::PNextIterator( pStructure->pNext ) )
+    {
+        switch( structure.sType )
+        {
+        case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
+            size += GetStructureSize( reinterpret_cast<const VkAccelerationStructureGeometryMicromapDataKHR*>( &structure ) );
+            break;
+        }
     }
     return size;
 }
@@ -226,37 +298,6 @@ size_t GetStructureSize( const VkMicromapBuildInfoEXT* pStructure )
     return 0;
 }
 
-template<typename T>
-void* AllocateMemoryForStructures( const T* pStructure, size_t count = 1 )
-{
-    size_t size = GetStructureArraySize( pStructure, count );
-    if( size == 0 )
-    {
-        return nullptr;
-    }
-    return malloc( size );
-}
-
-template<typename T>
-T* CopyStructure( const T* pSrc, std::byte** ppNext )
-{
-    if( pSrc != nullptr )
-    {
-        T* pDst = reinterpret_cast<T*>( *ppNext );
-        memcpy( pDst, pSrc, sizeof( T ) );
-        *ppNext += sizeof( T );
-        return pDst;
-    }
-    return nullptr;
-}
-
-template<typename T>
-void* CopyPNextChain( const T* pStructure, std::byte** ppNext )
-{
-    // By default no pNext chains are captured.
-    return nullptr;
-}
-
 template<>
 void* CopyPNextChain( const VkAccelerationStructureBuildGeometryInfoKHR* pStructure, std::byte** ppNext )
 {
@@ -274,157 +315,80 @@ void* CopyPNextChain( const VkAccelerationStructureBuildGeometryInfoKHR* pStruct
     return nullptr;
 }
 
-template<typename T>
-T* CopyStructureArray( const T* pSrc, uint32_t count, std::byte** ppNext )
-{
-    if( pSrc != nullptr && count > 0 )
-    {
-        T* pDst = reinterpret_cast<T*>( *ppNext );
-        memcpy( pDst, pSrc, sizeof( T ) * count );
-        *ppNext += sizeof( T ) * count;
-        return pDst;
-    }
-    return nullptr;
-}
-
-template<typename T>
-T* CopyStructureArray( const T* const* ppSrc, uint32_t count, std::byte** ppNext )
-{
-    if( ppSrc != nullptr && count > 0 )
-    {
-        T* pDst = reinterpret_cast<T*>( *ppNext );
-        for( uint32_t i = 0; i < count; ++i )
-        {
-            pDst[i] 
-        }
-        *ppNext += sizeof( T ) * count;
-        return pDst;
-    }
-    return nullptr;
-}
-
 template<>
-VkPipelineVertexInputStateCreateInfo* CopyStructure( const VkPipelineVertexInputStateCreateInfo* pSrc, std::byte** ppNext )
+void CopyStructureTo( VkPipelineVertexInputStateCreateInfo* pDst, const VkPipelineVertexInputStateCreateInfo* pSrc, std::byte** ppNext )
 {
     if( pSrc != nullptr )
     {
-        VkPipelineVertexInputStateCreateInfo* pDst = reinterpret_cast<VkPipelineVertexInputStateCreateInfo*>( *ppNext );
-        *ppNext += sizeof( VkPipelineVertexInputStateCreateInfo );
-        pDst->sType = pSrc->sType;
+        memcpy( pDst, pSrc, sizeof( VkPipelineVertexInputStateCreateInfo ) );
         pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
-        pDst->flags = pSrc->flags;
-        pDst->vertexBindingDescriptionCount = pSrc->vertexBindingDescriptionCount;
         pDst->pVertexBindingDescriptions = CopyStructureArray( pSrc->pVertexBindingDescriptions, pSrc->vertexBindingDescriptionCount, ppNext );
-        pDst->vertexAttributeDescriptionCount = pSrc->vertexAttributeDescriptionCount;
         pDst->pVertexAttributeDescriptions = CopyStructureArray( pSrc->pVertexAttributeDescriptions, pSrc->vertexAttributeDescriptionCount, ppNext );
-        return pDst;
     }
-    return nullptr;
 }
 
 template<>
-VkPipelineViewportStateCreateInfo* CopyStructure( const VkPipelineViewportStateCreateInfo* pSrc, std::byte** ppNext )
+void CopyStructureTo( VkPipelineViewportStateCreateInfo* pDst, const VkPipelineViewportStateCreateInfo* pSrc, std::byte** ppNext )
 {
     if( pSrc != nullptr )
     {
-        VkPipelineViewportStateCreateInfo* pDst = reinterpret_cast<VkPipelineViewportStateCreateInfo*>( *ppNext );
-        *ppNext += sizeof( VkPipelineViewportStateCreateInfo );
-        pDst->sType = pSrc->sType;
+        memcpy( pDst, pSrc, sizeof( VkPipelineViewportStateCreateInfo ) );
         pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
-        pDst->flags = pSrc->flags;
-        pDst->viewportCount = pSrc->viewportCount;
         pDst->pViewports = CopyStructureArray( pSrc->pViewports, pSrc->viewportCount, ppNext );
-        pDst->scissorCount = pSrc->scissorCount;
         pDst->pScissors = CopyStructureArray( pSrc->pScissors, pSrc->scissorCount, ppNext );
-        return pDst;
     }
-    return nullptr;
 }
 
 template<>
-VkPipelineMultisampleStateCreateInfo* CopyStructure( const VkPipelineMultisampleStateCreateInfo* pSrc, std::byte** ppNext )
+void CopyStructureTo( VkPipelineMultisampleStateCreateInfo* pDst, const VkPipelineMultisampleStateCreateInfo* pSrc, std::byte** ppNext )
 {
     if( pSrc != nullptr )
     {
-        VkPipelineMultisampleStateCreateInfo* pDst = reinterpret_cast<VkPipelineMultisampleStateCreateInfo*>( *ppNext );
-        *ppNext += sizeof( VkPipelineMultisampleStateCreateInfo );
-        pDst->sType = pSrc->sType;
+        memcpy( pDst, pSrc, sizeof( VkPipelineMultisampleStateCreateInfo ) );
         pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
-        pDst->flags = pSrc->flags;
-        pDst->rasterizationSamples = pSrc->rasterizationSamples;
-        pDst->sampleShadingEnable = pSrc->sampleShadingEnable;
-        pDst->minSampleShading = pSrc->minSampleShading;
         pDst->pSampleMask = CopyStructure( pSrc->pSampleMask, ppNext );
-        pDst->alphaToCoverageEnable = pSrc->alphaToCoverageEnable;
-        pDst->alphaToOneEnable = pSrc->alphaToOneEnable;
-        return pDst;
     }
-    return nullptr;
 }
 
 template<>
-VkPipelineColorBlendStateCreateInfo* CopyStructure( const VkPipelineColorBlendStateCreateInfo* pSrc, std::byte** ppNext )
+void CopyStructureTo( VkPipelineColorBlendStateCreateInfo* pDst, const VkPipelineColorBlendStateCreateInfo* pSrc, std::byte** ppNext )
 {
     if( pSrc != nullptr )
     {
-        VkPipelineColorBlendStateCreateInfo* pDst = reinterpret_cast<VkPipelineColorBlendStateCreateInfo*>( *ppNext );
-        *ppNext += sizeof( VkPipelineColorBlendStateCreateInfo );
-        pDst->sType = pSrc->sType;
+        memcpy( pDst, pSrc, sizeof( VkPipelineColorBlendStateCreateInfo ) );
         pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
-        pDst->flags = pSrc->flags;
-        pDst->logicOpEnable = pSrc->logicOpEnable;
-        pDst->logicOp = pSrc->logicOp;
-        pDst->attachmentCount = pSrc->attachmentCount;
         pDst->pAttachments = CopyStructureArray( pSrc->pAttachments, pSrc->attachmentCount, ppNext );
-        memcpy( pDst->blendConstants, pSrc->blendConstants, sizeof( pSrc->blendConstants ) );
-        return pDst;
     }
-    return nullptr;
 }
 
 template<>
-VkPipelineDynamicStateCreateInfo* CopyStructure( const VkPipelineDynamicStateCreateInfo* pSrc, std::byte** ppNext )
+void CopyStructureTo( VkPipelineDynamicStateCreateInfo* pDst, const VkPipelineDynamicStateCreateInfo* pSrc, std::byte** ppNext )
 {
     if( pSrc != nullptr )
     {
-        VkPipelineDynamicStateCreateInfo* pDst = reinterpret_cast<VkPipelineDynamicStateCreateInfo*>( *ppNext );
-        *ppNext += sizeof( VkPipelineDynamicStateCreateInfo );
-        pDst->sType = pSrc->sType;
+        memcpy( pDst, pSrc, sizeof( VkPipelineDynamicStateCreateInfo ) );
         pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
-        pDst->flags = pSrc->flags;
-        pDst->dynamicStateCount = pSrc->dynamicStateCount;
         pDst->pDynamicStates = CopyStructureArray( pSrc->pDynamicStates, pSrc->dynamicStateCount, ppNext );
-        return pDst;
     }
-    return nullptr;
 }
 
 template<>
-VkRayTracingPipelineInterfaceCreateInfoKHR* CopyStructure( const VkRayTracingPipelineInterfaceCreateInfoKHR* pSrc, std::byte** ppNext )
+void CopyStructureTo( VkRayTracingPipelineInterfaceCreateInfoKHR* pDst, const VkRayTracingPipelineInterfaceCreateInfoKHR* pSrc, std::byte** ppNext )
 {
     if( pSrc != nullptr )
     {
-        VkRayTracingPipelineInterfaceCreateInfoKHR* pDst = reinterpret_cast<VkRayTracingPipelineInterfaceCreateInfoKHR*>( *ppNext );
-        *ppNext += sizeof( VkRayTracingPipelineInterfaceCreateInfoKHR );
-        pDst->sType = pSrc->sType;
+        memcpy( pDst, pSrc, sizeof( VkRayTracingPipelineInterfaceCreateInfoKHR ) );
         pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
-        pDst->maxPipelineRayPayloadSize = pSrc->maxPipelineRayPayloadSize;
-        pDst->maxPipelineRayHitAttributeSize = pSrc->maxPipelineRayHitAttributeSize;
-        return pDst;
     }
-    return nullptr;
 }
 
 template<>
-VkGraphicsPipelineCreateInfo* CopyStructure( const VkGraphicsPipelineCreateInfo* pSrc, std::byte** ppNext )
+void CopyStructureTo( VkGraphicsPipelineCreateInfo* pDst, const VkGraphicsPipelineCreateInfo* pSrc, std::byte** ppNext )
 {
     if( pSrc != nullptr )
     {
-        VkGraphicsPipelineCreateInfo* pDst = reinterpret_cast<VkGraphicsPipelineCreateInfo*>( *ppNext );
-        *ppNext += sizeof( VkGraphicsPipelineCreateInfo );
-        pDst->sType = pSrc->sType;
+        memcpy( pDst, pSrc, sizeof( VkGraphicsPipelineCreateInfo ) );
         pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
-        pDst->flags = pSrc->flags;
         pDst->stageCount = 0;
         pDst->pStages = nullptr;
         pDst->pVertexInputState = CopyStructure( pSrc->pVertexInputState, ppNext );
@@ -436,93 +400,73 @@ VkGraphicsPipelineCreateInfo* CopyStructure( const VkGraphicsPipelineCreateInfo*
         pDst->pDepthStencilState = CopyStructure( pSrc->pDepthStencilState, ppNext );
         pDst->pColorBlendState = CopyStructure( pSrc->pColorBlendState, ppNext );
         pDst->pDynamicState = CopyStructure( pSrc->pDynamicState, ppNext );
-        pDst->layout = pSrc->layout;
-        pDst->renderPass = pSrc->renderPass;
-        pDst->subpass = pSrc->subpass;
-        pDst->basePipelineHandle = pSrc->basePipelineHandle;
-        pDst->basePipelineIndex = pSrc->basePipelineIndex;
-        return pDst;
     }
-    return nullptr;
 }
 
 template<>
-VkRayTracingPipelineCreateInfoKHR* CopyStructure( const VkRayTracingPipelineCreateInfoKHR* pSrc, std::byte** ppNext )
+void CopyStructureTo( VkRayTracingPipelineCreateInfoKHR* pDst, const VkRayTracingPipelineCreateInfoKHR* pSrc, std::byte** ppNext )
 {
     if( pSrc != nullptr )
     {
-        VkRayTracingPipelineCreateInfoKHR* pDst = reinterpret_cast<VkRayTracingPipelineCreateInfoKHR*>( *ppNext );
-        *ppNext += sizeof( VkRayTracingPipelineCreateInfoKHR );
-        pDst->sType = pSrc->sType;
+        memcpy( pDst, pSrc, sizeof( VkRayTracingPipelineCreateInfoKHR ) );
         pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
-        pDst->flags = pSrc->flags;
         pDst->stageCount = 0;
         pDst->pStages = nullptr;
-        pDst->groupCount = pSrc->groupCount;
         pDst->pGroups = CopyStructureArray( pSrc->pGroups, pSrc->groupCount, ppNext );
-        pDst->maxPipelineRayRecursionDepth = pSrc->maxPipelineRayRecursionDepth;
         pDst->pLibraryInfo = nullptr;
         pDst->pLibraryInterface = CopyStructure( pSrc->pLibraryInterface, ppNext );
         pDst->pDynamicState = CopyStructure( pSrc->pDynamicState, ppNext );
-        pDst->layout = pSrc->layout;
-        pDst->basePipelineHandle = pSrc->basePipelineHandle;
-        pDst->basePipelineIndex = pSrc->basePipelineIndex;
-        return pDst;
     }
-    return nullptr;
+}
+
+template<>
+void CopyStructureTo( VkAccelerationStructureBuildGeometryInfoKHR* pDst, const VkAccelerationStructureBuildGeometryInfoKHR* pSrc, std::byte** ppNext )
+{
+    if( pSrc != nullptr )
+    {
+        memcpy( pDst, pSrc, sizeof( VkAccelerationStructureBuildGeometryInfoKHR ) );
+        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pGeometries = CopyStructureArray( pSrc->pGeometries, pSrc->geometryCount, ppNext );
+        pDst->ppGeometries = CopyStructureArray( pSrc->ppGeometries, pSrc->geometryCount, ppNext );
+    }
+}
+
+template<>
+void CopyStructureTo( VkMicromapBuildInfoEXT* pDst, const VkMicromapBuildInfoEXT* pSrc, std::byte** ppNext )
+{
+    if( pSrc != nullptr )
+    {
+        memcpy( pDst, pSrc, sizeof( VkMicromapBuildInfoEXT ) );
+        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pUsageCounts = CopyStructureArray( pSrc->pUsageCounts, pSrc->usageCountsCount, ppNext );
+        pDst->ppUsageCounts = CopyStructureArray( pSrc->ppUsageCounts, pSrc->usageCountsCount, ppNext );
+    }
 }
 
 template<typename CreateInfoT>
 std::shared_ptr<Profiler::DeviceProfilerPipeline::CreateInfo> CopyPipelineCreateInfoImpl( const CreateInfoT* pCreateInfo )
 {
-    size_t createInfoSize = GetStructureSize( pCreateInfo );
-    if( createInfoSize == 0 )
+    void* pMemory = AllocateMemoryForStructures( pCreateInfo );
+    if( pMemory != nullptr )
     {
-        return nullptr;
+        auto* pNext = reinterpret_cast<std::byte*>( pMemory );
+        CopyStructure( pCreateInfo, &pNext );
     }
-
-    auto* ci = static_cast<Profiler::DeviceProfilerPipeline::CreateInfo*>( malloc( createInfoSize ) );
-    if( ci == nullptr )
-    {
-        return nullptr;
-    }
-
-    // Get pointer to the first byte after the new create info for additional data.
-    auto* pNext = reinterpret_cast<std::byte*>( ci );
-    CopyStructure( pCreateInfo, &pNext );
-
-    return std::shared_ptr<Profiler::DeviceProfilerPipeline::CreateInfo>( ci, free );
+    return std::shared_ptr<Profiler::DeviceProfilerPipeline::CreateInfo>(
+        reinterpret_cast<Profiler::DeviceProfilerPipeline::CreateInfo*>( pMemory ), free );
 }
 
 static VkAccelerationStructureBuildGeometryInfoKHR* CopyAccelerationStructureBuildGeometryInfos(
     uint32_t infoCount,
     const VkAccelerationStructureBuildGeometryInfoKHR* pInfos )
 {
-    Profiler::DeviceProfilerCopyBuilder builder;
-
-    auto duplicatedInfos = builder.Write( pInfos, infoCount );
-    for( uint32_t i = 0; i < infoCount; ++i )
+    void* pMemory = AllocateMemoryForStructures( pInfos, infoCount );
+    if( pMemory != nullptr )
     {
-        auto geometries = builder.WriteUninitialized( &duplicatedInfos[i]->pGeometries, pInfos[i].geometryCount );
-
-        if( pInfos[i].pGeometries != nullptr )
-        {
-            std::memcpy( geometries.GetPointer(),
-                pInfos[i].pGeometries,
-                pInfos[i].geometryCount * sizeof( VkAccelerationStructureGeometryKHR ) );
-        }
-        else if( pInfos[i].ppGeometries != nullptr )
-        {
-            for( uint32_t j = 0; j < pInfos[i].geometryCount; ++j )
-            {
-                std::memcpy( geometries[j].GetPointer(),
-                    pInfos[i].ppGeometries[j],
-                    sizeof( VkAccelerationStructureGeometryKHR ) );
-            }
-        }
+        auto* pNext = reinterpret_cast<std::byte*>( pMemory );
+        CopyStructureArray( pInfos, infoCount, &pNext );
     }
-
-    return builder.GetMemoryCopy<VkAccelerationStructureBuildGeometryInfoKHR>();
+    return reinterpret_cast<VkAccelerationStructureBuildGeometryInfoKHR*>( pMemory );
 }
 
 static VkAccelerationStructureBuildRangeInfoKHR** CopyAccelerationStructureBuildRangeInfos(
@@ -530,12 +474,26 @@ static VkAccelerationStructureBuildRangeInfoKHR** CopyAccelerationStructureBuild
     const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
     const VkAccelerationStructureBuildRangeInfoKHR* const* ppRanges )
 {
-    void* pMemory = AllocateMemoryForStructures( ppRanges, infoCount );
-    if( pMemory )
+    size_t size = 0;
+    for( uint32_t i = 0; i < infoCount; ++i )
     {
-        auto* pNext = reinterpret_cast<std::byte*>( pMemory );
-        auto* ppDuplicatedRanges = 
+        size += sizeof( VkAccelerationStructureBuildRangeInfoKHR* ) +
+                sizeof( VkAccelerationStructureBuildRangeInfoKHR ) * pInfos[i].geometryCount;
     }
+
+    void* pMemory = malloc( size );
+    if( pMemory != nullptr )
+    {
+        auto** ppDstRanges = reinterpret_cast<VkAccelerationStructureBuildRangeInfoKHR**>( pMemory );
+        auto* pDstRangeInfos = reinterpret_cast<VkAccelerationStructureBuildRangeInfoKHR*>( ppDstRanges + infoCount );
+        for( uint32_t i = 0; i < infoCount; ++i )
+        {
+            memcpy( pDstRangeInfos, ppRanges[i], pInfos[i].geometryCount * sizeof( VkAccelerationStructureBuildRangeInfoKHR ) );
+            ppDstRanges[i] = pDstRangeInfos;
+            pDstRangeInfos += pInfos[i].geometryCount;
+        }
+    }
+
     return reinterpret_cast<VkAccelerationStructureBuildRangeInfoKHR**>( pMemory );
 }
 
@@ -544,15 +502,27 @@ static uint32_t** CopyAccelerationStructureMaxPrimitiveCounts(
     const VkAccelerationStructureBuildGeometryInfoKHR* pInfos,
     const uint32_t* const* ppMaxPrimitiveCounts )
 {
-    Profiler::DeviceProfilerCopyBuilder builder;
-
-    auto duplicatedPrimitiveCounts = builder.Write( ppMaxPrimitiveCounts, infoCount );
+    size_t size = 0;
     for( uint32_t i = 0; i < infoCount; ++i )
     {
-        builder.Write( duplicatedPrimitiveCounts[i].GetPointer(), ppMaxPrimitiveCounts[i], pInfos[i].geometryCount );
+        size += sizeof( uint32_t* ) +
+                sizeof( uint32_t ) * pInfos[i].geometryCount;
     }
 
-    return builder.GetMemoryCopy<uint32_t*>();
+    void* pMemory = malloc( size );
+    if( pMemory != nullptr )
+    {
+        auto** ppDstMaxPrimitiveCounts = reinterpret_cast<uint32_t**>( pMemory );
+        auto* pDstMaxPrimitiveCounts = reinterpret_cast<uint32_t*>( ppDstMaxPrimitiveCounts + infoCount );
+        for( uint32_t i = 0; i < infoCount; ++i )
+        {
+            memcpy( pDstMaxPrimitiveCounts, ppMaxPrimitiveCounts[i], pInfos[i].geometryCount * sizeof( uint32_t ) );
+            ppDstMaxPrimitiveCounts[i] = pDstMaxPrimitiveCounts;
+            pDstMaxPrimitiveCounts += pInfos[i].geometryCount;
+        }
+    }
+
+    return reinterpret_cast<uint32_t**>( pMemory );
 }
 
 static VkMicromapBuildInfoEXT* CopyMicromapBuildInfos(
@@ -560,7 +530,7 @@ static VkMicromapBuildInfoEXT* CopyMicromapBuildInfos(
     const VkMicromapBuildInfoEXT* pInfos )
 {
     void* pMemory = AllocateMemoryForStructures( pInfos, infoCount );
-    if( pMemory )
+    if( pMemory != nullptr )
     {
         auto* pNext = reinterpret_cast<std::byte*>( pMemory );
         CopyStructureArray( pInfos, infoCount, &pNext );

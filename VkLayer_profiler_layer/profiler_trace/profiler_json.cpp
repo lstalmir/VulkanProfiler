@@ -338,11 +338,11 @@ namespace Profiler
                     .Add( "dst", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.dstAccelerationStructure ) ) )
                     .Add( "geometryCount", info.geometryCount );
 
-                if( auto geometriesBuilder = infoBuilder.AddArrayOrNull( "geometries", info.pGeometries ) )
+                if( auto geometriesBuilder = infoBuilder.AddArrayOrNull( "geometries", info.pGeometries || info.ppGeometries ) )
                 {
                     for( uint32_t j = 0; j < info.geometryCount; ++j )
                     {
-                        const auto& geometry = info.pGeometries[j];
+                        const auto& geometry = ( info.pGeometries ? info.pGeometries[j] : *info.ppGeometries[j] );
 
                         auto geometryBuilder = geometriesBuilder.AddObject();
                         geometryBuilder
@@ -426,10 +426,10 @@ namespace Profiler
                     .Add( "dst", m_pStringSerializer->GetName( VkMicromapEXTHandle( info.dstMicromap ) ) )
                     .Add( "usageCountsCount", info.usageCountsCount );
 
-                auto usageCountsBuilder = infoBuilder.AddArray( "usageCounts" );
+                auto usageCountsBuilder = infoBuilder.AddArrayOrNull( "usageCounts", info.pUsageCounts || info.ppUsageCounts );
                 for( uint32_t j = 0; j < info.usageCountsCount; ++j )
                 {
-                    const auto& usageCount = info.pUsageCounts[j];
+                    const auto& usageCount = ( info.pUsageCounts ? info.pUsageCounts[j] : *info.ppUsageCounts[j] );
                     usageCountsBuilder.AddObject()
                         .Add( "count", usageCount.count )
                         .Add( "format", usageCount.format )
