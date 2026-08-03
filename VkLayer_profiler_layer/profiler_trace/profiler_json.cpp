@@ -426,16 +426,17 @@ namespace Profiler
                     .Add( "dst", m_pStringSerializer->GetName( VkMicromapEXTHandle( info.dstMicromap ) ) )
                     .Add( "usageCountsCount", info.usageCountsCount );
 
-                auto usageCountsBuilder = infoBuilder.AddArrayOrNull( "usageCounts", info.pUsageCounts || info.ppUsageCounts );
-                for( uint32_t j = 0; j < info.usageCountsCount; ++j )
+                if( auto usageCountsBuilder = infoBuilder.AddArrayOrNull( "usageCounts", info.pUsageCounts || info.ppUsageCounts ) )
                 {
-                    const auto& usageCount = ( info.pUsageCounts ? info.pUsageCounts[j] : *info.ppUsageCounts[j] );
-                    usageCountsBuilder.AddObject()
-                        .Add( "count", usageCount.count )
-                        .Add( "format", usageCount.format )
-                        .Add( "subdivisionLevel", usageCount.subdivisionLevel );
+                    for( uint32_t j = 0; j < info.usageCountsCount; ++j )
+                    {
+                        const auto& usageCount = ( info.pUsageCounts ? info.pUsageCounts[j] : *info.ppUsageCounts[j] );
+                        usageCountsBuilder.AddObject()
+                            .Add( "count", usageCount.count )
+                            .Add( "format", usageCount.format )
+                            .Add( "subdivisionLevel", usageCount.subdivisionLevel );
+                    }
                 }
-                usageCountsBuilder.End();
 
                 infoBuilder
                     .Add( "data", m_pStringSerializer->GetPointer( info.data.hostAddress ) )
