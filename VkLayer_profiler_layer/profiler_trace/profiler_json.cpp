@@ -386,17 +386,17 @@ namespace Profiler
                                 dataBuilder
                                     .Add( "usageCountsCount", pMicromapData->usageCountsCount );
 
-                                auto usageCountsBuilder = dataBuilder.AddArray( "usageCounts" );
-                                for( uint32_t k = 0; k < pMicromapData->usageCountsCount; ++k )
+                                if( auto usageCountsBuilder = dataBuilder.AddArrayOrNull( "usageCounts", pMicromapData->pUsageCounts || pMicromapData->ppUsageCounts ) )
                                 {
-                                    const auto& usageCount = pMicromapData->pUsageCounts[k];
-                                    usageCountsBuilder.AddObject()
-                                        .Add( "count", usageCount.count )
-                                        .Add( "format", usageCount.format )
-                                        .Add( "subdivisionLevel", usageCount.subdivisionLevel );
+                                    for( uint32_t k = 0; k < pMicromapData->usageCountsCount; ++k )
+                                    {
+                                        const auto& usageCount = ( pMicromapData->pUsageCounts ? pMicromapData->pUsageCounts[k] : *pMicromapData->ppUsageCounts[k] );
+                                        usageCountsBuilder.AddObject()
+                                            .Add( "count", usageCount.count )
+                                            .Add( "format", usageCount.format )
+                                            .Add( "subdivisionLevel", usageCount.subdivisionLevel );
+                                    }
                                 }
-
-                                usageCountsBuilder.End();
 
                                 dataBuilder
                                     .Add( "data", pMicromapData->data )
