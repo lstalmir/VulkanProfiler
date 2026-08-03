@@ -38,15 +38,8 @@ void ExpectPNextChainEqual(
     {
         switch( structure.sType )
         {
-        case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
+        default:
         {
-            const auto* pExpectedStructure = reinterpret_cast<const VkAccelerationStructureGeometryMicromapDataKHR*>( &structure );
-            const auto* pActualStructure =
-                Profiler::PNextChain( pActual )
-                    .Find<VkAccelerationStructureGeometryMicromapDataKHR>( VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR );
-
-            EXPECT_NE( pExpectedStructure, pActualStructure );
-            ExpectStructureEqual( *pExpectedStructure, *pActualStructure );
             break;
         }
         }

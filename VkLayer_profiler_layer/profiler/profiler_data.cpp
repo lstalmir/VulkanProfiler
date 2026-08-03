@@ -129,6 +129,15 @@ T** CopyStructureArray( const T* const* ppSrc, uint32_t count, std::byte** ppNex
 }
 
 template<typename T>
+void CopyStructureToPNextChain( VkBaseOutStructure** ppChain, const VkBaseInStructure* pStructure, std::byte** ppNext )
+{
+    ( *ppChain )->pNext = reinterpret_cast<VkBaseOutStructure*>(
+        CopyStructure( reinterpret_cast<const T*>( pStructure ), ppNext ) );
+
+    ( *ppChain ) = ( *ppChain )->pNext;
+}
+
+template<typename T>
 void* AllocateMemoryForStructures( const T* pStructure, size_t count = 1 )
 {
     size_t size = GetStructureArraySize( pStructure, count );
@@ -137,22 +146,6 @@ void* AllocateMemoryForStructures( const T* pStructure, size_t count = 1 )
         return nullptr;
     }
     return malloc( size );
-}
-
-template<>
-size_t GetPNextChainSize( const VkAccelerationStructureBuildGeometryInfoKHR* pStructure )
-{
-    size_t size = 0;
-    for( const auto& structure : Profiler::PNextIterator( pStructure->pNext ) )
-    {
-        switch( structure.sType )
-        {
-        case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
-            size += GetStructureSize( reinterpret_cast<const VkAccelerationStructureGeometryMicromapDataKHR*>( &structure ) );
-            break;
-        }
-    }
-    return size;
 }
 
 template<>
@@ -307,36 +300,6 @@ size_t GetStructureSize( const VkMicromapBuildInfoEXT* pStructure )
                GetStructureArraySize( pStructure->ppUsageCounts, pStructure->usageCountsCount );
     }
     return 0;
-}
-
-template<typename T>
-void CopyStructureToPNextChain( VkBaseOutStructure** ppChain, const VkBaseInStructure* pStructure, std::byte** ppNext )
-{
-    ( *ppChain )->pNext = reinterpret_cast<VkBaseOutStructure*>(
-        CopyStructure( reinterpret_cast<const T*>( pStructure ), ppNext ) );
-
-    ( *ppChain ) = ( *ppChain )->pNext;
-}
-
-template<>
-void* CopyPNextChain( const VkAccelerationStructureBuildGeometryInfoKHR* pStructure, std::byte** ppNext )
-{
-    VkBaseOutStructure copied = {};
-    VkBaseOutStructure* pLast = &copied;
-    if( pStructure != nullptr )
-    {
-        for( const auto& structure : Profiler::PNextIterator( pStructure->pNext ) )
-        {
-            switch( structure.sType )
-            {
-            case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
-                CopyStructureToPNextChain<VkAccelerationStructureGeometryMicromapDataKHR>( &pLast, &structure, ppNext );
-                break;
-            }
-        }
-        pLast->pNext = nullptr;
-    }
-    return copied.pNext;
 }
 
 template<>
