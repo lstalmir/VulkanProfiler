@@ -338,11 +338,11 @@ namespace Profiler
                     .Add( "dst", m_pStringSerializer->GetName( VkAccelerationStructureKHRHandle( info.dstAccelerationStructure ) ) )
                     .Add( "geometryCount", info.geometryCount );
 
-                if( auto geometriesBuilder = infoBuilder.AddArrayOrNull( "geometries", info.pGeometries ) )
+                if( auto geometriesBuilder = infoBuilder.AddArrayOrNull( "geometries", info.pGeometries || info.ppGeometries ) )
                 {
                     for( uint32_t j = 0; j < info.geometryCount; ++j )
                     {
-                        const auto& geometry = info.pGeometries[j];
+                        const auto& geometry = ( info.pGeometries ? info.pGeometries[j] : *info.ppGeometries[j] );
 
                         auto geometryBuilder = geometriesBuilder.AddObject();
                         geometryBuilder
@@ -426,16 +426,17 @@ namespace Profiler
                     .Add( "dst", m_pStringSerializer->GetName( VkMicromapEXTHandle( info.dstMicromap ) ) )
                     .Add( "usageCountsCount", info.usageCountsCount );
 
-                auto usageCountsBuilder = infoBuilder.AddArray( "usageCounts" );
-                for( uint32_t j = 0; j < info.usageCountsCount; ++j )
+                if( auto usageCountsBuilder = infoBuilder.AddArrayOrNull( "usageCounts", info.pUsageCounts || info.ppUsageCounts ) )
                 {
-                    const auto& usageCount = info.pUsageCounts[j];
-                    usageCountsBuilder.AddObject()
-                        .Add( "count", usageCount.count )
-                        .Add( "format", usageCount.format )
-                        .Add( "subdivisionLevel", usageCount.subdivisionLevel );
+                    for( uint32_t j = 0; j < info.usageCountsCount; ++j )
+                    {
+                        const auto& usageCount = ( info.pUsageCounts ? info.pUsageCounts[j] : *info.ppUsageCounts[j] );
+                        usageCountsBuilder.AddObject()
+                            .Add( "count", usageCount.count )
+                            .Add( "format", usageCount.format )
+                            .Add( "subdivisionLevel", usageCount.subdivisionLevel );
+                    }
                 }
-                usageCountsBuilder.End();
 
                 infoBuilder
                     .Add( "data", m_pStringSerializer->GetPointer( info.data.hostAddress ) )
