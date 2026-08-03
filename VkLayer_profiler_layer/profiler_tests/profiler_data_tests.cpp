@@ -44,6 +44,8 @@ void ExpectPNextChainEqual(
             const auto* pActualStructure =
                 Profiler::PNextChain( pActual )
                     .Find<VkAccelerationStructureGeometryMicromapDataKHR>( VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR );
+
+            ASSERT_NE( nullptr, pActualStructure );
             ExpectStructureEqual( *pExpectedStructure, *pActualStructure );
             break;
         }
