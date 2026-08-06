@@ -20,6 +20,16 @@
 
 #include "profiler_data.h"
 
+template<typename T, typename = void>
+struct HasPNext : std::false_type
+{
+};
+
+template<typename T>
+struct HasPNext<T, std::void_t<decltype( &T::pNext )>> : std::true_type
+{
+};
+
 template<typename T>
 constexpr size_t GetPNextChainSize( const T* pStructure )
 {
@@ -80,6 +90,11 @@ void CopyStructureTo( T* pDst, const T* pSrc, std::byte** ppNext )
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( T ) );
+
+        if constexpr( HasPNext<T>::value )
+        {
+            pDst->pNext = nullptr;
+        }
     }
 }
 
@@ -308,7 +323,7 @@ void CopyStructureTo( VkPipelineVertexInputStateCreateInfo* pDst, const VkPipeli
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( VkPipelineVertexInputStateCreateInfo ) );
-        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
         pDst->pVertexBindingDescriptions = CopyStructureArray( pSrc->pVertexBindingDescriptions, pSrc->vertexBindingDescriptionCount, ppNext );
         pDst->pVertexAttributeDescriptions = CopyStructureArray( pSrc->pVertexAttributeDescriptions, pSrc->vertexAttributeDescriptionCount, ppNext );
     }
@@ -320,7 +335,7 @@ void CopyStructureTo( VkPipelineViewportStateCreateInfo* pDst, const VkPipelineV
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( VkPipelineViewportStateCreateInfo ) );
-        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
         pDst->pViewports = CopyStructureArray( pSrc->pViewports, pSrc->viewportCount, ppNext );
         pDst->pScissors = CopyStructureArray( pSrc->pScissors, pSrc->scissorCount, ppNext );
     }
@@ -332,7 +347,7 @@ void CopyStructureTo( VkPipelineMultisampleStateCreateInfo* pDst, const VkPipeli
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( VkPipelineMultisampleStateCreateInfo ) );
-        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
         pDst->pSampleMask = CopyStructure( pSrc->pSampleMask, ppNext );
     }
 }
@@ -343,7 +358,7 @@ void CopyStructureTo( VkPipelineColorBlendStateCreateInfo* pDst, const VkPipelin
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( VkPipelineColorBlendStateCreateInfo ) );
-        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
         pDst->pAttachments = CopyStructureArray( pSrc->pAttachments, pSrc->attachmentCount, ppNext );
     }
 }
@@ -354,7 +369,7 @@ void CopyStructureTo( VkPipelineDynamicStateCreateInfo* pDst, const VkPipelineDy
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( VkPipelineDynamicStateCreateInfo ) );
-        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
         pDst->pDynamicStates = CopyStructureArray( pSrc->pDynamicStates, pSrc->dynamicStateCount, ppNext );
     }
 }
@@ -365,7 +380,7 @@ void CopyStructureTo( VkRayTracingPipelineInterfaceCreateInfoKHR* pDst, const Vk
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( VkRayTracingPipelineInterfaceCreateInfoKHR ) );
-        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
     }
 }
 
@@ -375,7 +390,7 @@ void CopyStructureTo( VkGraphicsPipelineCreateInfo* pDst, const VkGraphicsPipeli
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( VkGraphicsPipelineCreateInfo ) );
-        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
         pDst->stageCount = 0;
         pDst->pStages = nullptr;
         pDst->pVertexInputState = CopyStructure( pSrc->pVertexInputState, ppNext );
@@ -396,7 +411,7 @@ void CopyStructureTo( VkRayTracingPipelineCreateInfoKHR* pDst, const VkRayTracin
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( VkRayTracingPipelineCreateInfoKHR ) );
-        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
         pDst->stageCount = 0;
         pDst->pStages = nullptr;
         pDst->pGroups = CopyStructureArray( pSrc->pGroups, pSrc->groupCount, ppNext );
@@ -412,7 +427,7 @@ void CopyStructureTo( VkAccelerationStructureBuildGeometryInfoKHR* pDst, const V
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( VkAccelerationStructureBuildGeometryInfoKHR ) );
-        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
         pDst->pGeometries = CopyStructureArray( pSrc->pGeometries, pSrc->geometryCount, ppNext );
         pDst->ppGeometries = CopyStructureArray( pSrc->ppGeometries, pSrc->geometryCount, ppNext );
     }
@@ -424,7 +439,7 @@ void CopyStructureTo( VkMicromapBuildInfoEXT* pDst, const VkMicromapBuildInfoEXT
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( VkMicromapBuildInfoEXT ) );
-        pDst->pNext = CopyPNextChain( pSrc->pNext, ppNext );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
         pDst->pUsageCounts = CopyStructureArray( pSrc->pUsageCounts, pSrc->usageCountsCount, ppNext );
         pDst->ppUsageCounts = CopyStructureArray( pSrc->ppUsageCounts, pSrc->usageCountsCount, ppNext );
     }
