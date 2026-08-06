@@ -2543,6 +2543,8 @@ namespace Profiler
             return "Bottom-level";
         case VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR:
             return "Generic";
+        case VK_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_KHR:
+            return "Opacity Micromap";
         }
         return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
     }
@@ -2556,20 +2558,22 @@ namespace Profiler
 
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetAccelerationStructureTypeFlagNames(
-        VkFlags typeFlags,
+        VkProfilerAccelerationStructureTypeFlagsEXT typeFlags,
         const char* separator ) const
     {
         FlagsStringBuilder builder;
         builder.m_pSeparator = separator;
 
-        if( typeFlags & ( 1U << VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR ) )
+        if( typeFlags & VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_BIT_EXT )
             builder.AddFlag( "Top-level" );
-        if( typeFlags & ( 1U << VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR ) )
+        if( typeFlags & VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_BIT_EXT )
             builder.AddFlag( "Bottom-level" );
-        if( typeFlags & ( 1U << VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR ) )
+        if( typeFlags & VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_GENERIC_BIT_EXT )
             builder.AddFlag( "Generic" );
+        if( typeFlags & VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_BIT_EXT )
+            builder.AddFlag( "Opacity Micromap" );
 
-        builder.AddUnknownFlags( typeFlags, 3 );
+        builder.AddUnknownFlags( typeFlags, 4 );
 
         return builder.BuildString();
     }
@@ -2588,19 +2592,31 @@ namespace Profiler
         FlagsStringBuilder builder;
 
         if( flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR )
-            builder.AddFlag( "Allow update (1)" );
+            builder.AddFlag( "Allow update" );
         if( flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR )
-            builder.AddFlag( "Allow compaction (2)" );
+            builder.AddFlag( "Allow compaction" );
         if( flags & VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR )
-            builder.AddFlag( "Prefer fast trace (4)" );
+            builder.AddFlag( "Prefer fast trace" );
         if( flags & VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR )
-            builder.AddFlag( "Prefer fast build (8)" );
+            builder.AddFlag( "Prefer fast build" );
         if( flags & VK_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_KHR )
-            builder.AddFlag( "Low memory (16)" );
+            builder.AddFlag( "Low memory" );
         if( flags & VK_BUILD_ACCELERATION_STRUCTURE_MOTION_BIT_NV )
-            builder.AddFlag( "Motion (32)" );
+            builder.AddFlag( "Motion" );
+        if( flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_OPACITY_MICROMAP_UPDATE_BIT_KHR )
+            builder.AddFlag( "Allow opacity micromap update" );
+        if( flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DISABLE_OPACITY_MICROMAPS_BIT_KHR )
+            builder.AddFlag( "Allow disable opacity micromaps" );
+        if( flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_OPACITY_MICROMAP_DATA_UPDATE_BIT_EXT )
+            builder.AddFlag( "Allow opacity micromap data update" );
+        if( flags & VK_BUILD_ACCELERATION_STRUCTURE_MICROMAP_LOSSY_BIT_KHR )
+            builder.AddFlag( "Micromap lossy" );
+        if( flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_BIT_KHR )
+            builder.AddFlag( "Allow data access" );
+        if( flags & VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_CLUSTER_OPACITY_MICROMAPS_BIT_NV )
+            builder.AddFlag( "Allow cluster opacity micromaps" );
 
-        builder.AddUnknownFlags( flags, 6 );
+        builder.AddUnknownFlags( flags, 12 );
 
         return builder.BuildString();
     }
@@ -2760,6 +2776,8 @@ namespace Profiler
             return "AABBs";
         case VK_GEOMETRY_TYPE_INSTANCES_KHR:
             return "Instances";
+        case VK_GEOMETRY_TYPE_MICROMAP_KHR:
+            return "Micromap";
         }
         return fmt::format( "Unknown type ({})", static_cast<uint32_t>( type ) );
     }
