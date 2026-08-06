@@ -20,6 +20,16 @@
 
 #include "profiler_data.h"
 
+template<typename T, typename = void>
+struct HasPNext : std::false_type
+{
+};
+
+template<typename T>
+struct HasPNext<T, std::void_t<decltype( &T::pNext )>> : std::true_type
+{
+};
+
 template<typename T>
 constexpr size_t GetPNextChainSize( const T* pStructure )
 {
@@ -80,6 +90,11 @@ void CopyStructureTo( T* pDst, const T* pSrc, std::byte** ppNext )
     if( pSrc != nullptr )
     {
         memcpy( pDst, pSrc, sizeof( T ) );
+
+        if constexpr( HasPNext<T>::value )
+        {
+            pDst->pNext = nullptr;
+        }
     }
 }
 
