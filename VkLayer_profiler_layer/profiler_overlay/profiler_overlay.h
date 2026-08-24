@@ -41,6 +41,7 @@
 
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
+#include "profiler_ext/VkProfilerCustomFlagsEXT.h"
 
 struct ImGuiContext;
 struct ImPlotContext;
@@ -248,7 +249,6 @@ namespace Profiler
         VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
         VkImageUsageFlags m_ResourceBrowserImageUsageFilter;
         VkFlags m_ResourceBrowserAccelerationStructureTypeFilter;
-        VkFlags m_ResourceBrowserMicromapTypeFilter;
         bool m_ResourceBrowserShowDifferences;
 
         VkBufferHandle m_ResourceInspectorBuffer;
@@ -456,7 +456,7 @@ namespace Profiler
 
         std::string GetDefaultResourceListFileName() const;
         void UpdateResourceListExporter();
-        void SaveResourceListToFile( const std::string&, const std::shared_ptr<DeviceProfilerFrameData>&, const std::string&, VkBufferUsageFlags, VkImageUsageFlags, VkFlags, VkFlags );
+        void SaveResourceListToFile( const std::string&, const std::shared_ptr<DeviceProfilerFrameData>&, const std::string&, VkBufferUsageFlags, VkImageUsageFlags, VkProfilerAccelerationStructureTypeFlagsEXT );
 
         // Pipeline inspector helpers
         void Inspect( const DeviceProfilerPipeline& );

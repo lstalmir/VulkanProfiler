@@ -22,6 +22,8 @@
 #include <vulkan/vulkan.h>
 #include <string>
 
+#include "profiler_ext/VkProfilerCustomFlagsEXT.h"
+
 namespace Profiler
 {
     class DeviceProfilerFrontend;
@@ -99,7 +101,7 @@ namespace Profiler
 
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;
-        std::string GetAccelerationStructureTypeFlagNames( VkFlags flags, const char* separator = DefaultFlagsSeparator ) const;
+        std::string GetAccelerationStructureTypeFlagNames( VkProfilerAccelerationStructureTypeFlagsEXT flags, const char* separator = DefaultFlagsSeparator ) const;
         std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;
         std::string GetBuildAccelerationStructureModeName( VkBuildAccelerationStructureModeKHR mode ) const;
 

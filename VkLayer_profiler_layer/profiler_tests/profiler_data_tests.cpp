@@ -38,6 +38,17 @@ void ExpectPNextChainEqual(
     {
         switch( structure.sType )
         {
+        case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
+        {
+            const auto* pExpectedStructure = reinterpret_cast<const VkAccelerationStructureGeometryMicromapDataKHR*>( &structure );
+            const auto* pActualStructure =
+                Profiler::PNextChain( pActual )
+                    .Find<VkAccelerationStructureGeometryMicromapDataKHR>( VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR );
+
+            ASSERT_NE( nullptr, pActualStructure );
+            ExpectStructureEqual( *pExpectedStructure, *pActualStructure );
+            break;
+        }
         default:
         {
             break;
@@ -174,6 +185,66 @@ namespace Profiler
         VkAccelerationStructureBuildGeometryInfoKHR buildInfo = {};
         buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
         buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+        buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+        buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+        buildInfo.dstAccelerationStructure = VkObjectTraits<VkAccelerationStructureKHR>::GetObjectHandleAsVulkanHandle( 0x12345678 );
+        buildInfo.geometryCount = 1;
+        buildInfo.pGeometries = &geometry;
+
+        VkAccelerationStructureBuildRangeInfoKHR rangeInfo = {};
+        rangeInfo.primitiveCount = 1;
+        rangeInfo.primitiveOffset = 256;
+        rangeInfo.transformOffset = 1024;
+
+        VkAccelerationStructureBuildRangeInfoKHR* pRangeInfo = &rangeInfo;
+
+        DeviceProfilerDrawcallBuildAccelerationStructuresPayload payload = {};
+        payload.m_InfoCount = 1;
+        payload.m_pInfos = &buildInfo;
+        payload.m_ppRanges = &pRangeInfo;
+
+        DeviceProfilerDrawcallBuildAccelerationStructuresPayload copiedPayload = {};
+        copiedPayload.CopyDynamicAllocations( payload );
+
+        ASSERT_NE( nullptr, copiedPayload.m_pInfos );
+        ExpectStructureEqual( *payload.m_pInfos, *copiedPayload.m_pInfos );
+
+        ASSERT_NE( nullptr, copiedPayload.m_ppRanges );
+        for( uint32_t i = 0; i < payload.m_InfoCount; ++i )
+        {
+            const uint32_t geometryCount = payload.m_pInfos[i].geometryCount;
+            for( uint32_t j = 0; j < geometryCount; ++j )
+            {
+                ExpectStructureEqual( payload.m_ppRanges[i][j], copiedPayload.m_ppRanges[i][j] );
+            }
+        }
+
+        copiedPayload.FreeDynamicAllocations();
+    }
+
+    TEST( ProfilerDataULT, CopyAccelerationStructureBuildInfosWithMicromapData )
+    {
+        VkMicromapUsageKHR usageCount = {};
+        usageCount.count = 1;
+        usageCount.format = VK_OPACITY_MICROMAP_FORMAT_2_STATE_KHR;
+        usageCount.subdivisionLevel = 2;
+
+        VkAccelerationStructureGeometryMicromapDataKHR micromapData = {};
+        micromapData.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR;
+        micromapData.usageCountsCount = 1;
+        micromapData.pUsageCounts = &usageCount;
+        micromapData.data = 0x98765432;
+        micromapData.triangleArray = 0x87654321;
+        micromapData.triangleArrayStride = 64;
+
+        VkAccelerationStructureGeometryKHR geometry = {};
+        geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+        geometry.pNext = &micromapData;
+        geometry.geometryType = VK_GEOMETRY_TYPE_MICROMAP_KHR;
+
+        VkAccelerationStructureBuildGeometryInfoKHR buildInfo = {};
+        buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+        buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_KHR;
         buildInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
         buildInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
         buildInfo.dstAccelerationStructure = VkObjectTraits<VkAccelerationStructureKHR>::GetObjectHandleAsVulkanHandle( 0x12345678 );

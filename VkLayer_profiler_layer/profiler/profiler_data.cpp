@@ -271,6 +271,34 @@ size_t GetStructureSize( const VkRayTracingPipelineCreateInfoKHR* pStructure )
 }
 
 template<>
+size_t GetStructureSize( const VkAccelerationStructureGeometryMicromapDataKHR* pStructure )
+{
+    if( pStructure != nullptr )
+    {
+        return sizeof( VkAccelerationStructureGeometryMicromapDataKHR ) +
+               GetStructureArraySize( pStructure->pUsageCounts, pStructure->usageCountsCount ) +
+               GetStructureArraySize( pStructure->ppUsageCounts, pStructure->usageCountsCount );
+    }
+    return 0;
+}
+
+template<>
+size_t GetPNextChainSize( const VkAccelerationStructureGeometryKHR* pStructure )
+{
+    size_t size = 0;
+    for( const auto& structure : Profiler::PNextIterator( pStructure->pNext ) )
+    {
+        switch( structure.sType )
+        {
+        case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
+            size += GetStructureSize( reinterpret_cast<const VkAccelerationStructureGeometryMicromapDataKHR*>( &structure ) );
+            break;
+        }
+    }
+    return size;
+}
+
+template<>
 size_t GetStructureSize( const VkAccelerationStructureGeometryKHR* pStructure )
 {
     if( pStructure != nullptr )
@@ -315,6 +343,27 @@ size_t GetStructureSize( const VkMicromapBuildInfoEXT* pStructure )
                GetStructureArraySize( pStructure->ppUsageCounts, pStructure->usageCountsCount );
     }
     return 0;
+}
+
+template<>
+void* CopyPNextChain( const VkAccelerationStructureGeometryKHR* pStructure, std::byte** ppNext )
+{
+    VkBaseOutStructure copied = {};
+    VkBaseOutStructure* pLast = &copied;
+    if( pStructure != nullptr )
+    {
+        for( const auto& structure : Profiler::PNextIterator( pStructure->pNext ) )
+        {
+            switch( structure.sType )
+            {
+            case VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_MICROMAP_DATA_KHR:
+                CopyStructureToPNextChain<VkAccelerationStructureGeometryMicromapDataKHR>( &pLast, &structure, ppNext );
+                break;
+            }
+        }
+        pLast->pNext = nullptr;
+    }
+    return copied.pNext;
 }
 
 template<>
@@ -430,6 +479,28 @@ void CopyStructureTo( VkAccelerationStructureBuildGeometryInfoKHR* pDst, const V
         pDst->pNext = CopyPNextChain( pSrc, ppNext );
         pDst->pGeometries = CopyStructureArray( pSrc->pGeometries, pSrc->geometryCount, ppNext );
         pDst->ppGeometries = CopyStructureArray( pSrc->ppGeometries, pSrc->geometryCount, ppNext );
+    }
+}
+
+template<>
+void CopyStructureTo( VkAccelerationStructureGeometryMicromapDataKHR* pDst, const VkAccelerationStructureGeometryMicromapDataKHR* pSrc, std::byte** ppNext )
+{
+    if( pSrc != nullptr )
+    {
+        memcpy( pDst, pSrc, sizeof( VkAccelerationStructureGeometryMicromapDataKHR ) );
+        pDst->pNext = nullptr; // Part of VkAccelerationStructureGeometryKHR pNext chain
+        pDst->pUsageCounts = CopyStructureArray( pSrc->pUsageCounts, pSrc->usageCountsCount, ppNext );
+        pDst->ppUsageCounts = CopyStructureArray( pSrc->ppUsageCounts, pSrc->usageCountsCount, ppNext );
+    }
+}
+
+template<>
+void CopyStructureTo( VkAccelerationStructureGeometryKHR* pDst, const VkAccelerationStructureGeometryKHR* pSrc, std::byte** ppNext )
+{
+    if( pSrc != nullptr )
+    {
+        memcpy( pDst, pSrc, sizeof( VkAccelerationStructureGeometryKHR ) );
+        pDst->pNext = CopyPNextChain( pSrc, ppNext );
     }
 }
 
