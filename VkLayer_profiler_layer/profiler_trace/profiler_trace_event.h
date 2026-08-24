@@ -19,10 +19,12 @@
 // SOFTWARE.
 
 #pragma once
+#include "profiler/profiler_helpers.h"
 #include "profiler_helpers/profiler_json_builder.h"
 #include "profiler_helpers/profiler_time_helpers.h"
 #include <vulkan/vulkan.h>
 #include <functional>
+#include <variant>
 
 #include "profiler_ext/VkProfilerEXT.h"
 
@@ -74,7 +76,6 @@ namespace Profiler
         std::string_view m_Name;
         std::string_view m_Category;
         Microseconds     m_Timestamp;
-        VkQueue          m_Queue;
         BuildCallback    m_Color;
         BuildCallback    m_Args;
 
@@ -86,136 +87,87 @@ namespace Profiler
             std::string_view name,
             std::string_view category,
             TimestampType timestamp,
-            VkQueue queue,
             BuildCallback color = {},
             BuildCallback args = {} )
             : m_Phase( phase )
             , m_Name( name )
             , m_Category( category )
             , m_Timestamp( std::chrono::duration_cast<decltype( m_Timestamp )>( timestamp ) )
-            , m_Queue( queue )
             , m_Color( std::move( color ) )
             , m_Args( std::move( args ) )
         {
         }
 
         virtual void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const;
+
+        virtual std::string GetTrackName() const = 0;
     };
 
     /*************************************************************************\
 
     Structure:
-        TraceInstantEvent
+        TraceHostEvent
 
     Description:
-        Instant events contain additional 's' field with scope of the event.
-
-    See:
-        https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
+        Base class for all events that are generated on the host (CPU).
 
     \*************************************************************************/
-    struct TraceInstantEvent : TraceEvent
+    struct TraceHostEvent : TraceEvent
     {
-        enum class Scope
-        {
-            eGlobal = 'g',
-            eProcess = 'p',
-            eThread = 't',
-        };
+        uint64_t m_ThreadId;
 
-        Scope m_Scope;
-
-        TraceInstantEvent() = default;
+        TraceHostEvent() = default;
 
         template<typename TimestampType>
-        inline TraceInstantEvent(
-            Scope scope,
-            std::string_view name,
-            std::string_view category,
-            TimestampType timestamp,
-            VkQueue queue,
-            BuildCallback color = {},
-            BuildCallback args = {} )
-            : TraceEvent( Phase::eInstant, name, category, timestamp, queue, std::move( color ), std::move( args ) )
-            , m_Scope( scope )
-        {
-        }
-
-        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
-    };
-
-    /*************************************************************************\
-
-    Structure:
-        TraceAsyncEvent
-
-    Description:
-        Async events contain additional 'id' field with scope of the event.
-
-    See:
-        https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
-
-    \*************************************************************************/
-    struct TraceAsyncEvent : TraceEvent
-    {
-        uint64_t m_Id;
-
-        TraceAsyncEvent() = default;
-
-        template<typename TimestampType>
-        inline TraceAsyncEvent(
+        inline TraceHostEvent(
             Phase phase,
-            uint64_t id,
+            uint64_t threadId,
             std::string_view name,
             std::string_view category,
             TimestampType timestamp,
-            VkQueue queue,
             BuildCallback color = {},
             BuildCallback args = {} )
-            : TraceEvent( phase, name, category, timestamp, queue, std::move( color ), std::move( args ) )
-            , m_Id( id )
+            : TraceEvent( phase, name, category, timestamp, std::move( color ), std::move( args ) )
+            , m_ThreadId( threadId )
         {
-            assert( (m_Phase == Phase::eAsyncStart)
-                || (m_Phase == Phase::eAsyncEnd)
-                || (m_Phase == Phase::eAsyncInstant) );
         }
 
-        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
+        std::string GetTrackName() const override;
     };
 
     /*************************************************************************\
 
     Structure:
-        TraceCompleteEvent
+        TraceDeviceEvent
 
     Description:
-        Complete events contain additional 'dur' field with duration of the event.
-
-    See:
-        https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
+        Base class for all events that are generated on the device (GPU).
 
     \*************************************************************************/
-    struct TraceCompleteEvent : TraceEvent
+    struct TraceDeviceEvent : TraceEvent
     {
-        Microseconds m_Duration;
+        VkQueue  m_Queue;
+        uint64_t m_Track;
 
-        TraceCompleteEvent() = default;
+        TraceDeviceEvent() = default;
 
-        template<typename TimestampType, typename DurationType>
-        inline TraceCompleteEvent(
+        template<typename TimestampType>
+        inline TraceDeviceEvent(
+            Phase phase,
+            VkQueue queue,
+            uint64_t track,
             std::string_view name,
             std::string_view category,
             TimestampType timestamp,
-            DurationType duration,
-            VkQueue queue,
             BuildCallback color = {},
             BuildCallback args = {} )
-            : TraceEvent( Phase::eComplete, name, category, timestamp, queue, std::move( color ), std::move( args ) )
-            , m_Duration( std::chrono::duration_cast<decltype( m_Duration )>( duration ) )
+            : TraceEvent( phase, name, category, timestamp, std::move( color ), std::move( args ) )
+            , m_Queue( queue )
+            , m_Track( track )
         {
         }
 
-        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
+        std::string GetTrackName() const override;
     };
 
     /*************************************************************************\
@@ -240,13 +192,13 @@ namespace Profiler
 
         template<typename TimestampType>
         inline TraceCounterEvent(
+            std::string_view name,
             TimestampType timestamp,
-            VkQueue queue,
             size_t counterCount,
             const VkProfilerPerformanceCounterProperties2EXT* pCounterProperties,
             const VkProfilerPerformanceCounterResultEXT* pCounterResults,
             BuildCallback color = {} )
-            : TraceEvent( Phase::eCounter, "", "", timestamp, queue, std::move( color ) )
+            : TraceEvent( Phase::eCounter, name, "Counters", timestamp, std::move( color ) )
             , m_CounterCount( counterCount )
             , m_pCounterProperties( pCounterProperties )
             , m_pCounterResults( pCounterResults )
@@ -254,6 +206,8 @@ namespace Profiler
         }
 
         void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
+
+        std::string GetTrackName() const override;
     };
 
     /*************************************************************************\
@@ -266,53 +220,53 @@ namespace Profiler
         buffers.
 
     \*************************************************************************/
-    struct DebugTraceEvent : TraceEvent
+    struct TraceDebugEvent : TraceEvent
     {
-        DebugTraceEvent() = default;
+        TraceDebugEvent() = default;
 
         template<typename TimestampType>
-        inline DebugTraceEvent(
+        inline TraceDebugEvent(
             Phase phase,
             std::string_view name,
             TimestampType timestamp,
             BuildCallback color = {},
             BuildCallback args = {} )
-            : TraceEvent( phase, name, "Debug", timestamp, VK_NULL_HANDLE, std::move( color ), std::move( args ) )
+            : TraceEvent( phase, name, "Debug", timestamp, std::move( color ), std::move( args ) )
         {
         }
 
-        void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
+        std::string GetTrackName() const override;
     };
 
     /*************************************************************************\
 
     Structure:
-        ApiTraceEvent
+        TraceMetadataEvent
 
     Description:
-        API trace events mark events that happen only on CPU and don't belong
-        to any queue (even if they submit work to the queue).
+        Metadata trace events provide additional information about the trace,
+        such as labels or annotations, and don't belong to any queue.
 
     \*************************************************************************/
-    struct ApiTraceEvent : TraceEvent
+    struct TraceMetadataEvent : TraceEvent
     {
-        uint32_t m_ThreadId;
-
-        ApiTraceEvent() = default;
-
-        template<typename TimestampType>
-        inline ApiTraceEvent(
-            Phase phase,
-            std::string_view name,
-            uint32_t threadId,
-            TimestampType timestamp,
-            BuildCallback color = {},
-            BuildCallback args = {} )
-            : TraceEvent( phase, name, "API", timestamp, VK_NULL_HANDLE, std::move( color ), std::move( args ) )
-            , m_ThreadId( threadId )
+        enum class MetadataType
         {
-        }
+            eTrackName,
+            eTrackSortIndex
+        };
+
+        MetadataType m_Type;
+        std::string_view m_Track;
+        std::variant<std::string_view, uint32_t> m_Args;
+
+        TraceMetadataEvent( MetadataType type, std::string_view track, std::string_view stringValue );
+        TraceMetadataEvent( MetadataType type, std::string_view track, uint32_t intValue );
 
         void Serialize( DeviceProfilerJsonObjectBuilder& builder ) const override;
+
+        std::string GetTrackName() const override;
+
+        static std::string_view GetEventName( MetadataType type );
     };
 }
