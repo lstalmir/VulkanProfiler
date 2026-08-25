@@ -61,15 +61,18 @@ add_library (metrics-discovery INTERFACE)
 target_include_directories (metrics-discovery
     INTERFACE metrics-discovery/inc/common/instrumentation/api)
 
+# intel/metrics-library
+add_library (metrics-library INTERFACE)
+
 if (UNIX)
-    function (build_metrics_discovery)
+    function (build_intel_metrics_libraries)
         # libdrm development package is required to build the metrics library.
         find_library (libdrm drm)
         if (${libdrm} STREQUAL libdrm-NOTFOUND)
             message (WARNING "libdrm not found - Intel metrics-discovery library will not be included in the package")
             return ()
         endif ()
-        # Metrics-discovery supports only release and debug build types.
+        # Metrics-discovery and metrics-library support only release and debug build types.
         if (CMAKE_BUILD_TYPE)
             string (TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
         endif ()
@@ -77,14 +80,20 @@ if (UNIX)
             set (CMAKE_BUILD_TYPE "release")
         endif ()
         add_subdirectory (metrics-discovery)
+        add_subdirectory (metrics-library)
     endfunction ()
 
-    build_metrics_discovery()
+    build_intel_metrics_libraries()
 
     # Include the library in the installed package.
     if (TARGET metrics_discovery)
         add_dependencies (metrics-discovery metrics_discovery)
         list (APPEND _PROFILER_INSTALL_EXTERNAL_TARGETS metrics_discovery)
+    endif ()
+
+    if (TARGET metrics_library)
+        add_dependencies (metrics-library metrics_library)
+        list (APPEND _PROFILER_INSTALL_EXTERNAL_TARGETS metrics_library)
     endif ()
 endif ()
 
