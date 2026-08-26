@@ -174,9 +174,10 @@ namespace Profiler
             // Write file header.
             m_OutputFile << '{';
             m_OutputFile << "\"displayTimeUnit\":\"ns\"," << lf;
-            m_OutputFile << " \"otherData\":{}," << lf;
+            m_OutputFile << " \"otherData\":" << BuildMetadataObject() << ',' << lf;
             m_OutputFile << " \"traceEvents\":[" << eof;
 
+            m_JsonBuilder.clear();
             m_OutputFileEmpty = true;
         }
         catch( const std::ios_base::failure& )
@@ -927,6 +928,53 @@ namespace Profiler
         builder.End();
 
         m_JsonBuilder.append_raw( ",\n" );
+    }
+
+    /*************************************************************************\
+
+    Function:
+        BuildMetadataObject
+
+    \*************************************************************************/
+    std::string_view DeviceProfilerTraceSerializer::BuildMetadataObject()
+    {
+        DeviceProfilerJsonObjectBuilder metadataBuilder( m_JsonBuilder );
+
+        // Application info.
+        {
+            auto applicationInfoBuilder = metadataBuilder.Add( "applicationInfo" );
+            m_pJsonSerializer->WriteApplicationInfo(
+                applicationInfoBuilder,
+                m_Frontend.GetApplicationInfo() );
+        }
+
+        // Physical device properties.
+        {
+            auto physicalDevicePropertiesBuilder = metadataBuilder.Add( "physicalDeviceProperties" );
+            m_pJsonSerializer->WritePhysicalDeviceProperties(
+                physicalDevicePropertiesBuilder,
+                m_Frontend.GetPhysicalDeviceProperties() );
+        }
+
+        // Enabled instance extensions.
+        {
+            auto enabledInstanceExtensionsBuilder = metadataBuilder.Add( "enabledInstanceExtensions" );
+            m_pJsonSerializer->WriteEnabledExtensions(
+                enabledInstanceExtensionsBuilder,
+                m_Frontend.GetEnabledInstanceExtensions() );
+        }
+
+        // Enabled device extensions.
+        {
+            auto enabledDeviceExtensionsBuilder = metadataBuilder.Add( "enabledDeviceExtensions" );
+            m_pJsonSerializer->WriteEnabledExtensions(
+                enabledDeviceExtensionsBuilder,
+                m_Frontend.GetEnabledDeviceExtensions() );
+        }
+
+        metadataBuilder.End();
+
+        return m_JsonBuilder.view();
     }
 
     /*************************************************************************\

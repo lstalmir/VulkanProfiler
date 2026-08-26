@@ -44,7 +44,66 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
-        GetCommandArgs
+        WriteApplicationInfo
+
+    Description:
+        Serialize VkApplicationInfo into JSON object.
+
+    \*************************************************************************/
+    void DeviceProfilerJsonSerializer::WriteApplicationInfo( DeviceProfilerJsonValueBuilder& builder, const VkApplicationInfo& appInfo ) const
+    {
+        auto appInfoBuilder = builder.MakeObject();
+        appInfoBuilder
+            .Add( "applicationName", appInfo.pApplicationName )
+            .Add( "applicationVersion", m_pStringSerializer->GetVersion( appInfo.applicationVersion ) )
+            .Add( "engineName", appInfo.pEngineName )
+            .Add( "engineVersion", m_pStringSerializer->GetVersion( appInfo.engineVersion ) )
+            .Add( "apiVersion", m_pStringSerializer->GetVersion( appInfo.apiVersion ) );
+    }
+
+    /*************************************************************************\
+
+    Function:
+        WritePhysicalDeviceProperties
+
+    Description:
+        Serialize VkPhysicalDeviceProperties into JSON object.
+
+    \*************************************************************************/
+    void DeviceProfilerJsonSerializer::WritePhysicalDeviceProperties( DeviceProfilerJsonValueBuilder& builder, const VkPhysicalDeviceProperties& properties ) const
+    {
+        auto propertiesBuilder = builder.MakeObject();
+        propertiesBuilder
+            .Add( "apiVersion", m_pStringSerializer->GetVersion( properties.apiVersion ) )
+            .Add( "driverVersion", m_pStringSerializer->GetVersion( properties.driverVersion ) )
+            .Add( "vendorID", fmt::format( "0x{:04X}", properties.vendorID ) )
+            .Add( "deviceID", fmt::format( "0x{:04X}", properties.deviceID ) )
+            .Add( "deviceType", m_pStringSerializer->GetDeviceTypeName( properties.deviceType ) )
+            .Add( "deviceName", properties.deviceName );
+    }
+
+    /*************************************************************************\
+
+    Function:
+        WriteEnabledExtensions
+
+    Description:
+        Serialize enabled extensions into JSON object.
+
+    \*************************************************************************/
+    void DeviceProfilerJsonSerializer::WriteEnabledExtensions( DeviceProfilerJsonValueBuilder& builder, const std::unordered_set<std::string>& enabledExtensions ) const
+    {
+        auto extensionsBuilder = builder.MakeArray();
+        for( const std::string& extension : enabledExtensions )
+        {
+            extensionsBuilder.Add( extension );
+        }
+    }
+
+    /*************************************************************************\
+
+    Function:
+        WriteCommandArgs
 
     Description:
         Serialize command arguments into JSON object.
@@ -485,7 +544,7 @@ namespace Profiler
     /*************************************************************************\
 
     Function:
-        GetPipelineArgs
+        WritePipelineArgs
 
     Description:
         Serialize pipeline state into JSON object.

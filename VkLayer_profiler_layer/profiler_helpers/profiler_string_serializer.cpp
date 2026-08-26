@@ -816,6 +816,23 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetVersion
+
+    Description:
+        Returns string representation of a version number.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetVersion( uint32_t version ) const
+    {
+        return fmt::format( "{}.{}.{}",
+            VK_VERSION_MAJOR( version ),
+            VK_VERSION_MINOR( version ),
+            VK_VERSION_PATCH( version ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetColorHex
 
     Description:
@@ -868,6 +885,34 @@ namespace Profiler
         }
 
         return fmt::format( "{:.1f} GB", size / static_cast<float>( sizeof( Gigabyte ) ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDeviceTypeName
+
+    Description:
+        Returns string representation of a VkPhysicalDeviceType.
+
+    \***********************************************************************************/
+    std::string DeviceProfilerStringSerializer::GetDeviceTypeName( VkPhysicalDeviceType type ) const
+    {
+        switch( type )
+        {
+        case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+            return "Other";
+        case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+            return "Integrated GPU";
+        case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+            return "Discrete GPU";
+        case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+            return "Virtual GPU";
+        case VK_PHYSICAL_DEVICE_TYPE_CPU:
+            return "CPU";
+        default:
+            return "Unknown";
+        }
     }
 
     /***********************************************************************************\

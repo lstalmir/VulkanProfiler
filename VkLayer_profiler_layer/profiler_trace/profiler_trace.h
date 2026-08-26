@@ -136,6 +136,8 @@ namespace Profiler
 
         void AppendEvent( const TraceEvent& event );
         bool AppendEventsToOutputFile();
+
+        std::string_view BuildMetadataObject();
     };
 
     /*************************************************************************\

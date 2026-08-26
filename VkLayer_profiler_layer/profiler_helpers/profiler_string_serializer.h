@@ -62,10 +62,13 @@ namespace Profiler
         std::string GetPointer( const void* ) const;
         std::string GetBool( VkBool32 ) const;
         std::string GetVec4( const float* ) const;
+        std::string GetVersion( uint32_t ) const;
 
         std::string GetColorHex( const float* ) const;
 
         std::string GetByteSize( VkDeviceSize ) const;
+
+        std::string GetDeviceTypeName( VkPhysicalDeviceType ) const;
 
         std::string GetQueueTypeName( VkQueueFlags ) const;
         std::string GetQueueFlagNames( VkQueueFlags ) const;
