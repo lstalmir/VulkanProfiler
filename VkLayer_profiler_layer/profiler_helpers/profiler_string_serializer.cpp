@@ -41,7 +41,7 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename T, typename U>
-    static std::string MapValueToString( const T& mapping, U key, const fmt::format_string<char>& unknownValueFormat = "Unknown ({})" )
+    static std::string MapValueToString( const T& mapping, U key, const fmt::format_string<uint64_t>& unknownValueFormat = "Unknown ({})" )
     {
         std::string_view name = mapping[key];
         if( !name.empty() )
@@ -940,7 +940,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetGeneralShaderGroupTypeName( VkShaderStageFlagBits stage ) const
     {
-        return MapValueToString( g_scVulkanRayTracingGeneralShaderGroupTypeNames, stage );
+        return std::string( g_scVulkanRayTracingGeneralShaderGroupTypeNames[stage] );
     }
 
     /***********************************************************************************\

@@ -22,30 +22,46 @@
 #include <cstdint>
 #include <string_view>
 
-inline constexpr uint32_t FNV( const char* str, size_t length )
+#define FNV_64_OFFSET_BASIS 0xcbf29ce484222325ull
+#define FNV_64_PRIME 0x100000001b3ull
+
+#define FNV_32_OFFSET_BASIS 0x811c9dc5ul
+#define FNV_32_PRIME 0x1000193ul
+
+inline constexpr uint64_t FNV( const char* str, size_t length )
 {
-    uint32_t hash = 2166136261u;
+    if( !str || length == 0 )
+    {
+        return 0;
+    }
+
+    uint64_t hash = FNV_64_OFFSET_BASIS;
     for( size_t i = 0; i < length; ++i )
     {
-        hash ^= static_cast<uint32_t>( str[i] );
-        hash *= 16777619u;
+        hash ^= static_cast<uint64_t>( str[i] );
+        hash *= FNV_64_PRIME;
     }
     return hash;
 }
 
-inline constexpr uint32_t FNV( const char* str )
+inline constexpr uint64_t FNV( const char* str )
 {
-    uint32_t hash = 2166136261u;
+    if( !str || !*str )
+    {
+        return 0;
+    }
+
+    uint64_t hash = FNV_64_OFFSET_BASIS;
     while( *str )
     {
-        hash ^= static_cast<uint32_t>( *str );
-        hash *= 16777619u;
+        hash ^= static_cast<uint64_t>( *str );
+        hash *= FNV_64_PRIME;
         ++str;
     }
     return hash;
 }
 
-inline constexpr uint32_t FNV( const std::string_view& str )
+inline constexpr uint64_t FNV( const std::string_view& str )
 {
     return FNV( str.data(), str.length() );
 }

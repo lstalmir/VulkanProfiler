@@ -385,6 +385,7 @@
         <Entry Key="VK_LOGIC_OP_EQUIVALENT" Value="Equivalent"/>
         <Entry Key="VK_LOGIC_OP_INVERT" Value="Invert"/>
         <Entry Key="VK_LOGIC_OP_OR_REVERSE" Value="OR (reverse)"/>
+        <Entry Key="VK_LOGIC_OP_COPY_INVERTED" Value="Copy (inverted)"/>
         <Entry Key="VK_LOGIC_OP_OR_INVERTED" Value="OR (inverted)"/>
         <Entry Key="VK_LOGIC_OP_NAND" Value="NAND"/>
         <Entry Key="VK_LOGIC_OP_SET" Value="Set"/>
