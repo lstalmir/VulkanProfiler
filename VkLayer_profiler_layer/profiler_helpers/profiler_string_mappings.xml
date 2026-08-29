@@ -250,8 +250,8 @@
     </Map>
 
     <Map Name="g_scVulkanVertexInputRateNames" KeyType="VkVertexInputRate">
-        <Entry Key="VK_VERTEX_INPUT_RATE_VERTEX" Value="Vertex"/>
-        <Entry Key="VK_VERTEX_INPUT_RATE_INSTANCE" Value="Instance"/>
+        <Entry Key="VK_VERTEX_INPUT_RATE_VERTEX" Value="Per vertex"/>
+        <Entry Key="VK_VERTEX_INPUT_RATE_INSTANCE" Value="Per instance"/>
     </Map>
 
     <Map Name="g_scVulkanPrimitiveTopologyNames" KeyType="VkPrimitiveTopology">
@@ -279,7 +279,7 @@
         <Entry Key="VK_CULL_MODE_NONE" Value="None"/>
         <Entry Key="VK_CULL_MODE_FRONT_BIT" Value="Front"/>
         <Entry Key="VK_CULL_MODE_BACK_BIT" Value="Back"/>
-        <Entry Key="VK_CULL_MODE_FRONT_AND_BACK" Value="Front and back"/>
+        <Entry Key="VK_CULL_MODE_FRONT_AND_BACK" Value="All"/>
     </Map>
 
     <Map Name="g_scVulkanFrontFaceNames" KeyType="VkFrontFace">
@@ -776,7 +776,7 @@
         <Entry Key="VK_GEOMETRY_TYPE_TRIANGLES_KHR" Value="Triangles"/>
         <Entry Key="VK_GEOMETRY_TYPE_AABBS_KHR" Value="AABBs"/>
         <Entry Key="VK_GEOMETRY_TYPE_INSTANCES_KHR" Value="Instances"/>
-        <Entry Key="VK_GEOMETRY_TYPE_MICROMAP_KHR" Value="Opacity micromap"/>
+        <Entry Key="VK_GEOMETRY_TYPE_MICROMAP_KHR" Value="Micromap"/>
     </Map>
 
     <Map Name="g_scVulkanGeometryFlagNames" KeyType="VkGeometryFlagBitsKHR">
