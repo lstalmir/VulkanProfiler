@@ -51,9 +51,11 @@ class StringMappingsGenerator:
 
     def write_map( self, out: io.TextIOBase, map: etree.Element ):
         map_name = map.attrib[ "Name" ]
+        map_key_type = map.attrib[ "KeyType" ]
         map_entries = map.findall( "Entry" )
 
         out.write( "inline constexpr struct {\n" )
+        out.write( "  typedef " + map_key_type + " KeyType;\n" )
         self.write_map_apply( out, map )
         self.write_map_forward_getter( out, map )
         self.write_map_backward_getter( out, map )
