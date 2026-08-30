@@ -34,6 +34,9 @@ endif ()
 # fmtlib/fmt
 add_subdirectory (fmt)
 
+# eliaskosunen/scnlib
+add_subdirectory (scnlib)
+
 # google/farmhash
 add_library (farmhash STATIC
     farmhash/src/farmhash.h

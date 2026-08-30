@@ -41,7 +41,7 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename T, typename U>
-    static std::string MapValueToString( const T& mapping, U key, const fmt::format_string<uint64_t>& unknownValueFormat = "Unknown ({})" )
+    static std::string MapValueToString( const T& mapping, U key )
     {
         std::string_view name = mapping[key];
         if( !name.empty() )
@@ -49,7 +49,7 @@ namespace Profiler
             return std::string( name );
         }
 
-        return fmt::format( unknownValueFormat, static_cast<uint64_t>( key ) );
+        return fmt::format( fmt::format_string<uint64_t>( mapping.GetDefaultFormat() ), static_cast<uint64_t>( key ) );
     }
 
     /***********************************************************************************\
@@ -95,7 +95,7 @@ namespace Profiler
                     stream << separator;
                 }
 
-                stream << "Unknown flag (" << bit << ")";
+                stream << fmt::format( fmt::format_string<uint64_t>( mapping.GetDefaultFormat() ), bit );
                 streamEmpty = false;
             }
         }
@@ -689,7 +689,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetCommandName( const DeviceProfilerDrawcall& drawcall ) const
     {
-        return MapValueToString( g_scProfilerDrawcallTypeNames, drawcall.m_Type, "Unknown command ({})" );
+        return MapValueToString( g_scProfilerDrawcallTypeNames, drawcall.m_Type );
     }
 
     /***********************************************************************************\
@@ -720,15 +720,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetBool( VkBool32 value ) const
     {
-        switch( value )
-        {
-        case VK_TRUE:
-            return "True";
-        case VK_FALSE:
-            return "False";
-        default:
-            return std::to_string( value );
-        }
+        return MapValueToString( g_scVulkanBoolNames, value );
     }
 
     /***********************************************************************************\
@@ -907,7 +899,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetShaderStageName( VkShaderStageFlagBits stage ) const
     {
-        return MapValueToString( g_scVulkanShaderStageNames, stage, "Unknown shader stage ({})" );
+        return MapValueToString( g_scVulkanShaderStageNames, stage );
     }
 
     /***********************************************************************************\
@@ -918,7 +910,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetShortShaderStageName( VkShaderStageFlagBits stage ) const
     {
-        return MapValueToString( g_scVulkanShortShaderStageNames, stage, "{}" );
+        return MapValueToString( g_scVulkanShortShaderStageNames, stage );
     }
 
     /***********************************************************************************\
@@ -1164,7 +1156,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetImageTilingName( VkImageTiling tiling ) const
     {
-        return MapValueToString( g_scVulkanImageTilingNames, tiling, "Unknown tiling ({})" );
+        return MapValueToString( g_scVulkanImageTilingNames, tiling );
     }
 
     /***********************************************************************************\
@@ -1186,7 +1178,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const
     {
-        return MapValueToString( g_scVulkanCopyAccelerationStructureModeNames, mode, "Unknown mode ({})" );
+        return MapValueToString( g_scVulkanCopyAccelerationStructureModeNames, mode );
     }
 
     /***********************************************************************************\
@@ -1197,7 +1189,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const
     {
-        return MapValueToString( g_scVulkanAccelerationStructureTypeNames, type, "Unknown type ({})" );
+        return MapValueToString( g_scVulkanAccelerationStructureTypeNames, type );
     }
 
     /***********************************************************************************\
@@ -1230,7 +1222,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetBuildAccelerationStructureModeName( VkBuildAccelerationStructureModeKHR mode ) const
     {
-        return MapValueToString( g_scVulkanBuildAccelerationStructureModeNames, mode, "Unknown mode ({})" );
+        return MapValueToString( g_scVulkanBuildAccelerationStructureModeNames, mode );
     }
 
     /***********************************************************************************\
@@ -1241,7 +1233,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetCopyMicromapModeName( VkCopyMicromapModeEXT mode ) const
     {
-        return MapValueToString( g_scVulkanCopyMicromapModeNames, mode, "Unknown mode ({})" );
+        return MapValueToString( g_scVulkanCopyMicromapModeNames, mode );
     }
 
     /***********************************************************************************\
@@ -1252,7 +1244,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetMicromapTypeName( VkMicromapTypeEXT type ) const
     {
-        return MapValueToString( g_scVulkanMicromapTypeNames, type, "Unknown type ({})" );
+        return MapValueToString( g_scVulkanMicromapTypeNames, type );
     }
 
     /***********************************************************************************\
@@ -1274,7 +1266,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetBuildMicromapModeName( VkBuildMicromapModeEXT mode ) const
     {
-        return MapValueToString( g_scVulkanBuildMicromapModeNames, mode, "Unknown mode ({})" );
+        return MapValueToString( g_scVulkanBuildMicromapModeNames, mode );
     }
 
     /***********************************************************************************\
@@ -1296,7 +1288,7 @@ namespace Profiler
     \***********************************************************************************/
     std::string DeviceProfilerStringSerializer::GetGeometryTypeName( VkGeometryTypeKHR type ) const
     {
-        return MapValueToString( g_scVulkanGeometryTypeNames, type, "Unknown type ({})" );
+        return MapValueToString( g_scVulkanGeometryTypeNames, type );
     }
 
     /***********************************************************************************\
