@@ -49,7 +49,7 @@ namespace Profiler
         }
 
         auto scanResult = scn::scan<uint64_t>( str,
-            scn::scan_format_string<const std::string_view&, uint64_t>( T::DefaultFormat ) );
+            scn::scan_format_string<const std::string_view&, uint64_t>( mapping.GetDefaultFormat() ) );
 
         if( scanResult )
         {
@@ -71,8 +71,39 @@ namespace Profiler
     template<typename T>
     static typename T::KeyType MapStringToFlags( const T& mapping, const std::string_view& str, const std::string_view& separator )
     {
-        // TODO
-        return typename T::KeyType( 0 );
+        uint64_t flags = 0;
+
+        std::string_view remainingStr = str;
+        while( !remainingStr.empty() )
+        {
+            auto separatorPos = remainingStr.find( separator );
+            auto flagName = remainingStr.substr( 0, separatorPos );
+
+            auto value = mapping[flagName];
+            if( value != typename T::KeyType( -1 ) )
+            {
+                flags |= static_cast<uint64_t>( value );
+            }
+            else
+            {
+                auto scanResult = scn::scan<uint64_t>( flagName,
+                    scn::scan_format_string<const std::string_view&, uint64_t>( mapping.GetDefaultFormat() ) );
+
+                if( scanResult )
+                {
+                    flags |= scanResult->value();
+                }
+            }
+
+            if( separatorPos == std::string_view::npos )
+            {
+                break;
+            }
+
+            remainingStr.remove_prefix( separatorPos + separator.size() );
+        }
+
+        return typename T::KeyType( flags );
     }
 
     /***********************************************************************************\

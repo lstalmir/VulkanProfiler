@@ -49,7 +49,7 @@ namespace Profiler
             return std::string( name );
         }
 
-        return fmt::format( fmt::format_string<uint64_t>( T::DefaultFormat ), static_cast<uint64_t>( key ) );
+        return fmt::format( fmt::format_string<uint64_t>( mapping.GetDefaultFormat() ), static_cast<uint64_t>( key ) );
     }
 
     /***********************************************************************************\
@@ -95,7 +95,7 @@ namespace Profiler
                     stream << separator;
                 }
 
-                stream << "Unknown flag (" << bit << ")";
+                stream << fmt::format( fmt::format_string<uint64_t>( mapping.GetDefaultFormat() ), bit );
                 streamEmpty = false;
             }
         }

@@ -58,9 +58,11 @@ class StringMappingsGenerator:
         out.write( "} // namespace Profiler\n" )
 
     def write_map( self, out: io.TextIOBase, map: StringMapping ):
-        out.write( "inline constexpr struct {\n" )
+        out.write( f"inline constexpr struct {{\n" )
         out.write( "  typedef " + map.key_type + " KeyType;\n" )
-        out.write( f"  static constexpr std::string_view DefaultFormat = \"{map.default_format}\";\n" )
+        out.write( f"  inline constexpr std::string_view GetDefaultFormat() const {{\n" )
+        out.write( f"    return \"{map.default_format}\";\n" )
+        out.write( "  }\n" )
         self.write_map_apply( out, map )
         self.write_map_forward_getter( out, map )
         self.write_map_backward_getter( out, map )
