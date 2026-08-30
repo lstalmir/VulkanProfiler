@@ -40,10 +40,7 @@ namespace Profiler
 
     \***********************************************************************************/
     template<typename T>
-    static typename T::KeyType MapStringToValue(
-        const T& mapping,
-        const std::string_view& str,
-        const scn::scan_format_string<const std::string_view&, uint64_t>& unknownValueFormat = "Unknown ({})" )
+    static typename T::KeyType MapStringToValue( const T& mapping, const std::string_view& str )
     {
         auto value = mapping[str];
         if( value != typename T::KeyType( -1 ) )
@@ -51,7 +48,9 @@ namespace Profiler
             return value;
         }
 
-        auto scanResult = scn::scan<uint64_t>( str, unknownValueFormat );
+        auto scanResult = scn::scan<uint64_t>( str,
+            scn::scan_format_string<const std::string_view&, uint64_t>( T::DefaultFormat ) );
+
         if( scanResult )
         {
             return typename T::KeyType( scanResult->value() );
@@ -101,7 +100,7 @@ namespace Profiler
     \***********************************************************************************/
     DeviceProfilerDrawcallType DeviceProfilerStringParser::GetCommandType( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scProfilerDrawcallTypeNames, str, "Unknown command ({})" );
+        return MapStringToValue( g_scProfilerDrawcallTypeNames, str );
     }
 
     /***********************************************************************************\
@@ -134,21 +133,7 @@ namespace Profiler
     \***********************************************************************************/
     VkBool32 DeviceProfilerStringParser::GetBool( const std::string_view& str ) const
     {
-        switch( FNV( str ) )
-        {
-        case FNV( "True" ):
-            return VK_TRUE;
-        case FNV( "False" ):
-            return VK_FALSE;
-        }
-
-        VkBool32 value = VK_FALSE;
-        if( std::from_chars( str.data(), str.data() + str.size(), value ).ec == std::errc() )
-        {
-            return value;
-        }
-
-        return VK_FALSE;
+        return MapStringToValue( g_scVulkanBoolNames, str );
     }
 
     /***********************************************************************************\
@@ -292,7 +277,7 @@ namespace Profiler
     \***********************************************************************************/
     VkShaderStageFlagBits DeviceProfilerStringParser::GetShaderStage( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scVulkanShaderStageNames, str, "Unknown shader stage ({})" );
+        return MapStringToValue( g_scVulkanShaderStageNames, str );
     }
 
     /***********************************************************************************\
@@ -303,7 +288,7 @@ namespace Profiler
     \***********************************************************************************/
     VkShaderStageFlagBits DeviceProfilerStringParser::GetShortShaderStage( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scVulkanShortShaderStageNames, str, "{}" );
+        return MapStringToValue( g_scVulkanShortShaderStageNames, str );
     }
 
     /***********************************************************************************\
@@ -547,7 +532,7 @@ namespace Profiler
     \***********************************************************************************/
     VkImageTiling DeviceProfilerStringParser::GetImageTiling( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scVulkanImageTilingNames, str, "Unknown tiling ({})" );
+        return MapStringToValue( g_scVulkanImageTilingNames, str );
     }
 
     /***********************************************************************************\
@@ -569,7 +554,7 @@ namespace Profiler
     \***********************************************************************************/
     VkCopyAccelerationStructureModeKHR DeviceProfilerStringParser::GetCopyAccelerationStructureMode( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scVulkanCopyAccelerationStructureModeNames, str, "Unknown mode ({})" );
+        return MapStringToValue( g_scVulkanCopyAccelerationStructureModeNames, str );
     }
 
     /***********************************************************************************\
@@ -580,7 +565,7 @@ namespace Profiler
     \***********************************************************************************/
     VkAccelerationStructureTypeKHR DeviceProfilerStringParser::GetAccelerationStructureType( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scVulkanAccelerationStructureTypeNames, str, "Unknown type ({})" );
+        return MapStringToValue( g_scVulkanAccelerationStructureTypeNames, str );
     }
 
     /***********************************************************************************\
@@ -613,7 +598,7 @@ namespace Profiler
     \***********************************************************************************/
     VkBuildAccelerationStructureModeKHR DeviceProfilerStringParser::GetBuildAccelerationStructureMode( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scVulkanBuildAccelerationStructureModeNames, str, "Unknown mode ({})" );
+        return MapStringToValue( g_scVulkanBuildAccelerationStructureModeNames, str );
     }
 
     /***********************************************************************************\
@@ -624,7 +609,7 @@ namespace Profiler
     \***********************************************************************************/
     VkCopyMicromapModeEXT DeviceProfilerStringParser::GetCopyMicromapMode( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scVulkanCopyMicromapModeNames, str, "Unknown mode ({})" );
+        return MapStringToValue( g_scVulkanCopyMicromapModeNames, str );
     }
 
     /***********************************************************************************\
@@ -635,7 +620,7 @@ namespace Profiler
     \***********************************************************************************/
     VkMicromapTypeEXT DeviceProfilerStringParser::GetMicromapType( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scVulkanMicromapTypeNames, str, "Unknown type ({})" );
+        return MapStringToValue( g_scVulkanMicromapTypeNames, str );
     }
 
     /***********************************************************************************\
@@ -657,7 +642,7 @@ namespace Profiler
     \***********************************************************************************/
     VkBuildMicromapModeEXT DeviceProfilerStringParser::GetBuildMicromapMode( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scVulkanBuildMicromapModeNames, str, "Unknown mode ({})" );
+        return MapStringToValue( g_scVulkanBuildMicromapModeNames, str );
     }
 
     /***********************************************************************************\
@@ -679,7 +664,7 @@ namespace Profiler
     \***********************************************************************************/
     VkGeometryTypeKHR DeviceProfilerStringParser::GetGeometryType( const std::string_view& str ) const
     {
-        return MapStringToValue( g_scVulkanGeometryTypeNames, str, "Unknown type ({})" );
+        return MapStringToValue( g_scVulkanGeometryTypeNames, str );
     }
 
     /***********************************************************************************\

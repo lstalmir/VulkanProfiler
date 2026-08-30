@@ -27,11 +27,21 @@ import xml.etree.ElementTree as etree
 STRING_MAPPINGS_XML_PATH = os.path.abspath( sys.argv[ 1 ] )
 STRING_MAPPINGS_OUTPUT_PATH = os.path.abspath( sys.argv[ 2 ] )
 
-# Dispatch tables
+class StringMapping:
+    def __init__( self, map: etree.Element ):
+          self.name = map.attrib[ "Name" ]
+          self.key_type = map.attrib[ "KeyType" ]
+          self.default_format = "Unknown ({})"
+          self.entries = { entry.attrib[ "Key" ]: entry.attrib[ "Value" ] for entry in map.findall( "Entry" ) }
+
+          default = map.find( "Default" )
+          if default is not None:
+              self.default_format = default.attrib.get( "Format", self.default_format )
+
 class StringMappingsGenerator:
     def __init__( self, mappings_xml: etree.ElementTree ):
         self.includes = mappings_xml.getroot().findall( "Include" )
-        self.mappings = mappings_xml.getroot().findall( "Map" )
+        self.mappings = [ StringMapping( map ) for map in mappings_xml.getroot().findall( "Map" ) ]
 
     def write_mappings( self, out: io.TextIOBase ):
         out.write( "#pragma once\n" )
@@ -43,69 +53,43 @@ class StringMappingsGenerator:
         out.write( "\n" )
 
         out.write( "namespace Profiler {\n\n" )
-
         for mapping in self.mappings:
             self.write_map( out, mapping )
-
         out.write( "} // namespace Profiler\n" )
 
-    def write_map( self, out: io.TextIOBase, map: etree.Element ):
-        map_name = map.attrib[ "Name" ]
-        map_key_type = map.attrib[ "KeyType" ]
-        map_entries = map.findall( "Entry" )
-
+    def write_map( self, out: io.TextIOBase, map: StringMapping ):
         out.write( "inline constexpr struct {\n" )
-        out.write( "  typedef " + map_key_type + " KeyType;\n" )
+        out.write( "  typedef " + map.key_type + " KeyType;\n" )
+        out.write( f"  static constexpr std::string_view DefaultFormat = \"{map.default_format}\";\n" )
         self.write_map_apply( out, map )
         self.write_map_forward_getter( out, map )
         self.write_map_backward_getter( out, map )
-        out.write( f"}} {map_name};\n\n" )
+        out.write( f"}} {map.name};\n\n" )
 
-    def write_map_apply( self, out: io.TextIOBase, map: etree.Element ):
-        map_name = map.attrib[ "Name" ]
-        map_key_type = map.attrib[ "KeyType" ]
-        map_entries = map.findall( "Entry" )
-
+    def write_map_apply( self, out: io.TextIOBase, map: StringMapping ):
         out.write( "  template<typename Fn>\n" )
         out.write( "  inline constexpr void Apply( Fn&& fn ) const {\n" )
-        for entry in map_entries:
-            entry_name = entry.attrib[ "Key" ]
-            entry_value = entry.attrib[ "Value" ]
-            out.write( f"    fn( {entry_name}, \"{entry_value}\" );\n" )
+        for key, value in map.entries.items():
+            out.write( f"    fn( {key}, \"{value}\" );\n" )
         out.write( "  }\n" )
 
-    def write_map_forward_getter( self, out: io.TextIOBase, map: etree.Element ):
-        map_name = map.attrib[ "Name" ]
-        map_key_type = map.attrib[ "KeyType" ]
-        map_entries = map.findall( "Entry" )
-
-        out.write( f"  inline constexpr std::string_view operator[]( {map_key_type} key ) const {{\n" )
+    def write_map_forward_getter( self, out: io.TextIOBase, map: StringMapping ):
+        out.write( f"  inline constexpr std::string_view operator[]( {map.key_type} key ) const {{\n" )
         out.write( "    switch( key ) {\n" )
-        for entry in map_entries:
-            entry_name = entry.attrib[ "Key" ]
-            entry_value = entry.attrib[ "Value" ]
-            out.write( f"      case {entry_name}: return \"{entry_value}\";\n" )
+        for key, value in map.entries.items():
+            out.write( f"      case {key}: return \"{value}\";\n" )
         out.write( "    }\n" )
         out.write( "    return \"\";\n" )
         out.write( "  }\n" )
 
-    def write_map_backward_getter( self, out: io.TextIOBase, map: etree.Element ):
-        map_name = map.attrib[ "Name" ]
-        map_key_type = map.attrib[ "KeyType" ]
-        map_entries = map.findall( "Entry" )
-
-        out.write( f"  inline constexpr {map_key_type} operator[]( std::string_view value ) const {{\n" )
+    def write_map_backward_getter( self, out: io.TextIOBase, map: StringMapping ):
+        out.write( f"  inline constexpr {map.key_type} operator[]( std::string_view value ) const {{\n" )
         out.write( f"    switch( FNV( value ) ) {{\n" )
-        for entry in map_entries:
-            entry_name = entry.attrib[ "Key" ]
-            entry_value = entry.attrib[ "Value" ]
-            out.write( f"      case FNV( \"{entry_value}\" ): return {entry_name};\n" )
+        for key, value in map.entries.items():
+            out.write( f"      case FNV( \"{value}\" ): return {key};\n" )
         out.write( "    }\n" )
-        out.write( "    return static_cast<" + map_key_type + ">( -1 );\n" )
+        out.write( "    return static_cast<" + map.key_type + ">( -1 );\n" )
         out.write( "  }\n" )
-
-    def get_c_identifier( self, name: str ) -> str:
-        return name.split( '::' )[ -1 ]
 
 # Generate string mappings
 def gen_string_mappings():
