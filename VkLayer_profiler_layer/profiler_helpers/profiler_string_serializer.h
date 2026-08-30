@@ -71,7 +71,7 @@ namespace Profiler
         std::string GetDeviceTypeName( VkPhysicalDeviceType ) const;
 
         std::string GetQueueTypeName( VkQueueFlags ) const;
-        std::string GetQueueFlagNames( VkQueueFlags ) const;
+        std::string GetQueueFlagNames( VkQueueFlags, const char* separator = DefaultFlagsSeparator ) const;
 
         std::string GetShaderName( const struct ProfilerShader& ) const;
         std::string GetShortShaderName( const struct ProfilerShader& ) const;
@@ -105,17 +105,17 @@ namespace Profiler
         std::string GetCopyAccelerationStructureModeName( VkCopyAccelerationStructureModeKHR mode ) const;
         std::string GetAccelerationStructureTypeName( VkAccelerationStructureTypeKHR type ) const;
         std::string GetAccelerationStructureTypeFlagNames( VkProfilerAccelerationStructureTypeFlagsEXT flags, const char* separator = DefaultFlagsSeparator ) const;
-        std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags ) const;
+        std::string GetBuildAccelerationStructureFlagNames( VkBuildAccelerationStructureFlagsKHR flags, const char* separator = DefaultFlagsSeparator ) const;
         std::string GetBuildAccelerationStructureModeName( VkBuildAccelerationStructureModeKHR mode ) const;
 
         std::string GetCopyMicromapModeName( VkCopyMicromapModeEXT mode ) const;
         std::string GetMicromapTypeName( VkMicromapTypeEXT type ) const;
         std::string GetMicromapTypeFlagNames( VkFlags flags, const char* separator = DefaultFlagsSeparator ) const;
         std::string GetBuildMicromapModeName( VkBuildMicromapModeEXT mode ) const;
-        std::string GetBuildMicromapFlagNames( VkBuildMicromapFlagsEXT flags ) const;
+        std::string GetBuildMicromapFlagNames( VkBuildMicromapFlagsEXT flags, const char* separator = DefaultFlagsSeparator ) const;
 
         std::string GetGeometryTypeName( VkGeometryTypeKHR ) const;
-        std::string GetGeometryFlagNames( VkGeometryFlagsKHR ) const;
+        std::string GetGeometryFlagNames( VkGeometryFlagsKHR, const char* separator = DefaultFlagsSeparator ) const;
 
     private:
         DeviceProfilerFrontend& m_Frontend;

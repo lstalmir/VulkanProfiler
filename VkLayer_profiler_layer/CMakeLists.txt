@@ -171,6 +171,17 @@ else ()
     list (APPEND PROFILER_CODEGEN_SKIP_LICENSES SPIRV-Specification)
 endif ()
 
+# Generate string mappings header file
+add_custom_command (
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_mappings.h"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_string_mappings.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/profiler_helpers/profiler_string_mappings.xml"
+        "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_mappings.h"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/profiler_helpers/profiler_string_mappings.xml"
+    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_string_mappings.py")
+list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_mappings.h")
+
 # Generate licenses file
 set (PROFILER_LICENSES_FILE "${CMAKE_BINARY_DIR}/LICENSES.rst")
 add_custom_command (

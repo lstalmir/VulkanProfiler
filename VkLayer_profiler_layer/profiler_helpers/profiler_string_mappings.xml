@@ -1,0 +1,797 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright (c) 2026 Lukasz Stalmirski
+    
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+    
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+    
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+-->
+
+<Mappings>
+    <Include Path="vulkan/vulkan.h"/>
+    <Include Path="profiler/profiler_data.h"/>
+    <Include Path="profiler_ext/VkProfilerCustomFlagsEXT.h"/>
+
+    <Map Name="g_scProfilerDrawcallTypeNames" KeyType="Profiler::DeviceProfilerDrawcallType">
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eInsertDebugLabel" Value="vkCmdInsertDebugLabelEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eBeginDebugLabel" Value="vkCmdBeginDebugLabelEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eEndDebugLabel" Value="vkCmdEndDebugLabelEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDraw" Value="vkCmdDraw"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawIndexed" Value="vkCmdDrawIndexed"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawIndirect" Value="vkCmdDrawIndirect"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawIndexedIndirect" Value="vkCmdDrawIndexedIndirect"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawIndirectCount" Value="vkCmdDrawIndirectCount"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawIndexedIndirectCount" Value="vkCmdDrawIndexedIndirectCount"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawMeshTasks" Value="vkCmdDrawMeshTasksEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawMeshTasksIndirect" Value="vkCmdDrawMeshTasksIndirectEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCount" Value="vkCmdDrawMeshTasksIndirectCountEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawMeshTasksNV" Value="vkCmdDrawMeshTasksNV"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawMeshTasksIndirectNV" Value="vkCmdDrawMeshTasksIndirectNV"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawMeshTasksIndirectCountNV" Value="vkCmdDrawMeshTasksIndirectCountNV"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawMulti" Value="vkCmdDrawMultiEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDrawMultiIndexed" Value="vkCmdDrawMultiIndexedEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDispatch" Value="vkCmdDispatch"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eDispatchIndirect" Value="vkCmdDispatchIndirect"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eCopyBuffer" Value="vkCmdCopyBuffer"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eCopyBufferToImage" Value="vkCmdCopyBufferToImage"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eCopyImage" Value="vkCmdCopyImage"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eCopyImageToBuffer" Value="vkCmdCopyImageToBuffer"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eClearAttachments" Value="vkCmdClearAttachments"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eClearColorImage" Value="vkCmdClearColorImage"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eClearDepthStencilImage" Value="vkCmdClearDepthStencilImage"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eResolveImage" Value="vkCmdResolveImage"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eBlitImage" Value="vkCmdBlitImage"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eFillBuffer" Value="vkCmdFillBuffer"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eUpdateBuffer" Value="vkCmdUpdateBuffer"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eTraceRaysKHR" Value="vkCmdTraceRaysKHR"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eTraceRaysIndirectKHR" Value="vkCmdTraceRaysIndirectKHR"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eTraceRaysIndirect2KHR" Value="vkCmdTraceRaysIndirect2KHR"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eBuildAccelerationStructuresKHR" Value="vkCmdBuildAccelerationStructuresKHR"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eBuildAccelerationStructuresIndirectKHR" Value="vkCmdBuildAccelerationStructuresIndirectKHR"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eCopyAccelerationStructureKHR" Value="vkCmdCopyAccelerationStructureKHR"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eCopyAccelerationStructureToMemoryKHR" Value="vkCmdCopyAccelerationStructureToMemoryKHR"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eCopyMemoryToAccelerationStructureKHR" Value="vkCmdCopyMemoryToAccelerationStructureKHR"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eBuildMicromapsEXT" Value="vkCmdBuildMicromapsEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eCopyMicromapEXT" Value="vkCmdCopyMicromapEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eCopyMemoryToMicromapEXT" Value="vkCmdCopyMemoryToMicromapEXT"/>
+        <Entry Key="Profiler::DeviceProfilerDrawcallType::eCopyMicromapToMemoryEXT" Value="vkCmdCopyMicromapToMemoryEXT"/>
+    </Map>
+
+    <Map Name="g_scProfilerRenderPassTypeNames" KeyType="Profiler::DeviceProfilerRenderPassType">
+        <Entry Key="Profiler::DeviceProfilerRenderPassType::eGraphics" Value="Graphics Pass"/>
+        <Entry Key="Profiler::DeviceProfilerRenderPassType::eCompute" Value="Compute Pass"/>
+        <Entry Key="Profiler::DeviceProfilerRenderPassType::eRayTracing" Value="Ray Tracing Pass"/>
+        <Entry Key="Profiler::DeviceProfilerRenderPassType::eCopy" Value="Copy Pass"/>
+    </Map>
+
+    <Map Name="g_scVulkanDeviceTypeNames" KeyType="VkPhysicalDeviceType">
+        <Entry Key="VK_PHYSICAL_DEVICE_TYPE_OTHER" Value="Other"/>
+        <Entry Key="VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU" Value="Integrated GPU"/>
+        <Entry Key="VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU" Value="Discrete GPU"/>
+        <Entry Key="VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU" Value="Virtual GPU"/>
+        <Entry Key="VK_PHYSICAL_DEVICE_TYPE_CPU" Value="CPU"/>
+    </Map>
+
+    <Map Name="g_scVulkanQueueTypeNames" KeyType="VkQueueFlags">
+        <Entry Key="VK_QUEUE_GRAPHICS_BIT" Value="Graphics"/>
+        <Entry Key="VK_QUEUE_COMPUTE_BIT" Value="Compute"/>
+        <Entry Key="VK_QUEUE_TRANSFER_BIT" Value="Transfer"/>
+        <Entry Key="VK_QUEUE_VIDEO_DECODE_BIT_KHR | VK_QUEUE_VIDEO_ENCODE_BIT_KHR" Value="Video"/>
+    </Map>
+
+    <Map Name="g_scVulkanQueueFlagNames" KeyType="VkQueueFlagBits">
+        <Entry Key="VK_QUEUE_GRAPHICS_BIT" Value="Graphics"/>
+        <Entry Key="VK_QUEUE_COMPUTE_BIT" Value="Compute"/>
+        <Entry Key="VK_QUEUE_TRANSFER_BIT" Value="Transfer"/>
+        <Entry Key="VK_QUEUE_SPARSE_BINDING_BIT" Value="Sparse binding"/>
+        <Entry Key="VK_QUEUE_PROTECTED_BIT" Value="Protected"/>
+        <Entry Key="VK_QUEUE_VIDEO_DECODE_BIT_KHR" Value="Video decode"/>
+        <Entry Key="VK_QUEUE_VIDEO_ENCODE_BIT_KHR" Value="Video encode"/>
+        <Entry Key="VK_QUEUE_OPTICAL_FLOW_BIT_NV" Value="Optical flow"/>
+    </Map>
+
+    <Map Name="g_scVulkanMemoryPropertyFlagNames" KeyType="VkMemoryPropertyFlagBits">
+        <Entry Key="VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT" Value="Device local"/>
+        <Entry Key="VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT" Value="Host visible"/>
+        <Entry Key="VK_MEMORY_PROPERTY_HOST_COHERENT_BIT" Value="Host coherent"/>
+        <Entry Key="VK_MEMORY_PROPERTY_HOST_CACHED_BIT" Value="Host cached"/>
+        <Entry Key="VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT" Value="Lazily allocated"/>
+        <Entry Key="VK_MEMORY_PROPERTY_PROTECTED_BIT" Value="Protected"/>
+        <Entry Key="VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD" Value="Device coherent"/>
+        <Entry Key="VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD" Value="Device uncached"/>
+        <Entry Key="VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV" Value="RDMA capable"/>
+    </Map>
+
+    <Map Name="g_scVulkanBufferUsageFlagNames" KeyType="VkBufferUsageFlagBits">
+        <Entry Key="VK_BUFFER_USAGE_TRANSFER_SRC_BIT" Value="Transfer source"/>
+        <Entry Key="VK_BUFFER_USAGE_TRANSFER_DST_BIT" Value="Transfer destination"/>
+        <Entry Key="VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT" Value="Uniform texel buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT" Value="Storage texel buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT" Value="Uniform buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_STORAGE_BUFFER_BIT" Value="Storage buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_INDEX_BUFFER_BIT" Value="Index buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_VERTEX_BUFFER_BIT" Value="Vertex buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT" Value="Indirect buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT" Value="Conditional rendering"/>
+        <Entry Key="VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR" Value="Shader binding table"/>
+        <Entry Key="VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT" Value="Transform feedback buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT" Value="Transform feedback counter buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_VIDEO_DECODE_SRC_BIT_KHR" Value="Video decode source"/>
+        <Entry Key="VK_BUFFER_USAGE_VIDEO_DECODE_DST_BIT_KHR" Value="Video decode destination"/>
+        <Entry Key="VK_BUFFER_USAGE_VIDEO_ENCODE_DST_BIT_KHR" Value="Video encode destination"/>
+        <Entry Key="VK_BUFFER_USAGE_VIDEO_ENCODE_SRC_BIT_KHR" Value="Video encode source"/>
+        <Entry Key="VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT" Value="Shader device address"/>
+        <Entry Key="VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR" Value="Acceleration structure build input read-only"/>
+        <Entry Key="VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR" Value="Acceleration structure storage"/>
+        <Entry Key="VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT" Value="Sampler descriptor buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT" Value="Resource descriptor buffer"/>
+        <Entry Key="VK_BUFFER_USAGE_MICROMAP_BUILD_INPUT_READ_ONLY_BIT_EXT" Value="Micromap build input read-only"/>
+        <Entry Key="VK_BUFFER_USAGE_MICROMAP_STORAGE_BIT_EXT" Value="Micromap storage"/>
+        <Entry Key="VK_BUFFER_USAGE_PUSH_DESCRIPTORS_DESCRIPTOR_BUFFER_BIT_EXT" Value="Push descriptors descriptor buffer"/>
+    </Map>
+
+    <Map Name="g_scVulkanImageUsageFlagNames" KeyType="VkImageUsageFlagBits">
+        <Entry Key="VK_IMAGE_USAGE_TRANSFER_SRC_BIT" Value="Transfer source"/>
+        <Entry Key="VK_IMAGE_USAGE_TRANSFER_DST_BIT" Value="Transfer destination"/>
+        <Entry Key="VK_IMAGE_USAGE_SAMPLED_BIT" Value="Sampled image"/>
+        <Entry Key="VK_IMAGE_USAGE_STORAGE_BIT" Value="Storage image"/>
+        <Entry Key="VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT" Value="Color attachment"/>
+        <Entry Key="VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT" Value="Depth-stencil attachment"/>
+        <Entry Key="VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT" Value="Transient attachment"/>
+        <Entry Key="VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT" Value="Input attachment"/>
+        <Entry Key="VK_IMAGE_USAGE_HOST_TRANSFER_BIT" Value="Host transfer"/>
+        <Entry Key="VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR" Value="Video decode destination"/>
+        <Entry Key="VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR" Value="Video decode source"/>
+        <Entry Key="VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR" Value="Video decoded picture buffer"/>
+        <Entry Key="VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT" Value="Fragment density map"/>
+        <Entry Key="VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR" Value="Fragment shading rate attachment"/>
+        <Entry Key="VK_IMAGE_USAGE_VIDEO_ENCODE_DST_BIT_KHR" Value="Video encode destination"/>
+        <Entry Key="VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR" Value="Video encode source"/>
+        <Entry Key="VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR" Value="Video encode decoded picture buffer"/>
+        <Entry Key="VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT" Value="Attachment feedback loop"/>
+        <Entry Key="VK_IMAGE_USAGE_INVOCATION_MASK_BIT_HUAWEI" Value="Invocation mask"/>
+        <Entry Key="VK_IMAGE_USAGE_SAMPLE_WEIGHT_BIT_QCOM" Value="Sample weight image"/>
+        <Entry Key="VK_IMAGE_USAGE_SAMPLE_BLOCK_MATCH_BIT_QCOM" Value="Sample block match image"/>
+        <Entry Key="VK_IMAGE_USAGE_VIDEO_ENCODE_QUANTIZATION_DELTA_MAP_BIT_KHR" Value="Video encode quantization delta map"/>
+        <Entry Key="VK_IMAGE_USAGE_VIDEO_ENCODE_EMPHASIS_MAP_BIT_KHR" Value="Video encode emphasis map"/>
+    </Map>
+
+    <Map Name="g_scVulkanImageTypeNames" KeyType="VkImageType">
+        <Entry Key="VK_IMAGE_TYPE_1D" Value="Image 1D"/>
+        <Entry Key="VK_IMAGE_TYPE_2D" Value="Image 2D"/>
+        <Entry Key="VK_IMAGE_TYPE_3D" Value="Image 3D"/>
+    </Map>
+
+    <Map Name="g_scVulkanImageTilingNames" KeyType="VkImageTiling">
+        <Entry Key="VK_IMAGE_TILING_OPTIMAL" Value="Optimal"/>
+        <Entry Key="VK_IMAGE_TILING_LINEAR" Value="Linear"/>
+        <Entry Key="VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT" Value="DRM format modifier"/>
+    </Map>
+
+    <Map Name="g_scVulkanImageAspectFlagNames" KeyType="VkImageAspectFlagBits">
+        <Entry Key="VK_IMAGE_ASPECT_COLOR_BIT" Value="Color"/>
+        <Entry Key="VK_IMAGE_ASPECT_DEPTH_BIT" Value="Depth"/>
+        <Entry Key="VK_IMAGE_ASPECT_STENCIL_BIT" Value="Stencil"/>
+        <Entry Key="VK_IMAGE_ASPECT_METADATA_BIT" Value="Metadata"/>
+        <Entry Key="VK_IMAGE_ASPECT_PLANE_0_BIT" Value="Plane 0"/>
+        <Entry Key="VK_IMAGE_ASPECT_PLANE_1_BIT" Value="Plane 1"/>
+        <Entry Key="VK_IMAGE_ASPECT_PLANE_2_BIT" Value="Plane 2"/>
+        <Entry Key="VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT" Value="Memory plane 0"/>
+        <Entry Key="VK_IMAGE_ASPECT_MEMORY_PLANE_1_BIT_EXT" Value="Memory plane 1"/>
+        <Entry Key="VK_IMAGE_ASPECT_MEMORY_PLANE_2_BIT_EXT" Value="Memory plane 2"/>
+        <Entry Key="VK_IMAGE_ASPECT_MEMORY_PLANE_3_BIT_EXT" Value="Memory plane 3"/>
+    </Map>
+
+    <Map Name="g_scVulkanShaderStageNames" KeyType="VkShaderStageFlagBits">
+        <Entry Key="VK_SHADER_STAGE_VERTEX_BIT" Value="Vertex shader"/>
+        <Entry Key="VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT" Value="Tessellation control shader"/>
+        <Entry Key="VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT" Value="Tessellation evaluation shader"/>
+        <Entry Key="VK_SHADER_STAGE_GEOMETRY_BIT" Value="Geometry shader"/>
+        <Entry Key="VK_SHADER_STAGE_FRAGMENT_BIT" Value="Fragment shader"/>
+        <Entry Key="VK_SHADER_STAGE_COMPUTE_BIT" Value="Compute shader"/>
+        <Entry Key="VK_SHADER_STAGE_TASK_BIT_EXT" Value="Task shader"/>
+        <Entry Key="VK_SHADER_STAGE_MESH_BIT_EXT" Value="Mesh shader"/>
+        <Entry Key="VK_SHADER_STAGE_RAYGEN_BIT_KHR" Value="Ray generation shader"/>
+        <Entry Key="VK_SHADER_STAGE_ANY_HIT_BIT_KHR" Value="Ray any-hit shader"/>
+        <Entry Key="VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR" Value="Ray closest-hit shader"/>
+        <Entry Key="VK_SHADER_STAGE_MISS_BIT_KHR" Value="Ray miss shader"/>
+        <Entry Key="VK_SHADER_STAGE_INTERSECTION_BIT_KHR" Value="Ray intersection shader"/>
+        <Entry Key="VK_SHADER_STAGE_CALLABLE_BIT_KHR" Value="Callable shader"/>
+    </Map>
+
+    <Map Name="g_scVulkanShortShaderStageNames" KeyType="VkShaderStageFlagBits">
+        <Entry Key="VK_SHADER_STAGE_VERTEX_BIT" Value="vs"/>
+        <Entry Key="VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT" Value="tcs"/>
+        <Entry Key="VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT" Value="tes"/>
+        <Entry Key="VK_SHADER_STAGE_GEOMETRY_BIT" Value="gs"/>
+        <Entry Key="VK_SHADER_STAGE_FRAGMENT_BIT" Value="ps"/>
+        <Entry Key="VK_SHADER_STAGE_COMPUTE_BIT" Value="cs"/>
+        <Entry Key="VK_SHADER_STAGE_TASK_BIT_EXT" Value="task"/>
+        <Entry Key="VK_SHADER_STAGE_MESH_BIT_EXT" Value="mesh"/>
+        <Entry Key="VK_SHADER_STAGE_RAYGEN_BIT_KHR" Value="raygen"/>
+        <Entry Key="VK_SHADER_STAGE_ANY_HIT_BIT_KHR" Value="anyhit"/>
+        <Entry Key="VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR" Value="closesthit"/>
+        <Entry Key="VK_SHADER_STAGE_MISS_BIT_KHR" Value="miss"/>
+        <Entry Key="VK_SHADER_STAGE_INTERSECTION_BIT_KHR" Value="intersection"/>
+        <Entry Key="VK_SHADER_STAGE_CALLABLE_BIT_KHR" Value="callable"/>
+    </Map>
+
+    <Map Name="g_scVulkanRayTracingShaderGroupTypeNames" KeyType="VkRayTracingShaderGroupTypeKHR">
+        <Entry Key="VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR" Value="General"/>
+        <Entry Key="VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR" Value="Triangles"/>
+        <Entry Key="VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_KHR" Value="Procedural"/>
+    </Map>
+
+    <Map Name="g_scVulkanRayTracingGeneralShaderGroupTypeNames" KeyType="VkShaderStageFlagBits">
+        <Entry Key="VK_SHADER_STAGE_RAYGEN_BIT_KHR" Value="Raygen"/>
+        <Entry Key="VK_SHADER_STAGE_MISS_BIT_KHR" Value="Miss"/>
+        <Entry Key="VK_SHADER_STAGE_CALLABLE_BIT_KHR" Value="Callable"/>
+    </Map>
+
+    <Map Name="g_scVulkanIndexTypeNames" KeyType="VkIndexType">
+        <Entry Key="VK_INDEX_TYPE_UINT16" Value="Uint16"/>
+        <Entry Key="VK_INDEX_TYPE_UINT32" Value="Uint32"/>
+        <Entry Key="VK_INDEX_TYPE_NONE_KHR" Value="None"/>
+        <Entry Key="VK_INDEX_TYPE_UINT8_EXT" Value="Uint8"/>
+    </Map>
+
+    <Map Name="g_scVulkanVertexInputRateNames" KeyType="VkVertexInputRate">
+        <Entry Key="VK_VERTEX_INPUT_RATE_VERTEX" Value="Per vertex"/>
+        <Entry Key="VK_VERTEX_INPUT_RATE_INSTANCE" Value="Per instance"/>
+    </Map>
+
+    <Map Name="g_scVulkanPrimitiveTopologyNames" KeyType="VkPrimitiveTopology">
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_POINT_LIST" Value="Point list"/>
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_LINE_LIST" Value="Line list"/>
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_LINE_STRIP" Value="Line strip"/>
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST" Value="Triangle list"/>
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP" Value="Triangle strip"/>
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN" Value="Triangle fan"/>
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY" Value="Line list with adjacency"/>
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY" Value="Line strip with adjacency"/>
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY" Value="Triangle list with adjacency"/>
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY" Value="Triangle strip with adjacency"/>
+        <Entry Key="VK_PRIMITIVE_TOPOLOGY_PATCH_LIST" Value="Patch list"/>
+    </Map>
+
+    <Map Name="g_scVulkanPolygonModeNames" KeyType="VkPolygonMode">
+        <Entry Key="VK_POLYGON_MODE_FILL" Value="Fill"/>
+        <Entry Key="VK_POLYGON_MODE_LINE" Value="Line"/>
+        <Entry Key="VK_POLYGON_MODE_POINT" Value="Point"/>
+        <Entry Key="VK_POLYGON_MODE_FILL_RECTANGLE_NV" Value="Fill rectangle"/>
+    </Map>
+
+    <Map Name="g_scVulkanCullModeNames" KeyType="VkCullModeFlags">
+        <Entry Key="VK_CULL_MODE_NONE" Value="None"/>
+        <Entry Key="VK_CULL_MODE_FRONT_BIT" Value="Front"/>
+        <Entry Key="VK_CULL_MODE_BACK_BIT" Value="Back"/>
+        <Entry Key="VK_CULL_MODE_FRONT_AND_BACK" Value="All"/>
+    </Map>
+
+    <Map Name="g_scVulkanFrontFaceNames" KeyType="VkFrontFace">
+        <Entry Key="VK_FRONT_FACE_COUNTER_CLOCKWISE" Value="Counter-clockwise"/>
+        <Entry Key="VK_FRONT_FACE_CLOCKWISE" Value="Clockwise"/>
+    </Map>
+
+    <Map Name="g_scVulkanBlendFactorNames" KeyType="VkBlendFactor">
+        <Entry Key="VK_BLEND_FACTOR_ZERO" Value="Zero"/>
+        <Entry Key="VK_BLEND_FACTOR_ONE" Value="One"/>
+        <Entry Key="VK_BLEND_FACTOR_SRC_COLOR" Value="Src color"/>
+        <Entry Key="VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR" Value="1 - Src color"/>
+        <Entry Key="VK_BLEND_FACTOR_DST_COLOR" Value="Dst color"/>
+        <Entry Key="VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR" Value="1 - Dst color"/>
+        <Entry Key="VK_BLEND_FACTOR_SRC_ALPHA" Value="Src alpha"/>
+        <Entry Key="VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA" Value="1 - Src alpha"/>
+        <Entry Key="VK_BLEND_FACTOR_DST_ALPHA" Value="Dst alpha"/>
+        <Entry Key="VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA" Value="1 - Dst alpha"/>
+        <Entry Key="VK_BLEND_FACTOR_CONSTANT_COLOR" Value="Constant"/>
+        <Entry Key="VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR" Value="1 - Constant"/>
+        <Entry Key="VK_BLEND_FACTOR_SRC_ALPHA_SATURATE" Value="Src alpha (sat)"/>
+        <Entry Key="VK_BLEND_FACTOR_SRC1_COLOR" Value="Src1 color"/>
+        <Entry Key="VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR" Value="1 - Src1 color"/>
+        <Entry Key="VK_BLEND_FACTOR_SRC1_ALPHA" Value="Src1 alpha"/>
+        <Entry Key="VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA" Value="1 - Src1 alpha"/>
+    </Map>
+
+    <Map Name="g_scVulkanBlendOpNames" KeyType="VkBlendOp">
+        <Entry Key="VK_BLEND_OP_ADD" Value="Add"/>
+        <Entry Key="VK_BLEND_OP_SUBTRACT" Value="Sub"/>
+        <Entry Key="VK_BLEND_OP_REVERSE_SUBTRACT" Value="Rev sub"/>
+        <Entry Key="VK_BLEND_OP_MIN" Value="Min"/>
+        <Entry Key="VK_BLEND_OP_MAX" Value="Max"/>
+        <Entry Key="VK_BLEND_OP_ZERO_EXT" Value="Zero"/>
+        <Entry Key="VK_BLEND_OP_SRC_EXT" Value="Src"/>
+        <Entry Key="VK_BLEND_OP_DST_EXT" Value="Dst"/>
+        <Entry Key="VK_BLEND_OP_SRC_OVER_EXT" Value="Src over"/>
+        <Entry Key="VK_BLEND_OP_DST_OVER_EXT" Value="Dst over"/>
+        <Entry Key="VK_BLEND_OP_SRC_IN_EXT" Value="Src in"/>
+        <Entry Key="VK_BLEND_OP_DST_IN_EXT" Value="Dst in"/>
+        <Entry Key="VK_BLEND_OP_SRC_OUT_EXT" Value="Src out"/>
+        <Entry Key="VK_BLEND_OP_DST_OUT_EXT" Value="Dst out"/>
+        <Entry Key="VK_BLEND_OP_SRC_ATOP_EXT" Value="Src atop"/>
+        <Entry Key="VK_BLEND_OP_DST_ATOP_EXT" Value="Dst atop"/>
+        <Entry Key="VK_BLEND_OP_XOR_EXT" Value="Xor"/>
+        <Entry Key="VK_BLEND_OP_MULTIPLY_EXT" Value="Mul"/>
+        <Entry Key="VK_BLEND_OP_SCREEN_EXT" Value="Screen"/>
+        <Entry Key="VK_BLEND_OP_OVERLAY_EXT" Value="Overlay"/>
+        <Entry Key="VK_BLEND_OP_DARKEN_EXT" Value="Darken"/>
+        <Entry Key="VK_BLEND_OP_LIGHTEN_EXT" Value="Lighten"/>
+        <Entry Key="VK_BLEND_OP_COLORDODGE_EXT" Value="Color dodge"/>
+        <Entry Key="VK_BLEND_OP_COLORBURN_EXT" Value="Color burn"/>
+        <Entry Key="VK_BLEND_OP_HARDLIGHT_EXT" Value="Hard light"/>
+        <Entry Key="VK_BLEND_OP_SOFTLIGHT_EXT" Value="Soft light"/>
+        <Entry Key="VK_BLEND_OP_DIFFERENCE_EXT" Value="Difference"/>
+        <Entry Key="VK_BLEND_OP_EXCLUSION_EXT" Value="Exclusion"/>
+        <Entry Key="VK_BLEND_OP_INVERT_EXT" Value="Invert"/>
+        <Entry Key="VK_BLEND_OP_INVERT_RGB_EXT" Value="Invert RGB"/>
+        <Entry Key="VK_BLEND_OP_LINEARDODGE_EXT" Value="Linear dodge"/>
+        <Entry Key="VK_BLEND_OP_LINEARBURN_EXT" Value="Linear burn"/>
+        <Entry Key="VK_BLEND_OP_VIVIDLIGHT_EXT" Value="Vivid light"/>
+        <Entry Key="VK_BLEND_OP_LINEARLIGHT_EXT" Value="Linear light"/>
+        <Entry Key="VK_BLEND_OP_PINLIGHT_EXT" Value="Pin light"/>
+        <Entry Key="VK_BLEND_OP_HARDMIX_EXT" Value="Hard mix"/>
+        <Entry Key="VK_BLEND_OP_HSL_HUE_EXT" Value="HSL hue"/>
+        <Entry Key="VK_BLEND_OP_HSL_SATURATION_EXT" Value="HSL saturation"/>
+        <Entry Key="VK_BLEND_OP_HSL_COLOR_EXT" Value="HSL color"/>
+        <Entry Key="VK_BLEND_OP_HSL_LUMINOSITY_EXT" Value="HSL luminosity"/>
+        <Entry Key="VK_BLEND_OP_PLUS_EXT" Value="Plus"/>
+        <Entry Key="VK_BLEND_OP_PLUS_CLAMPED_EXT" Value="Plus clamped"/>
+        <Entry Key="VK_BLEND_OP_PLUS_CLAMPED_ALPHA_EXT" Value="Plus clamped alpha"/>
+        <Entry Key="VK_BLEND_OP_PLUS_DARKER_EXT" Value="Plus darker"/>
+        <Entry Key="VK_BLEND_OP_MINUS_EXT" Value="Minus"/>
+        <Entry Key="VK_BLEND_OP_MINUS_CLAMPED_EXT" Value="Minus clamped"/>
+        <Entry Key="VK_BLEND_OP_CONTRAST_EXT" Value="Contrast"/>
+        <Entry Key="VK_BLEND_OP_INVERT_OVG_EXT" Value="Invert OVG"/>
+        <Entry Key="VK_BLEND_OP_RED_EXT" Value="Red"/>
+        <Entry Key="VK_BLEND_OP_GREEN_EXT" Value="Green"/>
+        <Entry Key="VK_BLEND_OP_BLUE_EXT" Value="Blue"/>
+    </Map>
+
+    <Map Name="g_scVulkanCompareOpNames" KeyType="VkCompareOp">
+        <Entry Key="VK_COMPARE_OP_NEVER" Value="Never"/>
+        <Entry Key="VK_COMPARE_OP_LESS" Value="Less"/>
+        <Entry Key="VK_COMPARE_OP_EQUAL" Value="Equal"/>
+        <Entry Key="VK_COMPARE_OP_LESS_OR_EQUAL" Value="Less or equal"/>
+        <Entry Key="VK_COMPARE_OP_GREATER" Value="Greater"/>
+        <Entry Key="VK_COMPARE_OP_NOT_EQUAL" Value="Not equal"/>
+        <Entry Key="VK_COMPARE_OP_GREATER_OR_EQUAL" Value="Greater or equal"/>
+        <Entry Key="VK_COMPARE_OP_ALWAYS" Value="Always"/>
+    </Map>
+
+    <Map Name="g_scVulkanLogicOpNames" KeyType="VkLogicOp">
+        <Entry Key="VK_LOGIC_OP_CLEAR" Value="Clear"/>
+        <Entry Key="VK_LOGIC_OP_AND" Value="AND"/>
+        <Entry Key="VK_LOGIC_OP_AND_REVERSE" Value="AND (reverse)"/>
+        <Entry Key="VK_LOGIC_OP_COPY" Value="Copy"/>
+        <Entry Key="VK_LOGIC_OP_AND_INVERTED" Value="AND (inverted)"/>
+        <Entry Key="VK_LOGIC_OP_NO_OP" Value="No-op"/>
+        <Entry Key="VK_LOGIC_OP_XOR" Value="XOR"/>
+        <Entry Key="VK_LOGIC_OP_OR" Value="OR"/>
+        <Entry Key="VK_LOGIC_OP_NOR" Value="NOR"/>
+        <Entry Key="VK_LOGIC_OP_EQUIVALENT" Value="Equivalent"/>
+        <Entry Key="VK_LOGIC_OP_INVERT" Value="Invert"/>
+        <Entry Key="VK_LOGIC_OP_OR_REVERSE" Value="OR (reverse)"/>
+        <Entry Key="VK_LOGIC_OP_COPY_INVERTED" Value="Copy (inverted)"/>
+        <Entry Key="VK_LOGIC_OP_OR_INVERTED" Value="OR (inverted)"/>
+        <Entry Key="VK_LOGIC_OP_NAND" Value="NAND"/>
+        <Entry Key="VK_LOGIC_OP_SET" Value="Set"/>
+    </Map>
+
+    <Map Name="g_scVulkanDynamicStateNames" KeyType="VkDynamicState">
+        <Entry Key="VK_DYNAMIC_STATE_VIEWPORT" Value="Viewport"/>
+        <Entry Key="VK_DYNAMIC_STATE_SCISSOR" Value="Scissor"/>
+        <Entry Key="VK_DYNAMIC_STATE_LINE_WIDTH" Value="Line width"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_BIAS" Value="Depth bias"/>
+        <Entry Key="VK_DYNAMIC_STATE_BLEND_CONSTANTS" Value="Blend constants"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_BOUNDS" Value="Depth bounds"/>
+        <Entry Key="VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK" Value="Stencil compare mask"/>
+        <Entry Key="VK_DYNAMIC_STATE_STENCIL_WRITE_MASK" Value="Stencil write mask"/>
+        <Entry Key="VK_DYNAMIC_STATE_STENCIL_REFERENCE" Value="Stencil reference"/>
+        <Entry Key="VK_DYNAMIC_STATE_CULL_MODE" Value="Cull mode"/>
+        <Entry Key="VK_DYNAMIC_STATE_FRONT_FACE" Value="Front face"/>
+        <Entry Key="VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY" Value="Primitive topology"/>
+        <Entry Key="VK_DYNAMIC_STATE_VIEWPORT_WITH_COUNT" Value="Viewport with count"/>
+        <Entry Key="VK_DYNAMIC_STATE_SCISSOR_WITH_COUNT" Value="Scissor with count"/>
+        <Entry Key="VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE" Value="Vertex input binding stride"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE" Value="Depth test enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE" Value="Depth write enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_COMPARE_OP" Value="Depth compare op"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE" Value="Depth bounds test enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE" Value="Stencil test enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_STENCIL_OP" Value="Stencil op"/>
+        <Entry Key="VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE" Value="Rasterizer discard enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE" Value="Depth bias enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE" Value="Primitive restart enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_LINE_STIPPLE" Value="Line stipple"/>
+        <Entry Key="VK_DYNAMIC_STATE_VIEWPORT_W_SCALING_NV" Value="Viewport W scaling"/>
+        <Entry Key="VK_DYNAMIC_STATE_DISCARD_RECTANGLE_EXT" Value="Discard rectangle"/>
+        <Entry Key="VK_DYNAMIC_STATE_DISCARD_RECTANGLE_ENABLE_EXT" Value="Discard rectangle enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_DISCARD_RECTANGLE_MODE_EXT" Value="Discard rectangle mode"/>
+        <Entry Key="VK_DYNAMIC_STATE_SAMPLE_LOCATIONS_EXT" Value="Sample locations"/>
+        <Entry Key="VK_DYNAMIC_STATE_RAY_TRACING_PIPELINE_STACK_SIZE_KHR" Value="Ray tracing pipeline stack size"/>
+        <Entry Key="VK_DYNAMIC_STATE_VIEWPORT_SHADING_RATE_PALETTE_NV" Value="Viewport shading rate palette"/>
+        <Entry Key="VK_DYNAMIC_STATE_VIEWPORT_COARSE_SAMPLE_ORDER_NV" Value="Viewport coarse sample order"/>
+        <Entry Key="VK_DYNAMIC_STATE_EXCLUSIVE_SCISSOR_ENABLE_NV" Value="Exclusive scissor enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_EXCLUSIVE_SCISSOR_NV" Value="Exclusive scissor"/>
+        <Entry Key="VK_DYNAMIC_STATE_FRAGMENT_SHADING_RATE_KHR" Value="Fragment shading rate"/>
+        <Entry Key="VK_DYNAMIC_STATE_VERTEX_INPUT_EXT" Value="Vertex input"/>
+        <Entry Key="VK_DYNAMIC_STATE_PATCH_CONTROL_POINTS_EXT" Value="Patch control points"/>
+        <Entry Key="VK_DYNAMIC_STATE_LOGIC_OP_EXT" Value="Logic op"/>
+        <Entry Key="VK_DYNAMIC_STATE_COLOR_WRITE_ENABLE_EXT" Value="Color write enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_CLAMP_ENABLE_EXT" Value="Depth clamp enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_POLYGON_MODE_EXT" Value="Polygon mode"/>
+        <Entry Key="VK_DYNAMIC_STATE_RASTERIZATION_SAMPLES_EXT" Value="Rasterization samples"/>
+        <Entry Key="VK_DYNAMIC_STATE_SAMPLE_MASK_EXT" Value="Sample mask"/>
+        <Entry Key="VK_DYNAMIC_STATE_ALPHA_TO_COVERAGE_ENABLE_EXT" Value="Alpha to coverage enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_ALPHA_TO_ONE_ENABLE_EXT" Value="Alpha to one enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_LOGIC_OP_ENABLE_EXT" Value="Logic op enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_COLOR_BLEND_ENABLE_EXT" Value="Color blend enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_COLOR_BLEND_EQUATION_EXT" Value="Color blend equation"/>
+        <Entry Key="VK_DYNAMIC_STATE_COLOR_WRITE_MASK_EXT" Value="Color write mask"/>
+        <Entry Key="VK_DYNAMIC_STATE_TESSELLATION_DOMAIN_ORIGIN_EXT" Value="Tessellation domain origin"/>
+        <Entry Key="VK_DYNAMIC_STATE_RASTERIZATION_STREAM_EXT" Value="Rasterization stream"/>
+        <Entry Key="VK_DYNAMIC_STATE_CONSERVATIVE_RASTERIZATION_MODE_EXT" Value="Conservative rasterization mode"/>
+        <Entry Key="VK_DYNAMIC_STATE_EXTRA_PRIMITIVE_OVERESTIMATION_SIZE_EXT" Value="Extra primitive overestimation size"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_CLIP_ENABLE_EXT" Value="Depth clip enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_SAMPLE_LOCATIONS_ENABLE_EXT" Value="Sample locations enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_COLOR_BLEND_ADVANCED_EXT" Value="Color blend advanced"/>
+        <Entry Key="VK_DYNAMIC_STATE_PROVOKING_VERTEX_MODE_EXT" Value="Provoking vertex mode"/>
+        <Entry Key="VK_DYNAMIC_STATE_LINE_RASTERIZATION_MODE_EXT" Value="Line rasterization mode"/>
+        <Entry Key="VK_DYNAMIC_STATE_LINE_STIPPLE_ENABLE_EXT" Value="Line stipple enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE_EXT" Value="Depth clip negative one to one"/>
+        <Entry Key="VK_DYNAMIC_STATE_VIEWPORT_W_SCALING_ENABLE_NV" Value="Viewport W scaling enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_VIEWPORT_SWIZZLE_NV" Value="Viewport swizzle"/>
+        <Entry Key="VK_DYNAMIC_STATE_COVERAGE_TO_COLOR_ENABLE_NV" Value="Coverage to color enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_COVERAGE_TO_COLOR_LOCATION_NV" Value="Coverage to color location"/>
+        <Entry Key="VK_DYNAMIC_STATE_COVERAGE_MODULATION_MODE_NV" Value="Coverage modulation mode"/>
+        <Entry Key="VK_DYNAMIC_STATE_COVERAGE_MODULATION_TABLE_ENABLE_NV" Value="Coverage modulation table enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_COVERAGE_MODULATION_TABLE_NV" Value="Coverage modulation table"/>
+        <Entry Key="VK_DYNAMIC_STATE_SHADING_RATE_IMAGE_ENABLE_NV" Value="Shading rate image enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_REPRESENTATIVE_FRAGMENT_TEST_ENABLE_NV" Value="Representative fragment test enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_COVERAGE_REDUCTION_MODE_NV" Value="Coverage reduction mode"/>
+        <Entry Key="VK_DYNAMIC_STATE_ATTACHMENT_FEEDBACK_LOOP_ENABLE_EXT" Value="Attachment feedback loop enable"/>
+        <Entry Key="VK_DYNAMIC_STATE_DEPTH_CLAMP_RANGE_EXT" Value="Depth clamp range"/>
+    </Map>
+
+    <Map Name="g_scVulkanFormatNames" KeyType="VkFormat">
+        <Entry Key="VK_FORMAT_UNDEFINED" Value="Undefined"/>
+        <Entry Key="VK_FORMAT_R4G4_UNORM_PACK8" Value="R4G4 Unorm"/>
+        <Entry Key="VK_FORMAT_R4G4B4A4_UNORM_PACK16" Value="R4G4B4A4 Unorm"/>
+        <Entry Key="VK_FORMAT_B4G4R4A4_UNORM_PACK16" Value="B4G4R4A4 Unorm"/>
+        <Entry Key="VK_FORMAT_R5G6B5_UNORM_PACK16" Value="R5G6B5 Unorm"/>
+        <Entry Key="VK_FORMAT_B5G6R5_UNORM_PACK16" Value="B5G6R5 Unorm"/>
+        <Entry Key="VK_FORMAT_R5G5B5A1_UNORM_PACK16" Value="R5G5B5A1 Unorm"/>
+        <Entry Key="VK_FORMAT_B5G5R5A1_UNORM_PACK16" Value="B5G5R5A1 Unorm"/>
+        <Entry Key="VK_FORMAT_A1R5G5B5_UNORM_PACK16" Value="A1R5G5B5 Unorm"/>
+        <Entry Key="VK_FORMAT_R8_UNORM" Value="R8 Unorm"/>
+        <Entry Key="VK_FORMAT_R8_SNORM" Value="R8 Snorm"/>
+        <Entry Key="VK_FORMAT_R8_USCALED" Value="R8 Uscaled"/>
+        <Entry Key="VK_FORMAT_R8_SSCALED" Value="R8 Sscaled"/>
+        <Entry Key="VK_FORMAT_R8_UINT" Value="R8 Uint"/>
+        <Entry Key="VK_FORMAT_R8_SINT" Value="R8 Sint"/>
+        <Entry Key="VK_FORMAT_R8_SRGB" Value="R8 Srgb"/>
+        <Entry Key="VK_FORMAT_R8G8_UNORM" Value="R8G8 Unorm"/>
+        <Entry Key="VK_FORMAT_R8G8_SNORM" Value="R8G8 Snorm"/>
+        <Entry Key="VK_FORMAT_R8G8_USCALED" Value="R8G8 Uscaled"/>
+        <Entry Key="VK_FORMAT_R8G8_SSCALED" Value="R8G8 Sscaled"/>
+        <Entry Key="VK_FORMAT_R8G8_UINT" Value="R8G8 Uint"/>
+        <Entry Key="VK_FORMAT_R8G8_SINT" Value="R8G8 Sint"/>
+        <Entry Key="VK_FORMAT_R8G8_SRGB" Value="R8G8 Srgb"/>
+        <Entry Key="VK_FORMAT_R8G8B8_UNORM" Value="R8G8B8 Unorm"/>
+        <Entry Key="VK_FORMAT_R8G8B8_SNORM" Value="R8G8B8 Snorm"/>
+        <Entry Key="VK_FORMAT_R8G8B8_USCALED" Value="R8G8B8 Uscaled"/>
+        <Entry Key="VK_FORMAT_R8G8B8_SSCALED" Value="R8G8B8 Sscaled"/>
+        <Entry Key="VK_FORMAT_R8G8B8_UINT" Value="R8G8B8 Uint"/>
+        <Entry Key="VK_FORMAT_R8G8B8_SINT" Value="R8G8B8 Sint"/>
+        <Entry Key="VK_FORMAT_R8G8B8_SRGB" Value="R8G8B8 Srgb"/>
+        <Entry Key="VK_FORMAT_B8G8R8_UNORM" Value="B8G8R8 Unorm"/>
+        <Entry Key="VK_FORMAT_B8G8R8_SNORM" Value="B8G8R8 Snorm"/>
+        <Entry Key="VK_FORMAT_B8G8R8_USCALED" Value="B8G8R8 Uscaled"/>
+        <Entry Key="VK_FORMAT_B8G8R8_SSCALED" Value="B8G8R8 Sscaled"/>
+        <Entry Key="VK_FORMAT_B8G8R8_UINT" Value="B8G8R8 Uint"/>
+        <Entry Key="VK_FORMAT_B8G8R8_SINT" Value="B8G8R8 Sint"/>
+        <Entry Key="VK_FORMAT_B8G8R8_SRGB" Value="B8G8R8 Srgb"/>
+        <Entry Key="VK_FORMAT_R8G8B8A8_UNORM" Value="R8G8B8A8 Unorm"/>
+        <Entry Key="VK_FORMAT_R8G8B8A8_SNORM" Value="R8G8B8A8 Snorm"/>
+        <Entry Key="VK_FORMAT_R8G8B8A8_USCALED" Value="R8G8B8A8 Uscaled"/>
+        <Entry Key="VK_FORMAT_R8G8B8A8_SSCALED" Value="R8G8B8A8 Sscaled"/>
+        <Entry Key="VK_FORMAT_R8G8B8A8_UINT" Value="R8G8B8A8 Uint"/>
+        <Entry Key="VK_FORMAT_R8G8B8A8_SINT" Value="R8G8B8A8 Sint"/>
+        <Entry Key="VK_FORMAT_R8G8B8A8_SRGB" Value="R8G8B8A8 Srgb"/>
+        <Entry Key="VK_FORMAT_B8G8R8A8_UNORM" Value="B8G8R8A8 Unorm"/>
+        <Entry Key="VK_FORMAT_B8G8R8A8_SNORM" Value="B8G8R8A8 Snorm"/>
+        <Entry Key="VK_FORMAT_B8G8R8A8_USCALED" Value="B8G8R8A8 Uscaled"/>
+        <Entry Key="VK_FORMAT_B8G8R8A8_SSCALED" Value="B8G8R8A8 Sscaled"/>
+        <Entry Key="VK_FORMAT_B8G8R8A8_UINT" Value="B8G8R8A8 Uint"/>
+        <Entry Key="VK_FORMAT_B8G8R8A8_SINT" Value="B8G8R8A8 Sint"/>
+        <Entry Key="VK_FORMAT_B8G8R8A8_SRGB" Value="B8G8R8A8 Srgb"/>
+        <Entry Key="VK_FORMAT_A8B8G8R8_UNORM_PACK32" Value="A8B8G8R8 Unorm"/>
+        <Entry Key="VK_FORMAT_A8B8G8R8_SNORM_PACK32" Value="A8B8G8R8 Snorm"/>
+        <Entry Key="VK_FORMAT_A8B8G8R8_USCALED_PACK32" Value="A8B8G8R8 Uscaled"/>
+        <Entry Key="VK_FORMAT_A8B8G8R8_SSCALED_PACK32" Value="A8B8G8R8 Sscaled"/>
+        <Entry Key="VK_FORMAT_A8B8G8R8_UINT_PACK32" Value="A8B8G8R8 Uint"/>
+        <Entry Key="VK_FORMAT_A8B8G8R8_SINT_PACK32" Value="A8B8G8R8 Sint"/>
+        <Entry Key="VK_FORMAT_A8B8G8R8_SRGB_PACK32" Value="A8B8G8R8 Srgb"/>
+        <Entry Key="VK_FORMAT_A2R10G10B10_UNORM_PACK32" Value="A2R10G10B10 Unorm"/>
+        <Entry Key="VK_FORMAT_A2R10G10B10_SNORM_PACK32" Value="A2R10G10B10 Snorm"/>
+        <Entry Key="VK_FORMAT_A2R10G10B10_USCALED_PACK32" Value="A2R10G10B10 Uscaled"/>
+        <Entry Key="VK_FORMAT_A2R10G10B10_SSCALED_PACK32" Value="A2R10G10B10 Sscaled"/>
+        <Entry Key="VK_FORMAT_A2R10G10B10_UINT_PACK32" Value="A2R10G10B10 Uint"/>
+        <Entry Key="VK_FORMAT_A2R10G10B10_SINT_PACK32" Value="A2R10G10B10 Sint"/>
+        <Entry Key="VK_FORMAT_A2B10G10R10_UNORM_PACK32" Value="A2B10G10R10 Unorm"/>
+        <Entry Key="VK_FORMAT_A2B10G10R10_SNORM_PACK32" Value="A2B10G10R10 Snorm"/>
+        <Entry Key="VK_FORMAT_A2B10G10R10_USCALED_PACK32" Value="A2B10G10R10 Uscaled"/>
+        <Entry Key="VK_FORMAT_A2B10G10R10_SSCALED_PACK32" Value="A2B10G10R10 Sscaled"/>
+        <Entry Key="VK_FORMAT_A2B10G10R10_UINT_PACK32" Value="A2B10G10R10 Uint"/>
+        <Entry Key="VK_FORMAT_A2B10G10R10_SINT_PACK32" Value="A2B10G10R10 Sint"/>
+        <Entry Key="VK_FORMAT_R16_UNORM" Value="R16 Unorm"/>
+        <Entry Key="VK_FORMAT_R16_SNORM" Value="R16 Snorm"/>
+        <Entry Key="VK_FORMAT_R16_USCALED" Value="R16 Uscaled"/>
+        <Entry Key="VK_FORMAT_R16_SSCALED" Value="R16 Sscaled"/>
+        <Entry Key="VK_FORMAT_R16_UINT" Value="R16 Uint"/>
+        <Entry Key="VK_FORMAT_R16_SINT" Value="R16 Sint"/>
+        <Entry Key="VK_FORMAT_R16_SFLOAT" Value="R16 Sfloat"/>
+        <Entry Key="VK_FORMAT_R16G16_UNORM" Value="R16G16 Unorm"/>
+        <Entry Key="VK_FORMAT_R16G16_SNORM" Value="R16G16 Snorm"/>
+        <Entry Key="VK_FORMAT_R16G16_USCALED" Value="R16G16 Uscaled"/>
+        <Entry Key="VK_FORMAT_R16G16_SSCALED" Value="R16G16 Sscaled"/>
+        <Entry Key="VK_FORMAT_R16G16_UINT" Value="R16G16 Uint"/>
+        <Entry Key="VK_FORMAT_R16G16_SINT" Value="R16G16 Sint"/>
+        <Entry Key="VK_FORMAT_R16G16_SFLOAT" Value="R16G16 Sfloat"/>
+        <Entry Key="VK_FORMAT_R16G16B16_UNORM" Value="R16G16B16 Unorm"/>
+        <Entry Key="VK_FORMAT_R16G16B16_SNORM" Value="R16G16B16 Snorm"/>
+        <Entry Key="VK_FORMAT_R16G16B16_USCALED" Value="R16G16B16 Uscaled"/>
+        <Entry Key="VK_FORMAT_R16G16B16_SSCALED" Value="R16G16B16 Sscaled"/>
+        <Entry Key="VK_FORMAT_R16G16B16_UINT" Value="R16G16B16 Uint"/>
+        <Entry Key="VK_FORMAT_R16G16B16_SINT" Value="R16G16B16 Sint"/>
+        <Entry Key="VK_FORMAT_R16G16B16_SFLOAT" Value="R16G16B16 Sfloat"/>
+        <Entry Key="VK_FORMAT_R16G16B16A16_UNORM" Value="R16G16B16A16 Unorm"/>
+        <Entry Key="VK_FORMAT_R16G16B16A16_SNORM" Value="R16G16B16A16 Snorm"/>
+        <Entry Key="VK_FORMAT_R16G16B16A16_USCALED" Value="R16G16B16A16 Uscaled"/>
+        <Entry Key="VK_FORMAT_R16G16B16A16_SSCALED" Value="R16G16B16A16 Sscaled"/>
+        <Entry Key="VK_FORMAT_R16G16B16A16_UINT" Value="R16G16B16A16 Uint"/>
+        <Entry Key="VK_FORMAT_R16G16B16A16_SINT" Value="R16G16B16A16 Sint"/>
+        <Entry Key="VK_FORMAT_R16G16B16A16_SFLOAT" Value="R16G16B16A16 Sfloat"/>
+        <Entry Key="VK_FORMAT_R32_UINT" Value="R32 Uint"/>
+        <Entry Key="VK_FORMAT_R32_SINT" Value="R32 Sint"/>
+        <Entry Key="VK_FORMAT_R32_SFLOAT" Value="R32 Sfloat"/>
+        <Entry Key="VK_FORMAT_R32G32_UINT" Value="R32G32 Uint"/>
+        <Entry Key="VK_FORMAT_R32G32_SINT" Value="R32G32 Sint"/>
+        <Entry Key="VK_FORMAT_R32G32_SFLOAT" Value="R32G32 Sfloat"/>
+        <Entry Key="VK_FORMAT_R32G32B32_UINT" Value="R32G32B32 Uint"/>
+        <Entry Key="VK_FORMAT_R32G32B32_SINT" Value="R32G32B32 Sint"/>
+        <Entry Key="VK_FORMAT_R32G32B32_SFLOAT" Value="R32G32B32 Sfloat"/>
+        <Entry Key="VK_FORMAT_R32G32B32A32_UINT" Value="R32G32B32A32 Uint"/>
+        <Entry Key="VK_FORMAT_R32G32B32A32_SINT" Value="R32G32B32A32 Sint"/>
+        <Entry Key="VK_FORMAT_R32G32B32A32_SFLOAT" Value="R32G32B32A32 Sfloat"/>
+        <Entry Key="VK_FORMAT_R64_UINT" Value="R64 Uint"/>
+        <Entry Key="VK_FORMAT_R64_SINT" Value="R64 Sint"/>
+        <Entry Key="VK_FORMAT_R64_SFLOAT" Value="R64 Sfloat"/>
+        <Entry Key="VK_FORMAT_R64G64_UINT" Value="R64G64 Uint"/>
+        <Entry Key="VK_FORMAT_R64G64_SINT" Value="R64G64 Sint"/>
+        <Entry Key="VK_FORMAT_R64G64_SFLOAT" Value="R64G64 Sfloat"/>
+        <Entry Key="VK_FORMAT_R64G64B64_UINT" Value="R64G64B64 Uint"/>
+        <Entry Key="VK_FORMAT_R64G64B64_SINT" Value="R64G64B64 Sint"/>
+        <Entry Key="VK_FORMAT_R64G64B64_SFLOAT" Value="R64G64B64 Sfloat"/>
+        <Entry Key="VK_FORMAT_R64G64B64A64_UINT" Value="R64G64B64A64 Uint"/>
+        <Entry Key="VK_FORMAT_R64G64B64A64_SINT" Value="R64G64B64A64 Sint"/>
+        <Entry Key="VK_FORMAT_R64G64B64A64_SFLOAT" Value="R64G64B64A64 Sfloat"/>
+        <Entry Key="VK_FORMAT_B10G11R11_UFLOAT_PACK32" Value="B10G11R11 Ufloat"/>
+        <Entry Key="VK_FORMAT_E5B9G9R9_UFLOAT_PACK32" Value="E5B9G9R9 Ufloat"/>
+        <Entry Key="VK_FORMAT_D16_UNORM" Value="D16 Unorm"/>
+        <Entry Key="VK_FORMAT_X8_D24_UNORM_PACK32" Value="D24 Unorm"/>
+        <Entry Key="VK_FORMAT_D32_SFLOAT" Value="D32 Sfloat"/>
+        <Entry Key="VK_FORMAT_S8_UINT" Value="S8 Uint"/>
+        <Entry Key="VK_FORMAT_D16_UNORM_S8_UINT" Value="D16 Unorm S8 Uint"/>
+        <Entry Key="VK_FORMAT_D24_UNORM_S8_UINT" Value="D24 Unorm S8 Uint"/>
+        <Entry Key="VK_FORMAT_D32_SFLOAT_S8_UINT" Value="D32 Sfloat S8 Uint"/>
+        <Entry Key="VK_FORMAT_BC1_RGB_UNORM_BLOCK" Value="BC1 RGB Unorm"/>
+        <Entry Key="VK_FORMAT_BC1_RGB_SRGB_BLOCK" Value="BC1 RGB Srgb"/>
+        <Entry Key="VK_FORMAT_BC1_RGBA_UNORM_BLOCK" Value="BC1 RGBA Unorm"/>
+        <Entry Key="VK_FORMAT_BC1_RGBA_SRGB_BLOCK" Value="BC1 RGBA Srgb"/>
+        <Entry Key="VK_FORMAT_BC2_UNORM_BLOCK" Value="BC2 Unorm"/>
+        <Entry Key="VK_FORMAT_BC2_SRGB_BLOCK" Value="BC2 Srgb"/>
+        <Entry Key="VK_FORMAT_BC3_UNORM_BLOCK" Value="BC3 Unorm"/>
+        <Entry Key="VK_FORMAT_BC3_SRGB_BLOCK" Value="BC3 Srgb"/>
+        <Entry Key="VK_FORMAT_BC4_UNORM_BLOCK" Value="BC4 Unorm"/>
+        <Entry Key="VK_FORMAT_BC4_SNORM_BLOCK" Value="BC4 Snorm"/>
+        <Entry Key="VK_FORMAT_BC5_UNORM_BLOCK" Value="BC5 Unorm"/>
+        <Entry Key="VK_FORMAT_BC5_SNORM_BLOCK" Value="BC5 Snorm"/>
+        <Entry Key="VK_FORMAT_BC6H_UFLOAT_BLOCK" Value="BC6H Ufloat"/>
+        <Entry Key="VK_FORMAT_BC6H_SFLOAT_BLOCK" Value="BC6H Sfloat"/>
+        <Entry Key="VK_FORMAT_BC7_UNORM_BLOCK" Value="BC7 Unorm"/>
+        <Entry Key="VK_FORMAT_BC7_SRGB_BLOCK" Value="BC7 Srgb"/>
+        <Entry Key="VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK" Value="ETC2 R8G8B8 Unorm"/>
+        <Entry Key="VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK" Value="ETC2 R8G8B8 Srgb"/>
+        <Entry Key="VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK" Value="ETC2 R8G8B8A1 Unorm"/>
+        <Entry Key="VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK" Value="ETC2 R8G8B8A1 Srgb"/>
+        <Entry Key="VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK" Value="ETC2 R8G8B8A8 Unorm"/>
+        <Entry Key="VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK" Value="ETC2 R8G8B8A8 Srgb"/>
+        <Entry Key="VK_FORMAT_EAC_R11_UNORM_BLOCK" Value="EAC R11 Unorm"/>
+        <Entry Key="VK_FORMAT_EAC_R11_SNORM_BLOCK" Value="EAC R11 Snorm"/>
+        <Entry Key="VK_FORMAT_EAC_R11G11_UNORM_BLOCK" Value="EAC R11G11 Unorm"/>
+        <Entry Key="VK_FORMAT_EAC_R11G11_SNORM_BLOCK" Value="EAC R11G11 Snorm"/>
+        <Entry Key="VK_FORMAT_ASTC_4x4_UNORM_BLOCK" Value="ASTC 4x4 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_4x4_SRGB_BLOCK" Value="ASTC 4x4 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_5x4_UNORM_BLOCK" Value="ASTC 5x4 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_5x4_SRGB_BLOCK" Value="ASTC 5x4 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_5x5_UNORM_BLOCK" Value="ASTC 5x5 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_5x5_SRGB_BLOCK" Value="ASTC 5x5 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_6x5_UNORM_BLOCK" Value="ASTC 6x5 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_6x5_SRGB_BLOCK" Value="ASTC 6x5 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_6x6_UNORM_BLOCK" Value="ASTC 6x6 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_6x6_SRGB_BLOCK" Value="ASTC 6x6 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_8x5_UNORM_BLOCK" Value="ASTC 8x5 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_8x5_SRGB_BLOCK" Value="ASTC 8x5 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_8x6_UNORM_BLOCK" Value="ASTC 8x6 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_8x6_SRGB_BLOCK" Value="ASTC 8x6 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_8x8_UNORM_BLOCK" Value="ASTC 8x8 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_8x8_SRGB_BLOCK" Value="ASTC 8x8 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_10x5_UNORM_BLOCK" Value="ASTC 10x5 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_10x5_SRGB_BLOCK" Value="ASTC 10x5 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_10x6_UNORM_BLOCK" Value="ASTC 10x6 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_10x6_SRGB_BLOCK" Value="ASTC 10x6 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_10x8_UNORM_BLOCK" Value="ASTC 10x8 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_10x8_SRGB_BLOCK" Value="ASTC 10x8 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_10x10_UNORM_BLOCK" Value="ASTC 10x10 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_10x10_SRGB_BLOCK" Value="ASTC 10x10 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_12x10_UNORM_BLOCK" Value="ASTC 12x10 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_12x10_SRGB_BLOCK" Value="ASTC 12x10 Srgb"/>
+        <Entry Key="VK_FORMAT_ASTC_12x12_UNORM_BLOCK" Value="ASTC 12x12 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_12x12_SRGB_BLOCK" Value="ASTC 12x12 Srgb"/>
+        <Entry Key="VK_FORMAT_G8B8G8R8_422_UNORM" Value="G8B8G8R8 422 Unorm"/>
+        <Entry Key="VK_FORMAT_B8G8R8G8_422_UNORM" Value="B8G8R8G8 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM" Value="G8 B8 R8 3-Plane 420 Unorm"/>
+        <Entry Key="VK_FORMAT_G8_B8R8_2PLANE_420_UNORM" Value="G8 B8R8 2-Plane 420 Unorm"/>
+        <Entry Key="VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM" Value="G8 B8 R8 3-Plane 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G8_B8R8_2PLANE_422_UNORM" Value="G8 B8R8 2-Plane 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM" Value="G8 B8 R8 3-Plane 444 Unorm"/>
+        <Entry Key="VK_FORMAT_R10X6_UNORM_PACK16" Value="R10 Unorm"/>
+        <Entry Key="VK_FORMAT_R10X6G10X6_UNORM_2PACK16" Value="R10G10 Unorm"/>
+        <Entry Key="VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16" Value="R10G10B10A10 Unorm"/>
+        <Entry Key="VK_FORMAT_G10X6B10X6G10X6R10X6_422_UNORM_4PACK16" Value="G10B10G10R10 422 Unorm"/>
+        <Entry Key="VK_FORMAT_B10X6G10X6R10X6G10X6_422_UNORM_4PACK16" Value="B10G10R10G10 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16" Value="G10 B10 R10 3-Plane 420 Unorm"/>
+        <Entry Key="VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16" Value="G10 B10R10 2-Plane 420 Unorm"/>
+        <Entry Key="VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16" Value="G10 B10 R10 3-Plane 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16" Value="G10 B10R10 2-Plane 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16" Value="G10 B10 R10 3-Plane 444 Unorm"/>
+        <Entry Key="VK_FORMAT_R12X4_UNORM_PACK16" Value="R12 Unorm"/>
+        <Entry Key="VK_FORMAT_R12X4G12X4_UNORM_2PACK16" Value="R12G12 Unorm"/>
+        <Entry Key="VK_FORMAT_R12X4G12X4B12X4A12X4_UNORM_4PACK16" Value="R12G12B12A12 Unorm"/>
+        <Entry Key="VK_FORMAT_G12X4B12X4G12X4R12X4_422_UNORM_4PACK16" Value="G12B12G12R12 422 Unorm"/>
+        <Entry Key="VK_FORMAT_B12X4G12X4R12X4G12X4_422_UNORM_4PACK16" Value="B12G12R12G12 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16" Value="G12 B12 R12 3-Plane 420 Unorm"/>
+        <Entry Key="VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16" Value="G12 B12R12 2-Plane 420 Unorm"/>
+        <Entry Key="VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16" Value="G12 B12 R12 3-Plane 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16" Value="G12 B12R12 2-Plane 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16" Value="G12 B12 R12 3-Plane 444 Unorm"/>
+        <Entry Key="VK_FORMAT_G16B16G16R16_422_UNORM" Value="G16B16G16R16 422 Unorm"/>
+        <Entry Key="VK_FORMAT_B16G16R16G16_422_UNORM" Value="B16G16R16G16 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G16_B16_R16_3PLANE_420_UNORM" Value="G16 B16 R16 3-Plane 420 Unorm"/>
+        <Entry Key="VK_FORMAT_G16_B16R16_2PLANE_420_UNORM" Value="G16 B16R16 2-Plane 420 Unorm"/>
+        <Entry Key="VK_FORMAT_G16_B16_R16_3PLANE_422_UNORM" Value="G16 B16 R16 3-Plane 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G16_B16R16_2PLANE_422_UNORM" Value="G16 B16R16 2-Plane 422 Unorm"/>
+        <Entry Key="VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM" Value="G16 B16 R16 3-Plane 444 Unorm"/>
+        <Entry Key="VK_FORMAT_G8_B8R8_2PLANE_444_UNORM" Value="G8 B8R8 2-Plane 444 Unorm"/>
+        <Entry Key="VK_FORMAT_G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16" Value="G10 B10R10 2-Plane 444 Unorm"/>
+        <Entry Key="VK_FORMAT_G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16" Value="G12 B12R12 2-Plane 444 Unorm"/>
+        <Entry Key="VK_FORMAT_G16_B16R16_2PLANE_444_UNORM" Value="G16 B16R16 2-Plane 444 Unorm"/>
+        <Entry Key="VK_FORMAT_A4R4G4B4_UNORM_PACK16" Value="A4R4G4B4 Unorm"/>
+        <Entry Key="VK_FORMAT_A4B4G4R4_UNORM_PACK16" Value="A4B4G4R4 Unorm"/>
+        <Entry Key="VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK" Value="ASTC 4x4 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_5x4_SFLOAT_BLOCK" Value="ASTC 5x4 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_5x5_SFLOAT_BLOCK" Value="ASTC 5x5 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_6x5_SFLOAT_BLOCK" Value="ASTC 6x5 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_6x6_SFLOAT_BLOCK" Value="ASTC 6x6 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_8x5_SFLOAT_BLOCK" Value="ASTC 8x5 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_8x6_SFLOAT_BLOCK" Value="ASTC 8x6 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_8x8_SFLOAT_BLOCK" Value="ASTC 8x8 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_10x5_SFLOAT_BLOCK" Value="ASTC 10x5 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_10x6_SFLOAT_BLOCK" Value="ASTC 10x6 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_10x8_SFLOAT_BLOCK" Value="ASTC 10x8 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_10x10_SFLOAT_BLOCK" Value="ASTC 10x10 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_12x10_SFLOAT_BLOCK" Value="ASTC 12x10 Sfloat"/>
+        <Entry Key="VK_FORMAT_ASTC_12x12_SFLOAT_BLOCK" Value="ASTC 12x12 Sfloat"/>
+        <Entry Key="VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG" Value="PVRTC1 2BPP Unorm"/>
+        <Entry Key="VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG" Value="PVRTC1 4BPP Unorm"/>
+        <Entry Key="VK_FORMAT_PVRTC2_2BPP_UNORM_BLOCK_IMG" Value="PVRTC2 2BPP Unorm"/>
+        <Entry Key="VK_FORMAT_PVRTC2_4BPP_UNORM_BLOCK_IMG" Value="PVRTC2 4BPP Unorm"/>
+        <Entry Key="VK_FORMAT_PVRTC1_2BPP_SRGB_BLOCK_IMG" Value="PVRTC1 2BPP Srgb"/>
+        <Entry Key="VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG" Value="PVRTC1 4BPP Srgb"/>
+        <Entry Key="VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG" Value="PVRTC2 2BPP Srgb"/>
+        <Entry Key="VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG" Value="PVRTC2 4BPP Srgb"/>
+    </Map>
+
+    <Map Name="g_scVulkanAccelerationStructureTypeNames" KeyType="VkAccelerationStructureTypeKHR">
+        <Entry Key="VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR" Value="Top-level"/>
+        <Entry Key="VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR" Value="Bottom-level"/>
+        <Entry Key="VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR" Value="Generic"/>
+        <Entry Key="VK_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_KHR" Value="Opacity micromap"/>
+    </Map>
+
+    <Map Name="g_scVulkanCopyAccelerationStructureModeNames" KeyType="VkCopyAccelerationStructureModeKHR">
+        <Entry Key="VK_COPY_ACCELERATION_STRUCTURE_MODE_CLONE_KHR" Value="Clone"/>
+        <Entry Key="VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR" Value="Compact"/>
+        <Entry Key="VK_COPY_ACCELERATION_STRUCTURE_MODE_SERIALIZE_KHR" Value="Serialize"/>
+        <Entry Key="VK_COPY_ACCELERATION_STRUCTURE_MODE_DESERIALIZE_KHR" Value="Deserialize"/>
+    </Map>
+
+    <Map Name="g_scVulkanBuildAccelerationStructureModeNames" KeyType="VkBuildAccelerationStructureModeKHR">
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR" Value="Build"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR" Value="Update"/>
+    </Map>
+
+    <Map Name="g_scVulkanBuildAccelerationStructureFlagNames" KeyType="VkBuildAccelerationStructureFlagBitsKHR">
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR" Value="Allow update"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR" Value="Allow compaction"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR" Value="Prefer fast trace"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR" Value="Prefer fast build"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_KHR" Value="Low memory"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_MOTION_BIT_NV" Value="Motion"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_OPACITY_MICROMAP_UPDATE_BIT_KHR" Value="Allow opacity micromap update"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DISABLE_OPACITY_MICROMAPS_BIT_KHR" Value="Allow disable opacity micromaps"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_OPACITY_MICROMAP_DATA_UPDATE_BIT_EXT" Value="Allow opacity micromap data update"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_MICROMAP_LOSSY_BIT_KHR" Value="Micromap lossy"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_BIT_KHR" Value="Allow data access"/>
+        <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_CLUSTER_OPACITY_MICROMAPS_BIT_NV" Value="Allow cluster opacity micromaps"/>
+    </Map>
+
+    <Map Name="g_scVulkanMicromapTypeNames" KeyType="VkMicromapTypeEXT">
+        <Entry Key="VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT" Value="Opacity micromap"/>
+    </Map>
+
+    <Map Name="g_scVulkanCopyMicromapModeNames" KeyType="VkCopyMicromapModeEXT">
+        <Entry Key="VK_COPY_MICROMAP_MODE_CLONE_EXT" Value="Clone"/>
+        <Entry Key="VK_COPY_MICROMAP_MODE_SERIALIZE_EXT" Value="Serialize"/>
+        <Entry Key="VK_COPY_MICROMAP_MODE_DESERIALIZE_EXT" Value="Deserialize"/>
+        <Entry Key="VK_COPY_MICROMAP_MODE_COMPACT_EXT" Value="Compact"/>
+    </Map>
+
+    <Map Name="g_scVulkanBuildMicromapModeNames" KeyType="VkBuildMicromapModeEXT">
+        <Entry Key="VK_BUILD_MICROMAP_MODE_BUILD_EXT" Value="Build"/>
+    </Map>
+
+    <Map Name="g_scVulkanBuildMicromapFlagNames" KeyType="VkBuildMicromapFlagBitsEXT">
+        <Entry Key="VK_BUILD_MICROMAP_PREFER_FAST_TRACE_BIT_EXT" Value="Prefer fast trace"/>
+        <Entry Key="VK_BUILD_MICROMAP_PREFER_FAST_BUILD_BIT_EXT" Value="Prefer fast build"/>
+        <Entry Key="VK_BUILD_MICROMAP_ALLOW_COMPACTION_BIT_EXT" Value="Allow compaction"/>
+    </Map>
+
+    <Map Name="g_scVulkanGeometryTypeNames" KeyType="VkGeometryTypeKHR">
+        <Entry Key="VK_GEOMETRY_TYPE_TRIANGLES_KHR" Value="Triangles"/>
+        <Entry Key="VK_GEOMETRY_TYPE_AABBS_KHR" Value="AABBs"/>
+        <Entry Key="VK_GEOMETRY_TYPE_INSTANCES_KHR" Value="Instances"/>
+        <Entry Key="VK_GEOMETRY_TYPE_MICROMAP_KHR" Value="Micromap"/>
+    </Map>
+
+    <Map Name="g_scVulkanGeometryFlagNames" KeyType="VkGeometryFlagBitsKHR">
+        <Entry Key="VK_GEOMETRY_OPAQUE_BIT_KHR" Value="Opaque"/>
+        <Entry Key="VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR" Value="No duplicate any-hit invocation"/>
+    </Map>
+
+    <Map Name="g_scProfilerAccelerationStructureTypeFlagNames" KeyType="VkProfilerAccelerationStructureTypeFlagBitsEXT">
+        <Entry Key="VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_BIT_EXT" Value="Top-level"/>
+        <Entry Key="VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_BIT_EXT" Value="Bottom-level"/>
+        <Entry Key="VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_GENERIC_BIT_EXT" Value="Generic"/>
+        <Entry Key="VK_PROFILER_ACCELERATION_STRUCTURE_TYPE_OPACITY_MICROMAP_BIT_EXT" Value="Opacity Micromap"/>
+    </Map>
+
+    <Map Name="g_scProfilerMicromapTypeFlagNames" KeyType="VkFlags">
+        <Entry Key="( 1U &lt;&lt; VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT )" Value="Opacity Micromap"/>
+    </Map>
+</Mappings>
