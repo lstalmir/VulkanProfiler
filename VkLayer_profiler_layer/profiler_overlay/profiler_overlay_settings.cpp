@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2025 Lukasz Stalmirski
+// Copyright (c) 2024-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -241,8 +241,16 @@ namespace Profiler
         {
             std::string line;
             std::regex windowSectionRegex( R"(\[Window\]\[(.+)\])" );
+            std::regex layerSectionRegex( R"(\[Layer\]\[Settings\])" );
 
-            bool isValid = true;
+            auto StartsWith = []( const std::string_view& str, const std::string_view& prefix ) -> bool
+            {
+                return ( str.length() >= prefix.length() ) &&
+                       ( str.substr( 0, prefix.length() ) == prefix );
+            };
+
+            bool isOldFormat = false;
+            bool hasLayerSection = false;
             while( std::getline( ini, line ) )
             {
                 std::smatch sm;
@@ -254,22 +262,54 @@ namespace Profiler
                         continue;
                     }
 
-                    std::string prefix = name.substr( 0, 3 );
-                    if( prefix != "###" )
+                    if( StartsWith( name, "###" ) )
                     {
-                        // All windows should use '###' operator for identification.
-                        isValid = false;
-                        break;
+                        // ### prefix has been removed in 1.92.6
+                        // Migrate the settings file to the new format by removing the prefix.
+                        isOldFormat = true;
                     }
+                }
+                else if( std::regex_match( line, sm, layerSectionRegex ) )
+                {
+                    hasLayerSection = true;
                 }
             }
 
             ini.close();
 
-            if( !isValid )
+            if( !hasLayerSection )
             {
                 // File is not valid, remove it and use default settings.
                 std::filesystem::remove( pFileName );
+                return;
+            }
+
+            if( isOldFormat )
+            {
+                // Migrate the settings file to the new format.
+                std::ifstream iniOld( pFileName );
+                std::ofstream iniNew( pFileName + std::string( ".new" ) );
+
+                while( std::getline( iniOld, line ) )
+                {
+                    std::smatch sm;
+                    if( std::regex_match( line, sm, windowSectionRegex ) )
+                    {
+                        std::string name = sm.str( 1 );
+                        if( StartsWith( name, "###" ) )
+                        {
+                            line = "[Window][" + name.substr( 3 ) + "]";
+                        }
+                    }
+
+                    iniNew << line << "\n";
+                }
+
+                iniOld.close();
+                iniNew.close();
+
+                std::filesystem::remove( pFileName );
+                std::filesystem::rename( pFileName + std::string( ".new" ), pFileName );
             }
         }
     }
