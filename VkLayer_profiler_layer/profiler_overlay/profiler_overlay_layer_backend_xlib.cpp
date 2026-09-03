@@ -20,6 +20,7 @@
 
 #include "profiler_overlay_layer_backend_xlib.h"
 #include <imgui_internal.h>
+#include <X11/extensions/shape.h>
 #include <stdlib.h>
 #include <array>
 #include <mutex>

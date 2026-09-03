@@ -26,6 +26,9 @@
 #include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "profiler_layer_functions/core/VkDevice_functions_base.h"
 
+#include <imgui.h>
+#include <imgui_impl_vulkan.h>
+
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 #include "profiler_overlay_layer_backend_win32.h"
 #endif
@@ -38,9 +41,6 @@
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 #include "profiler_overlay_layer_backend_wayland.h"
 #endif
-
-#include <imgui.h>
-#include <imgui_impl_vulkan.h>
 
 #include <algorithm>
 
@@ -131,25 +131,6 @@ namespace Profiler
                 &m_CommandPool );
         }
 
-        // Create linear sampler
-        if( result == VK_SUCCESS )
-        {
-            VkSamplerCreateInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-            info.magFilter = VK_FILTER_LINEAR;
-            info.minFilter = VK_FILTER_LINEAR;
-            info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-            info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-
-            result = m_pDevice->Callbacks.CreateSampler(
-                m_pDevice->Handle,
-                &info,
-                nullptr,
-                &m_LinearSampler );
-        }
-
         // Create memory allocator
         if( result == VK_SUCCESS )
         {
@@ -196,14 +177,6 @@ namespace Profiler
             m_pDevice->Callbacks.DestroyCommandPool(
                 m_pDevice->Handle,
                 m_CommandPool,
-                nullptr );
-        }
-
-        if( m_LinearSampler != VK_NULL_HANDLE )
-        {
-            m_pDevice->Callbacks.DestroySampler(
-                m_pDevice->Handle,
-                m_LinearSampler,
                 nullptr );
         }
 
@@ -850,6 +823,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerBackend::CreateFontsImage()
     {
+        // Created implicity by ImGui Vulkan backend.
     }
 
     /***********************************************************************************\
@@ -863,6 +837,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerBackend::DestroyFontsImage()
     {
+        // Destroyed implicity by ImGui Vulkan backend.
     }
 
     /***********************************************************************************\
@@ -885,7 +860,6 @@ namespace Profiler
         m_Initialized = false;
 
         m_ResourcesUploadEvent = VK_NULL_HANDLE;
-        m_LinearSampler = VK_NULL_HANDLE;
         m_ImageResources.clear();
 
         ResetSwapchainMembers();
@@ -1149,7 +1123,6 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             image.ImageDescriptorSet = ImGui_ImplVulkan_AddTexture(
-                m_LinearSampler,
                 image.ImageView,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
 

@@ -125,7 +125,6 @@ namespace Profiler
         VkFence m_LastSubmittedFence;
 
         VkEvent m_ResourcesUploadEvent;
-        VkSampler m_LinearSampler;
 
         struct ImageResource;
         std::vector<ImageResource> m_ImageResources;

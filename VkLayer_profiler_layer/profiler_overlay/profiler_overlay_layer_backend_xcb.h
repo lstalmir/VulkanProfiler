@@ -22,9 +22,8 @@
 #include "profiler_overlay_types.h"
 #include "profiler_overlay_layer_backend.h"
 #include "profiler_overlay_layer_backend_xkb.h"
-#include <xcb/xcb.h>
-#include <xcb/shape.h>
 #include <imgui.h>
+#include <xcb/xcb.h>
 
 namespace Profiler
 {
