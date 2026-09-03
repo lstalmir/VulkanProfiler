@@ -3888,7 +3888,7 @@ namespace Profiler
                 }
 
                 int hoveredIndex = -1;
-                ImGuiX::PlotBreakdownEx( "##MemoryTypesBreakdown", values, valueCount, 0, &hoveredIndex, colors, ImVec2( 0, 5.f * interfaceScale ) );
+                ImGuiX::PlotBreakdownEx( fmt::format( "##MemoryTypesBreakdown{}", i ).c_str(), values, valueCount, 0, &hoveredIndex, colors, ImVec2( 0, 5.f * interfaceScale ) );
 
                 if( hoveredIndex != -1 )
                 {
