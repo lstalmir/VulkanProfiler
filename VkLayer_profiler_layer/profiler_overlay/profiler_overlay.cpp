@@ -1003,7 +1003,7 @@ namespace Profiler
             VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
 
         // Add padding
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
+        ImGui::Dummy( ImVec2( 0, 5 ) );
 
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
         m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_3" );
@@ -1355,7 +1355,7 @@ namespace Profiler
 
             ImGui::PopStyleColor();
             ImGui::PopStyleVar();
-            ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+            ImGui::Dummy( ImVec2( 0, 5 * interfaceScale ) );
         }
 
         PerformanceTabDockSpace();
@@ -1711,7 +1711,7 @@ namespace Profiler
 
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+        ImGui::Dummy( ImVec2( 0, 5 * interfaceScale ) );
     }
 
     /***********************************************************************************\
@@ -1761,7 +1761,7 @@ namespace Profiler
 
             if( ImGui::BeginTooltip() )
             {
-                ImGui::Text( "Signal semaphores:" );
+                ImGui::TextUnformatted( "Signal semaphores:" );
 
                 ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
                 for( VkSemaphoreHandle semaphore : semaphores )
@@ -1769,7 +1769,7 @@ namespace Profiler
                     ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
                 }
                 ImGui::PopStyleVar();
-                ImGui::SetCursorPosY( ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y );
+                ImGui::Dummy( ImVec2( 0, ImGui::GetStyle().ItemSpacing.y ) );
 
                 ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
                 ImGui::TextUnformatted( "Click to highlight all occurrences in frame" );
@@ -1786,7 +1786,7 @@ namespace Profiler
 
             if( ImGui::BeginTooltip() )
             {
-                ImGui::Text( "Wait semaphores:" );
+                ImGui::TextUnformatted( "Wait semaphores:" );
 
                 ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
                 for( VkSemaphoreHandle semaphore : semaphores )
@@ -1794,7 +1794,7 @@ namespace Profiler
                     ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
                 }
                 ImGui::PopStyleVar();
-                ImGui::SetCursorPosY( ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y );
+                ImGui::Dummy( ImVec2( 0, ImGui::GetStyle().ItemSpacing.y ) );
 
                 ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
                 ImGui::TextUnformatted( "Click to highlight all occurrences in frame" );
@@ -2310,7 +2310,7 @@ namespace Profiler
             }
         }
 
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+        ImGui::Dummy( ImVec2( 0, 5 * interfaceScale ) );
 
         // Show a combo box that allows the user to select the filter the profiled range.
         ImGui::TextUnformatted( Lang::PerformanceCountersRange );
@@ -2564,7 +2564,7 @@ namespace Profiler
             ImGui::EndDisabled();
         }
 
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+        ImGui::Dummy( ImVec2( 0, 5 * interfaceScale ) );
 
         // Scroll the counters only.
         if( ImGui::BeginChild( "###PerformanceCountersData" ) )
@@ -4958,7 +4958,7 @@ namespace Profiler
 
         if( ImGui::BeginChild( "##ImageMemoryMap",
                 ImVec2( 0, blockMapSize.y + 25.f * interfaceScale ),
-                ImGuiChildFlags_Border,
+                ImGuiChildFlags_Borders,
                 ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
         {
             ImVec2 mousePos = ImGui::GetMousePos();
@@ -5665,7 +5665,7 @@ namespace Profiler
             return;
         }
 
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
+        ImGui::Dummy( ImVec2( 0, 5 ) );
 
         switch( m_InspectorPipeline.m_Type )
         {

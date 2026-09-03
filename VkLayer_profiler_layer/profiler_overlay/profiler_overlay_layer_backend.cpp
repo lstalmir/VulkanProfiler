@@ -520,8 +520,12 @@ namespace Profiler
 
         if( !m_VulkanBackendInitialized )
         {
+            const uint32_t apiVersion = std::min(
+                m_pDevice->pInstance->ApplicationInfo.apiVersion,
+                m_pDevice->pPhysicalDevice->Properties.apiVersion );
+
             // Load device functions required by the backend.
-            if( !ImGui_ImplVulkan_LoadFunctions( FunctionLoader, this ) )
+            if( !ImGui_ImplVulkan_LoadFunctions( apiVersion, FunctionLoader, this ) )
             {
                 return false;
             }
@@ -533,10 +537,10 @@ namespace Profiler
             initInfo.QueueFamily = m_pGraphicsQueue->Family;
             initInfo.Queue = m_pGraphicsQueue->Handle;
             initInfo.DescriptorPool = m_DescriptorPool;
-            initInfo.RenderPass = m_RenderPass;
+            initInfo.PipelineInfoMain.RenderPass = m_RenderPass;
             initInfo.MinImageCount = m_MinImageCount;
             initInfo.ImageCount = static_cast<uint32_t>( m_Images.size() );
-            initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+            initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
             // Initialize the Vulkan backend.
             if( !ImGui_ImplVulkan_Init( &initInfo ) )
@@ -844,7 +848,6 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerBackend::CreateFontsImage()
     {
-        ImGui_ImplVulkan_CreateFontsTexture();
     }
 
     /***********************************************************************************\
@@ -858,7 +861,6 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerBackend::DestroyFontsImage()
     {
-        ImGui_ImplVulkan_DestroyFontsTexture();
     }
 
     /***********************************************************************************\
