@@ -3720,6 +3720,8 @@ namespace Profiler
 
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
+                ImGui::PushID( static_cast<int>( i ) );
+
                 const int64_t allocationSize = m_pData->m_Memory.m_Heaps[i].m_AllocationSize;
                 const int64_t allocationCount = m_pData->m_Memory.m_Heaps[i].m_AllocationCount;
                 const int64_t budgetSize = m_pData->m_Memory.m_Heaps[i].m_BudgetSize;
@@ -3776,21 +3778,19 @@ namespace Profiler
                     if( allocationSizeDifference )
                     {
                         snprintf( usageStr, sizeof( usageStr ),
-                            "(%+.2f) %.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown%u",
+                            "(%+.2f) %.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown",
                             allocationSizeDifference / 1048576.f,
                             allocationSize / 1048576.f,
                             memoryHeapSize / 1048576.f,
-                            usage,
-                            i );
+                            usage );
                     }
                     else
                     {
                         snprintf( usageStr, sizeof( usageStr ),
-                            "%.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown%u",
+                            "%.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown",
                             allocationSize / 1048576.f,
                             memoryHeapSize / 1048576.f,
-                            usage,
-                            i );
+                            usage );
                     }
                 }
 
@@ -3888,7 +3888,7 @@ namespace Profiler
                 }
 
                 int hoveredIndex = -1;
-                ImGuiX::PlotBreakdownEx( fmt::format( "##MemoryTypesBreakdown{}", i ).c_str(), values, valueCount, 0, &hoveredIndex, colors, ImVec2( 0, 5.f * interfaceScale ) );
+                ImGuiX::PlotBreakdownEx( "##MemoryTypesBreakdown", values, valueCount, 0, &hoveredIndex, colors, ImVec2( 0, 5.f * interfaceScale ) );
 
                 if( hoveredIndex != -1 )
                 {
@@ -3922,7 +3922,7 @@ namespace Profiler
                 if( m_MemoryConsumptionHistoryVisible )
                 {
                     if( ImPlot::BeginPlot(
-                            fmt::format( "##MemoryHistory{}", i ).c_str(),
+                            "##MemoryHistory",
                             ImVec2( -1, 100.f * interfaceScale ),
                             ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoMenus ) )
                     {
@@ -3972,6 +3972,8 @@ namespace Profiler
 
                 // Force text baseline to 0 to align the next cell correctly.
                 ImGui::ItemSize( ImVec2(), 0.0f );
+
+                ImGui::PopID();
             }
 
             ImGui::EndTable();

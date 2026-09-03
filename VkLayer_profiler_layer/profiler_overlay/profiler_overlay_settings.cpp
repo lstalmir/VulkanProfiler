@@ -287,8 +287,16 @@ namespace Profiler
             if( isOldFormat )
             {
                 // Migrate the settings file to the new format.
+                std::string newIniFileName = pFileName + std::string( ".new" );
                 std::ifstream iniOld( pFileName );
-                std::ofstream iniNew( pFileName + std::string( ".new" ) );
+                std::ofstream iniNew( newIniFileName );
+
+                if( !iniOld.is_open() || !iniNew.is_open() )
+                {
+                    // Failed to open the files, remove the old file and use default settings.
+                    std::filesystem::remove( pFileName );
+                    return;
+                }
 
                 while( std::getline( iniOld, line ) )
                 {
@@ -308,8 +316,25 @@ namespace Profiler
                 iniOld.close();
                 iniNew.close();
 
-                std::filesystem::remove( pFileName );
-                std::filesystem::rename( pFileName + std::string( ".new" ), pFileName );
+                // Replace the old file with the new one.
+                std::error_code ec;
+                std::filesystem::remove( pFileName, ec );
+
+                if( ec.value() != 0 )
+                {
+                    // Failed to remove the old file, remove the new file and just give up.
+                    std::filesystem::remove( newIniFileName, ec );
+                    return;
+                }
+
+                std::filesystem::rename( newIniFileName, pFileName, ec );
+
+                if( ec.value() != 0 )
+                {
+                    // Failed to rename the new file, use the default settings (since the old file is incompatible anyway).
+                    std::filesystem::remove( newIniFileName, ec );
+                    return;
+                }
             }
         }
     }

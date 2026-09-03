@@ -26,9 +26,6 @@
 #include "profiler_layer_objects/VkSwapchainKhr_object.h"
 #include "profiler_layer_functions/core/VkDevice_functions_base.h"
 
-#include <imgui.h>
-#include <imgui_impl_vulkan.h>
-
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 #include "profiler_overlay_layer_backend_win32.h"
 #endif
@@ -41,6 +38,11 @@
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 #include "profiler_overlay_layer_backend_wayland.h"
 #endif
+
+#include <imgui.h>
+#include <imgui_impl_vulkan.h>
+
+#include <algorithm>
 
 namespace Profiler
 {
