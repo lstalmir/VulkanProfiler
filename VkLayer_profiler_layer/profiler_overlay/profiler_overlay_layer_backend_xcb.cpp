@@ -20,7 +20,6 @@
 
 #include "profiler_overlay_layer_backend_xcb.h"
 #include <imgui_internal.h>
-#include <xcb/shape.h>
 #include <stdlib.h>
 #include <array>
 #include <mutex>
