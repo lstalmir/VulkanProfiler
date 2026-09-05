@@ -241,7 +241,6 @@ namespace Profiler
         {
             std::string line;
             std::regex windowSectionRegex( R"(\[Window\]\[(.+)\])" );
-            std::regex layerSectionRegex( R"(\[Layer\]\[Settings\])" );
 
             auto StartsWith = []( const std::string_view& str, const std::string_view& prefix ) -> bool
             {
@@ -249,8 +248,7 @@ namespace Profiler
                        ( str.substr( 0, prefix.length() ) == prefix );
             };
 
-            bool isOldFormat = false;
-            bool hasLayerSection = false;
+            bool isValid = true;
             while( std::getline( ini, line ) )
             {
                 std::smatch sm;
@@ -265,76 +263,21 @@ namespace Profiler
                     if( StartsWith( name, "###" ) )
                     {
                         // ### prefix has been removed in 1.92.6
-                        // Migrate the settings file to the new format by removing the prefix.
-                        isOldFormat = true;
+                        // Remove the file and use default settings because it can't be easily migrated
+                        // due to differences in dock space ids.
+                        isValid = false;
+                        break;
                     }
-                }
-                else if( std::regex_match( line, sm, layerSectionRegex ) )
-                {
-                    hasLayerSection = true;
                 }
             }
 
             ini.close();
 
-            if( !hasLayerSection )
+            if( !isValid )
             {
                 // File is not valid, remove it and use default settings.
                 std::filesystem::remove( pFileName );
                 return;
-            }
-
-            if( isOldFormat )
-            {
-                // Migrate the settings file to the new format.
-                std::string newIniFileName = pFileName + std::string( ".new" );
-                std::ifstream iniOld( pFileName );
-                std::ofstream iniNew( newIniFileName );
-
-                if( !iniOld.is_open() || !iniNew.is_open() )
-                {
-                    // Failed to open the files, remove the old file and use default settings.
-                    std::filesystem::remove( pFileName );
-                    return;
-                }
-
-                while( std::getline( iniOld, line ) )
-                {
-                    std::smatch sm;
-                    if( std::regex_match( line, sm, windowSectionRegex ) )
-                    {
-                        std::string name = sm.str( 1 );
-                        if( StartsWith( name, "###" ) )
-                        {
-                            line = "[Window][" + name.substr( 3 ) + "]";
-                        }
-                    }
-
-                    iniNew << line << "\n";
-                }
-
-                iniOld.close();
-                iniNew.close();
-
-                // Replace the old file with the new one.
-                std::error_code ec;
-                std::filesystem::remove( pFileName, ec );
-
-                if( ec.value() != 0 )
-                {
-                    // Failed to remove the old file, remove the new file and just give up.
-                    std::filesystem::remove( newIniFileName, ec );
-                    return;
-                }
-
-                std::filesystem::rename( newIniFileName, pFileName, ec );
-
-                if( ec.value() != 0 )
-                {
-                    // Failed to rename the new file, use the default settings (since the old file is incompatible anyway).
-                    std::filesystem::remove( newIniFileName, ec );
-                    return;
-                }
             }
         }
     }
