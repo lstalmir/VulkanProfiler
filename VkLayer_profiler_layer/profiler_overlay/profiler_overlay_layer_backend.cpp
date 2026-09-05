@@ -42,6 +42,8 @@
 #include "profiler_overlay_layer_backend_wayland.h"
 #endif
 
+#include <algorithm>
+
 namespace Profiler
 {
     /***********************************************************************************\
@@ -129,25 +131,6 @@ namespace Profiler
                 &m_CommandPool );
         }
 
-        // Create linear sampler
-        if( result == VK_SUCCESS )
-        {
-            VkSamplerCreateInfo info = {};
-            info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-            info.magFilter = VK_FILTER_LINEAR;
-            info.minFilter = VK_FILTER_LINEAR;
-            info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-            info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-
-            result = m_pDevice->Callbacks.CreateSampler(
-                m_pDevice->Handle,
-                &info,
-                nullptr,
-                &m_LinearSampler );
-        }
-
         // Create memory allocator
         if( result == VK_SUCCESS )
         {
@@ -194,14 +177,6 @@ namespace Profiler
             m_pDevice->Callbacks.DestroyCommandPool(
                 m_pDevice->Handle,
                 m_CommandPool,
-                nullptr );
-        }
-
-        if( m_LinearSampler != VK_NULL_HANDLE )
-        {
-            m_pDevice->Callbacks.DestroySampler(
-                m_pDevice->Handle,
-                m_LinearSampler,
                 nullptr );
         }
 
@@ -520,8 +495,12 @@ namespace Profiler
 
         if( !m_VulkanBackendInitialized )
         {
+            const uint32_t apiVersion = std::min(
+                m_pDevice->pInstance->ApplicationInfo.apiVersion,
+                m_pDevice->pPhysicalDevice->Properties.apiVersion );
+
             // Load device functions required by the backend.
-            if( !ImGui_ImplVulkan_LoadFunctions( FunctionLoader, this ) )
+            if( !ImGui_ImplVulkan_LoadFunctions( apiVersion, FunctionLoader, this ) )
             {
                 return false;
             }
@@ -533,10 +512,10 @@ namespace Profiler
             initInfo.QueueFamily = m_pGraphicsQueue->Family;
             initInfo.Queue = m_pGraphicsQueue->Handle;
             initInfo.DescriptorPool = m_DescriptorPool;
-            initInfo.RenderPass = m_RenderPass;
+            initInfo.PipelineInfoMain.RenderPass = m_RenderPass;
             initInfo.MinImageCount = m_MinImageCount;
             initInfo.ImageCount = static_cast<uint32_t>( m_Images.size() );
-            initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+            initInfo.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
             // Initialize the Vulkan backend.
             if( !ImGui_ImplVulkan_Init( &initInfo ) )
@@ -844,7 +823,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerBackend::CreateFontsImage()
     {
-        ImGui_ImplVulkan_CreateFontsTexture();
+        // Created implicity by ImGui Vulkan backend.
     }
 
     /***********************************************************************************\
@@ -858,7 +837,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerBackend::DestroyFontsImage()
     {
-        ImGui_ImplVulkan_DestroyFontsTexture();
+        // Destroyed implicity by ImGui Vulkan backend.
     }
 
     /***********************************************************************************\
@@ -881,7 +860,6 @@ namespace Profiler
         m_Initialized = false;
 
         m_ResourcesUploadEvent = VK_NULL_HANDLE;
-        m_LinearSampler = VK_NULL_HANDLE;
         m_ImageResources.clear();
 
         ResetSwapchainMembers();
@@ -1145,7 +1123,6 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             image.ImageDescriptorSet = ImGui_ImplVulkan_AddTexture(
-                m_LinearSampler,
                 image.ImageView,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
 

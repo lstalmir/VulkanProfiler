@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2025 Lukasz Stalmirski
+// Copyright (c) 2024-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -242,6 +242,12 @@ namespace Profiler
             std::string line;
             std::regex windowSectionRegex( R"(\[Window\]\[(.+)\])" );
 
+            auto StartsWith = []( const std::string_view& str, const std::string_view& prefix ) -> bool
+            {
+                return ( str.length() >= prefix.length() ) &&
+                       ( str.substr( 0, prefix.length() ) == prefix );
+            };
+
             bool isValid = true;
             while( std::getline( ini, line ) )
             {
@@ -254,10 +260,11 @@ namespace Profiler
                         continue;
                     }
 
-                    std::string prefix = name.substr( 0, 3 );
-                    if( prefix != "###" )
+                    if( StartsWith( name, "###" ) )
                     {
-                        // All windows should use '###' operator for identification.
+                        // ### prefix has been removed in 1.92.6
+                        // Remove the file and use default settings because it can't be easily migrated
+                        // due to differences in dock space ids.
                         isValid = false;
                         break;
                     }
@@ -270,6 +277,7 @@ namespace Profiler
             {
                 // File is not valid, remove it and use default settings.
                 std::filesystem::remove( pFileName );
+                return;
             }
         }
     }
