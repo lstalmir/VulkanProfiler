@@ -423,7 +423,23 @@ namespace ImGuiX
             table->RowPosY2 += bottom;
         }
 
-        ImGui::Dummy( ImVec2( 0, bottom ) );
+        Space( bottom );
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Space
+
+    Description:
+        Unpadded space.
+
+    \*************************************************************************/
+    void Space( float height )
+    {
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 0 ) );
+        ImGui::Dummy( ImVec2( 0, height ) );
+        ImGui::PopStyleVar();
     }
 
     /*************************************************************************\

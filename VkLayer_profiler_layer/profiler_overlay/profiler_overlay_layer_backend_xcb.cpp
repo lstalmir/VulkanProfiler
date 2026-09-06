@@ -194,7 +194,6 @@ namespace Profiler
             return;
 
         ImGuiIO& io = ImGui::GetIO();
-        IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
 
         // Setup display size (every frame to accommodate for window resizing)
         auto geometry = GetGeometry( m_AppWindow );
@@ -477,7 +476,7 @@ namespace Profiler
         if( grab && !m_HasKeyboardGrab )
         {
             // Acquire keyboard.
-            xcb_grab_keyboard(
+            xcb_grab_keyboard_cookie_t cookie = xcb_grab_keyboard_unchecked(
                 m_Connection,
                 1,
                 m_InputWindow,
@@ -485,7 +484,20 @@ namespace Profiler
                 XCB_GRAB_MODE_ASYNC,
                 XCB_GRAB_MODE_ASYNC );
 
-            m_HasKeyboardGrab = true;
+            xcb_flush( m_Connection );
+
+            // Check if the grab succeeded.
+            xcb_grab_keyboard_reply_t* pReply = xcb_grab_keyboard_reply(
+                m_Connection,
+                cookie,
+                nullptr );
+
+            if( pReply )
+            {
+                m_HasKeyboardGrab = (pReply->status == XCB_GRAB_STATUS_SUCCESS);
+            }
+
+            free( pReply );
         }
         else if( !grab && m_HasKeyboardGrab )
         {

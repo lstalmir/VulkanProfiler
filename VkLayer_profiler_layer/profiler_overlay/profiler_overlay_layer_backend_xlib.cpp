@@ -192,7 +192,6 @@ namespace Profiler
             return;
 
         ImGuiIO& io = ImGui::GetIO();
-        IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
 
         // Setup display size (every frame to accommodate for window resizing)
         XWindowAttributes windowAttributes;
@@ -413,15 +412,15 @@ namespace Profiler
         if( grab && !m_HasKeyboardGrab )
         {
             // Acquire keyboard.
-            XGrabKeyboard(
+            int result = XGrabKeyboard(
                 m_Display,
                 m_InputWindow,
-                1,
+                True,
                 GrabModeAsync,
                 GrabModeAsync,
                 CurrentTime );
 
-            m_HasKeyboardGrab = true;
+            m_HasKeyboardGrab = (result == GrabSuccess);
         }
         else if( !grab && m_HasKeyboardGrab )
         {

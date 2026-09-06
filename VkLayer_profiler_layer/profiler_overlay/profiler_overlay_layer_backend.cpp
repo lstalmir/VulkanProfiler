@@ -494,6 +494,7 @@ namespace Profiler
             // Re-initialization of Vulkan backend invalidates all descriptor sets.
             if( !RecreateImageDescriptors() )
             {
+                ImGui_ImplVulkan_Shutdown();
                 return false;
             }
 
