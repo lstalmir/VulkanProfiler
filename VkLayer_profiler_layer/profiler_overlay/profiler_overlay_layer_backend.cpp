@@ -92,30 +92,6 @@ namespace Profiler
             return VK_ERROR_INITIALIZATION_FAILED;
         }
 
-        // Create descriptor pool
-        if( result == VK_SUCCESS )
-        {
-            VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
-            descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-            descriptorPoolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-
-            // ImGui allocates descriptor sets only for textures/fonts for now.
-            const uint32_t imguiMaxTextureCount = 16;
-            const VkDescriptorPoolSize descriptorPoolSizes[] = {
-                { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imguiMaxTextureCount }
-            };
-
-            descriptorPoolCreateInfo.maxSets = imguiMaxTextureCount;
-            descriptorPoolCreateInfo.poolSizeCount = std::extent_v<decltype( descriptorPoolSizes )>;
-            descriptorPoolCreateInfo.pPoolSizes = descriptorPoolSizes;
-
-            result = m_pDevice->Callbacks.CreateDescriptorPool(
-                m_pDevice->Handle,
-                &descriptorPoolCreateInfo,
-                nullptr,
-                &m_DescriptorPool );
-        }
-
         // Create command pool
         if( result == VK_SUCCESS )
         {
@@ -163,14 +139,6 @@ namespace Profiler
         DestroyImGuiBackend();
         DestroySwapchainResources();
         DestroyResources();
-
-        if( m_DescriptorPool != VK_NULL_HANDLE )
-        {
-            m_pDevice->Callbacks.DestroyDescriptorPool(
-                m_pDevice->Handle,
-                m_DescriptorPool,
-                nullptr );
-        }
 
         if( m_CommandPool != VK_NULL_HANDLE )
         {
@@ -511,7 +479,7 @@ namespace Profiler
             initInfo.Device = m_pDevice->Handle;
             initInfo.QueueFamily = m_pGraphicsQueue->Family;
             initInfo.Queue = m_pGraphicsQueue->Handle;
-            initInfo.DescriptorPool = m_DescriptorPool;
+            initInfo.DescriptorPoolSize = m_scMaxImageCount;
             initInfo.PipelineInfoMain.RenderPass = m_RenderPass;
             initInfo.MinImageCount = m_MinImageCount;
             initInfo.ImageCount = static_cast<uint32_t>( m_Images.size() );
@@ -519,6 +487,12 @@ namespace Profiler
 
             // Initialize the Vulkan backend.
             if( !ImGui_ImplVulkan_Init( &initInfo ) )
+            {
+                return false;
+            }
+
+            // Re-initialization of Vulkan backend invalidates all descriptor sets.
+            if( !RecreateImageDescriptors() )
             {
                 return false;
             }
@@ -557,7 +531,7 @@ namespace Profiler
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
                 case OSWindowHandleType::eWayland:
                     throw; // TODO: Implement ImGui Wayland context.
-#endif                     // VK_USE_PLATFORM_WAYLAND_KHR
+#endif // VK_USE_PLATFORM_WAYLAND_KHR
 
                 default:
                     throw; // Not supported.
@@ -774,18 +748,33 @@ namespace Profiler
         Create an image resource.
 
     \***********************************************************************************/
-    uint64_t OverlayLayerBackend::CreateImage( int width, int height, const void* pData )
+    int OverlayLayerBackend::CreateImage( int width, int height, const void* pData )
     {
-        ImageResource imageResource;
-        VkResult result = InitializeImage( imageResource, width, height, pData );
-
-        if( result == VK_SUCCESS )
+        // Find the first available resource slot for the new image.
+        ImageResource* pImageResource = nullptr;
+        for( ImageResource& image : m_ImageResources )
         {
-            m_ImageResources.push_back( imageResource );
-            return VkObjectTraits<VkDescriptorSet>::GetObjectHandleAsUint64( imageResource.ImageDescriptorSet );
+            if( image.Image == VK_NULL_HANDLE )
+            {
+                pImageResource = &image;
+                break;
+            }
         }
 
-        return 0;
+        if( !pImageResource )
+        {
+            return -1;
+        }
+
+        // Create the image resources.
+        VkResult result = InitializeImage( *pImageResource, width, height, pData );
+
+        if( result != VK_SUCCESS )
+        {
+            return -1;
+        }
+
+        return static_cast<int>( std::distance( m_ImageResources.data(), pImageResource ) );
     }
 
     /***********************************************************************************\
@@ -797,18 +786,12 @@ namespace Profiler
         Destroy an image resource.
 
     \***********************************************************************************/
-    void OverlayLayerBackend::DestroyImage( uint64_t image )
+    void OverlayLayerBackend::DestroyImage( int image )
     {
-        auto it = std::find_if( m_ImageResources.begin(), m_ImageResources.end(),
-            [image]( const ImageResource& imageResource )
-            {
-                return VkObjectTraits<VkDescriptorSet>::GetObjectHandleAsUint64( imageResource.ImageDescriptorSet ) == image;
-            } );
-
-        if( it != m_ImageResources.end() )
+        ImageResource* pImageResource = GetImageResource( image );
+        if( pImageResource )
         {
-            DestroyImage( *it );
-            m_ImageResources.erase( it );
+            DestroyImage( *pImageResource );
         }
     }
 
@@ -823,7 +806,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerBackend::CreateFontsImage()
     {
-        // Created implicity by ImGui Vulkan backend.
+        // Created implicitly by ImGui Vulkan backend.
     }
 
     /***********************************************************************************\
@@ -837,7 +820,29 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerBackend::DestroyFontsImage()
     {
-        // Destroyed implicity by ImGui Vulkan backend.
+        // Destroyed implicitly by ImGui Vulkan backend.
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageHandle
+
+    Description:
+        Return the image's descriptor set handle.
+
+    \***********************************************************************************/
+    uint64_t OverlayLayerBackend::GetImageHandle( int image )
+    {
+        VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+
+        ImageResource* pImageResource = GetImageResource( image );
+        if( pImageResource )
+        {
+            descriptorSet = pImageResource->ImageDescriptorSet;
+        }
+
+        return VkObjectTraits<VkDescriptorSet>::GetObjectHandleAsUint64( descriptorSet );
     }
 
     /***********************************************************************************\
@@ -855,12 +860,12 @@ namespace Profiler
         m_pGraphicsQueue = nullptr;
 
         m_CommandPool = VK_NULL_HANDLE;
-        m_DescriptorPool = VK_NULL_HANDLE;
 
         m_Initialized = false;
 
         m_ResourcesUploadEvent = VK_NULL_HANDLE;
         m_ImageResources.clear();
+        m_ImageResources.resize( m_scMaxImageCount );
 
         ResetSwapchainMembers();
     }
@@ -1194,28 +1199,75 @@ namespace Profiler
         if( image.ImageDescriptorSet != VK_NULL_HANDLE )
         {
             ImGui_ImplVulkan_RemoveTexture( image.ImageDescriptorSet );
-            image.ImageDescriptorSet = VK_NULL_HANDLE;
         }
 
         if( image.UploadBuffer != VK_NULL_HANDLE )
         {
             m_MemoryManager.FreeBuffer( image.UploadBuffer, image.UploadBufferAllocation );
-            image.UploadBuffer = VK_NULL_HANDLE;
-            image.UploadBufferAllocation = VK_NULL_HANDLE;
         }
 
         if( image.ImageView != VK_NULL_HANDLE )
         {
             m_pDevice->Callbacks.DestroyImageView( m_pDevice->Handle, image.ImageView, nullptr );
-            image.ImageView = VK_NULL_HANDLE;
         }
 
         if( image.Image != VK_NULL_HANDLE )
         {
             m_MemoryManager.FreeImage( image.Image, image.ImageAllocation );
-            image.Image = VK_NULL_HANDLE;
-            image.ImageAllocation = VK_NULL_HANDLE;
         }
+
+        std::memset( &image, 0, sizeof( image ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        RecreateImageDescriptors
+
+    Description:
+        Recreate all image descriptors due to Vulkan backend invalidation.
+
+    \***********************************************************************************/
+    bool OverlayLayerBackend::RecreateImageDescriptors()
+    {
+        for( ImageResource& image : m_ImageResources )
+        {
+            if( image.Image != VK_NULL_HANDLE )
+            {
+                image.ImageDescriptorSet = ImGui_ImplVulkan_AddTexture(
+                    image.ImageView,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+
+                if( image.ImageDescriptorSet == VK_NULL_HANDLE )
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageResource
+
+    Description:
+        Return the image resource associated with the given image ID,
+        or nullptr if no such image exists.
+
+    \***********************************************************************************/
+    OverlayLayerBackend::ImageResource* OverlayLayerBackend::GetImageResource( int image )
+    {
+        if( ( image >= 0 ) &&
+            ( image < m_ImageResources.size() ) &&
+            ( m_ImageResources[image].Image != VK_NULL_HANDLE ) )
+        {
+            return &m_ImageResources[image];
+        }
+
+        return nullptr;
     }
 
     /***********************************************************************************\

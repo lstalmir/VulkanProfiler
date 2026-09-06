@@ -87,17 +87,17 @@ namespace Profiler
         float GetDPIScale() const override;
         ImVec2 GetRenderArea() const override;
 
-        uint64_t CreateImage( int width, int height, const void* pData ) override;
-        void DestroyImage( uint64_t image ) override;
+        int CreateImage( int width, int height, const void* pData ) override;
+        void DestroyImage( int image ) override;
         void CreateFontsImage() override;
         void DestroyFontsImage() override;
+        uint64_t GetImageHandle( int image ) override;
 
     private:
         VkDevice_Object* m_pDevice;
         VkQueue_Object* m_pGraphicsQueue;
 
         VkCommandPool m_CommandPool;
-        VkDescriptorPool m_DescriptorPool;
 
         DeviceProfilerMemoryManager m_MemoryManager;
 
@@ -129,6 +129,8 @@ namespace Profiler
         struct ImageResource;
         std::vector<ImageResource> m_ImageResources;
 
+        static constexpr uint32_t m_scMaxImageCount = 16;
+
         struct ImageResource
         {
             VkImage Image = VK_NULL_HANDLE;
@@ -154,6 +156,8 @@ namespace Profiler
 
         VkResult InitializeImage( ImageResource& image, int width, int height, const void* pData );
         void DestroyImage( ImageResource& image );
+        bool RecreateImageDescriptors();
+        ImageResource* GetImageResource( int id );
 
         void RecordImageUploadCommands( VkCommandBuffer commandBuffer, ImageResource& image );
         void TransitionImageLayout( VkCommandBuffer commandBuffer, ImageResource& image, VkImageLayout oldLayout, VkImageLayout newLayout );

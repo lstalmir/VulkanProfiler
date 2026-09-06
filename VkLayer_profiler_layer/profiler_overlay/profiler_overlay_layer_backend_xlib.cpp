@@ -29,6 +29,11 @@ namespace Profiler
 {
     extern std::mutex s_ImGuiMutex;
 
+    // Flags provided by this backend.
+    static constexpr ImGuiBackendFlags s_XlibPlatformBackendFlags =
+        ImGuiBackendFlags_HasSetMousePos |
+        ImGuiBackendFlags_HasMouseCursors;
+
     /***********************************************************************************\
 
     Function:
@@ -108,8 +113,7 @@ namespace Profiler
         m_Utf8StringAtom = XInternAtom( m_Display, "UTF8_STRING", False );
 
         ImGuiIO& io = ImGui::GetIO();
-        io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
-        io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
+        io.BackendFlags |= s_XlibPlatformBackendFlags;
         io.BackendPlatformName = "xlib";
         io.BackendPlatformUserData = this;
 
@@ -157,13 +161,12 @@ namespace Profiler
             assert( ImGui::GetCurrentContext() == m_pImGuiContext );
 
             ImGuiIO& io = ImGui::GetIO();
-            io.BackendFlags = 0;
+            io.BackendFlags &= ~s_XlibPlatformBackendFlags;
             io.BackendPlatformName = nullptr;
             io.BackendPlatformUserData = nullptr;
 
             ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
-            platformIO.Platform_GetClipboardTextFn = nullptr;
-            platformIO.Platform_SetClipboardTextFn = nullptr;
+            platformIO.ClearPlatformHandlers();
         }
     }
 
