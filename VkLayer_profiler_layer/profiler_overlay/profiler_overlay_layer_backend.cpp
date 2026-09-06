@@ -463,8 +463,9 @@ namespace Profiler
 
         if( !m_VulkanBackendInitialized )
         {
-            const uint32_t apiVersion = std::min(
+            const uint32_t apiVersion = std::clamp(
                 m_pDevice->pInstance->ApplicationInfo.apiVersion,
+                VK_API_VERSION_1_0,
                 m_pDevice->pPhysicalDevice->Properties.apiVersion );
 
             // Load device functions required by the backend.
