@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -51,6 +51,7 @@ namespace Profiler
         , m_Connection( nullptr )
         , m_AppWindow( window )
         , m_InputWindow( 0 )
+        , m_HasKeyboardGrab( false )
         , m_ClipboardSelectionAtom( XCB_NONE )
         , m_ClipboardPropertyAtom( XCB_NONE )
         , m_pClipboardText( nullptr )
@@ -148,6 +149,8 @@ namespace Profiler
     {
         free( m_pClipboardText );
         m_pClipboardText = nullptr;
+
+        SetKeyboardGrab( false );
 
         xcb_destroy_window( m_Connection, m_InputWindow );
         m_InputWindow = 0;
@@ -255,13 +258,18 @@ namespace Profiler
             m_InputRects.Size,
             m_InputRects.Data );
 
+        // Grab the keyboard if ImGui wants to capture text (e.g. an InputText is focused).
+        // Otherwise the input window won't receive any keyboard events.
+        SetKeyboardGrab( io.WantCaptureKeyboard );
+
         // Handle incoming input events
         // Don't block if there are no pending events
         xcb_generic_event_t* event = nullptr;
 
         while( event = xcb_poll_for_event( m_Connection ) )
         {
-            switch( event->response_type & (~0x80) )
+            const int eventType = (event->response_type & (~0x80));
+            switch( eventType )
             {
             case XCB_SELECTION_REQUEST:
             {
@@ -337,69 +345,51 @@ namespace Profiler
                 xcb_motion_notify_event_t* motionNotifyEvent =
                     reinterpret_cast<xcb_motion_notify_event_t*>(event);
 
-                io.MousePos.x = motionNotifyEvent->event_x;
-                io.MousePos.y = motionNotifyEvent->event_y;
+                io.AddMouseSourceEvent( ImGuiMouseSource_Mouse );
+                io.AddMousePosEvent( motionNotifyEvent->event_x, motionNotifyEvent->event_y );
                 break;
             }
 
             case XCB_BUTTON_PRESS:
+            case XCB_BUTTON_RELEASE:
             {
-                // Handle mouse click
-                xcb_button_press_event_t* buttonPressEvent =
+                // Handle mouse button event (xcb_button_press_event_t and xcb_button_release_event_t structures have the same layout).
+                xcb_button_press_event_t* buttonEvent =
                     reinterpret_cast<xcb_button_press_event_t*>(event);
 
                 // First 3 buttons are mouse buttons, 4 and 5 are wheel scroll
-                if( buttonPressEvent->detail < XCB_BUTTON_INDEX_4 )
+                if( buttonEvent->detail < XCB_BUTTON_INDEX_4 )
                 {
-                    int button = 0;
-                    if( buttonPressEvent->detail == XCB_BUTTON_INDEX_1 ) button = 0;
-                    if( buttonPressEvent->detail == XCB_BUTTON_INDEX_2 ) button = 2;
-                    if( buttonPressEvent->detail == XCB_BUTTON_INDEX_3 ) button = 1;
-                    io.MouseDown[ button ] = true;
+                    int button = -1;
+                    if( buttonEvent->detail == XCB_BUTTON_INDEX_1 ) button = 0;
+                    if( buttonEvent->detail == XCB_BUTTON_INDEX_2 ) button = 2;
+                    if( buttonEvent->detail == XCB_BUTTON_INDEX_3 ) button = 1;
+                    if( button != -1 )
+                    {
+                        io.AddMouseSourceEvent( ImGuiMouseSource_Mouse );
+                        io.AddMouseButtonEvent( button, (eventType == XCB_BUTTON_PRESS) );
+                    }
                 }
                 else
                 {
-                    // TODO: scroll speed
-                    io.MouseWheel += (buttonPressEvent->detail == XCB_BUTTON_INDEX_4) ? 1 : -1;
-                }
-                break;
-            }
-
-            case XCB_BUTTON_RELEASE:
-            {
-                // Handle mouse release
-                xcb_button_release_event_t* buttonReleaseEvent =
-                    reinterpret_cast<xcb_button_release_event_t*>(event);
-
-                // First 3 buttons are mouse buttons, 4 and 5 are wheel scroll
-                if( buttonReleaseEvent->detail < XCB_BUTTON_INDEX_4 )
-                {
-                    int button = 0;
-                    if( buttonReleaseEvent->detail == XCB_BUTTON_INDEX_1 ) button = 0;
-                    if( buttonReleaseEvent->detail == XCB_BUTTON_INDEX_2 ) button = 2;
-                    if( buttonReleaseEvent->detail == XCB_BUTTON_INDEX_3 ) button = 1;
-                    io.MouseDown[ button ] = false;
+                    if( eventType == XCB_BUTTON_PRESS )
+                    {
+                        // TODO: scroll speed
+                        io.AddMouseSourceEvent( ImGuiMouseSource_Mouse );
+                        io.AddMouseWheelEvent( 0, (buttonEvent->detail == XCB_BUTTON_INDEX_4) ? 1 : -1 );
+                    }
                 }
                 break;
             }
 
             case XCB_KEY_PRESS:
-            {
-                // Handle key press
-                xcb_key_press_event_t* keyPressEvent =
-                    reinterpret_cast<xcb_key_press_event_t*>(event);
-
-                m_pXkbBackend->AddKeyEvent( keyPressEvent->detail, true );
-                break;
-            }
-
             case XCB_KEY_RELEASE:
             {
-                // Handle key release
-                xcb_key_release_event_t* keyReleaseEvent =
-                    reinterpret_cast<xcb_key_release_event_t*>(event);
+                // Handle key event (xcb_key_press_event_t and xcb_key_release_event_t structures have the same layout).
+                xcb_key_press_event_t* keyEvent =
+                    reinterpret_cast<xcb_key_press_event_t*>(event);
 
-                m_pXkbBackend->AddKeyEvent( keyReleaseEvent->detail, false );
+                m_pXkbBackend->AddKeyEvent( keyEvent->detail, (eventType == XCB_KEY_PRESS) );
                 break;
             }
             }
@@ -471,6 +461,44 @@ namespace Profiler
         free( pReply );
 
         return atom;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetKeyboardGrab
+
+    Description:
+        Activate or deactivate exclusive keyboard grab in order to receive key events.
+
+    \***********************************************************************************/
+    void OverlayLayerXcbPlatformBackend::SetKeyboardGrab( bool grab )
+    {
+        if( grab && !m_HasKeyboardGrab )
+        {
+            // Acquire keyboard.
+            xcb_grab_keyboard(
+                m_Connection,
+                1,
+                m_InputWindow,
+                XCB_CURRENT_TIME,
+                XCB_GRAB_MODE_ASYNC,
+                XCB_GRAB_MODE_ASYNC );
+
+            m_HasKeyboardGrab = true;
+        }
+        else if( !grab && m_HasKeyboardGrab )
+        {
+            // Release keyboard.
+            xcb_ungrab_keyboard(
+                m_Connection,
+                XCB_CURRENT_TIME );
+
+            m_HasKeyboardGrab = false;
+
+            // Clear ImGuiIO key states as no key release events will be received.
+            ImGui::GetIO().ClearInputKeys();
+        }
     }
 
     /***********************************************************************************\

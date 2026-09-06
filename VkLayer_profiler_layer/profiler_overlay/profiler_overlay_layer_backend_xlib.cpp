@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -51,6 +51,7 @@ namespace Profiler
         , m_Display( nullptr )
         , m_AppWindow( window )
         , m_InputWindow( None )
+        , m_HasKeyboardGrab( false )
         , m_ClipboardSelectionAtom( None )
         , m_ClipboardPropertyAtom( None )
         , m_pClipboardText( nullptr )
@@ -145,6 +146,8 @@ namespace Profiler
     {
         free( m_pClipboardText );
         m_pClipboardText = nullptr;
+
+        SetKeyboardGrab( false );
 
         if( m_InputWindow ) XDestroyWindow( m_Display, m_InputWindow );
         m_InputWindow = None;
@@ -249,6 +252,10 @@ namespace Profiler
             ShapeSet,
             Unsorted );
 
+        // Grab the keyboard if ImGui wants to capture text (e.g. an InputText is focused).
+        // Otherwise the input window won't receive any keyboard events.
+        SetKeyboardGrab( io.WantCaptureKeyboard );
+
         // Handle incoming input events
         // Don't block if there are no pending events
         while( XEventsQueued( m_Display, QueuedAlready ) )
@@ -323,42 +330,36 @@ namespace Profiler
             case MotionNotify:
             {
                 // Update mouse position
-                io.MousePos.x = event.xmotion.x;
-                io.MousePos.y = event.xmotion.y;
+                io.AddMouseSourceEvent( ImGuiMouseSource_Mouse );
+                io.AddMousePosEvent( static_cast<float>( event.xmotion.x ), static_cast<float>( event.xmotion.y ) );
                 break;
             }
 
             case ButtonPress:
+            case ButtonRelease:
             {
                 // First 3 buttons are mouse buttons, 4 and 5 are wheel scroll
                 if( event.xbutton.button < Button4 )
                 {
-                    int button = 0;
+                    int button = -1;
                     if( event.xbutton.button == Button1 ) button = 0;
                     if( event.xbutton.button == Button2 ) button = 2;
                     if( event.xbutton.button == Button3 ) button = 1;
                     // TODO: XGrabPointer?
-                    io.MouseDown[ button ] = true;
+                    if( button != -1 )
+                    {
+                        io.AddMouseSourceEvent( ImGuiMouseSource_Mouse );
+                        io.AddMouseButtonEvent( button, (event.type == ButtonPress) );
+                    }
                 }
                 else
                 {
-                    // TODO: scroll speed
-                    io.MouseWheel += event.xbutton.button == Button4 ? 1 : -1;
-                }
-                break;
-            }
-
-            case ButtonRelease:
-            {
-                // First 3 buttons are mouse buttons
-                if( event.xbutton.button < Button4 )
-                {
-                    int button = 0;
-                    if( event.xbutton.button == Button1 ) button = 0;
-                    if( event.xbutton.button == Button2 ) button = 2;
-                    if( event.xbutton.button == Button3 ) button = 1;
-                    io.MouseDown[ button ] = false;
-                    // TODO: XUngrabPointer?
+                    if( event.type == ButtonPress )
+                    {
+                        // TODO: scroll speed
+                        io.AddMouseSourceEvent( ImGuiMouseSource_Mouse );
+                        io.AddMouseWheelEvent( 0, (event.xbutton.button == Button4) ? 1 : -1 );
+                    }
                 }
                 break;
             }
@@ -396,6 +397,44 @@ namespace Profiler
             &child );
 
         return ( result == 0 );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetKeyboardGrab
+
+    Description:
+        Activate or deactivate exclusive keyboard grab in order to receive key events.
+
+    \***********************************************************************************/
+    void OverlayLayerXlibPlatformBackend::SetKeyboardGrab( bool grab )
+    {
+        if( grab && !m_HasKeyboardGrab )
+        {
+            // Acquire keyboard.
+            XGrabKeyboard(
+                m_Display,
+                m_InputWindow,
+                1,
+                GrabModeAsync,
+                GrabModeAsync,
+                CurrentTime );
+
+            m_HasKeyboardGrab = true;
+        }
+        else if( !grab && m_HasKeyboardGrab )
+        {
+            // Release keyboard.
+            XUngrabKeyboard(
+                m_Display,
+                CurrentTime );
+
+            m_HasKeyboardGrab = false;
+
+            // Clear ImGuiIO key states as no key release events will be received.
+            ImGui::GetIO().ClearInputKeys();
+        }
     }
 
     /***********************************************************************************\
