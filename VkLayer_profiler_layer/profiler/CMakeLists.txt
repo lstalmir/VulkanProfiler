@@ -78,4 +78,5 @@ add_library (profiler
 target_link_libraries (profiler
     PUBLIC profiler_common
     PUBLIC metrics-discovery
+    PUBLIC metrics-library
     PUBLIC nvperf)

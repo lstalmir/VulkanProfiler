@@ -52,3 +52,6 @@
 [submodule "External/rapidyaml"]
 	path = External/rapidyaml
 	url = https://github.com/biojppm/rapidyaml
+[submodule "External/metrics-library"]
+	path = External/metrics-library
+	url = https://github.com/intel/metrics-library
