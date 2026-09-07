@@ -52,3 +52,6 @@
 [submodule "External/rapidyaml"]
 	path = External/rapidyaml
 	url = https://github.com/biojppm/rapidyaml
+[submodule "External/scnlib"]
+	path = External/scnlib
+	url = https://github.com/eliaskosunen/scnlib

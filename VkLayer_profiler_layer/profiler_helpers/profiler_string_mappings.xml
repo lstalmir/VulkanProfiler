@@ -26,7 +26,14 @@
     <Include Path="profiler/profiler_data.h"/>
     <Include Path="profiler_ext/VkProfilerCustomFlagsEXT.h"/>
 
+    <Map Name="g_scVulkanBoolNames" KeyType="VkBool32">
+        <Default Format="{}"/>
+        <Entry Key="VK_FALSE" Value="False"/>
+        <Entry Key="VK_TRUE" Value="True"/>
+    </Map>
+
     <Map Name="g_scProfilerDrawcallTypeNames" KeyType="Profiler::DeviceProfilerDrawcallType">
+        <Default Format="Unknown command ({})"/>
         <Entry Key="Profiler::DeviceProfilerDrawcallType::eInsertDebugLabel" Value="vkCmdInsertDebugLabelEXT"/>
         <Entry Key="Profiler::DeviceProfilerDrawcallType::eBeginDebugLabel" Value="vkCmdBeginDebugLabelEXT"/>
         <Entry Key="Profiler::DeviceProfilerDrawcallType::eEndDebugLabel" Value="vkCmdEndDebugLabelEXT"/>
@@ -72,6 +79,7 @@
     </Map>
 
     <Map Name="g_scProfilerRenderPassTypeNames" KeyType="Profiler::DeviceProfilerRenderPassType">
+        <Default Format="Unknown pass ({})"/>
         <Entry Key="Profiler::DeviceProfilerRenderPassType::eGraphics" Value="Graphics Pass"/>
         <Entry Key="Profiler::DeviceProfilerRenderPassType::eCompute" Value="Compute Pass"/>
         <Entry Key="Profiler::DeviceProfilerRenderPassType::eRayTracing" Value="Ray Tracing Pass"/>
@@ -177,6 +185,7 @@
     </Map>
 
     <Map Name="g_scVulkanImageTilingNames" KeyType="VkImageTiling">
+        <Default Format="Unknown tiling ({})"/>
         <Entry Key="VK_IMAGE_TILING_OPTIMAL" Value="Optimal"/>
         <Entry Key="VK_IMAGE_TILING_LINEAR" Value="Linear"/>
         <Entry Key="VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT" Value="DRM format modifier"/>
@@ -197,6 +206,7 @@
     </Map>
 
     <Map Name="g_scVulkanShaderStageNames" KeyType="VkShaderStageFlagBits">
+        <Default Format="Unknown shader stage ({})"/>
         <Entry Key="VK_SHADER_STAGE_VERTEX_BIT" Value="Vertex shader"/>
         <Entry Key="VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT" Value="Tessellation control shader"/>
         <Entry Key="VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT" Value="Tessellation evaluation shader"/>
@@ -214,6 +224,7 @@
     </Map>
 
     <Map Name="g_scVulkanShortShaderStageNames" KeyType="VkShaderStageFlagBits">
+        <Default Format="{}"/>
         <Entry Key="VK_SHADER_STAGE_VERTEX_BIT" Value="vs"/>
         <Entry Key="VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT" Value="tcs"/>
         <Entry Key="VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT" Value="tes"/>
@@ -718,6 +729,7 @@
     </Map>
 
     <Map Name="g_scVulkanAccelerationStructureTypeNames" KeyType="VkAccelerationStructureTypeKHR">
+        <Default Format="Unknown type ({})"/>
         <Entry Key="VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR" Value="Top-level"/>
         <Entry Key="VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR" Value="Bottom-level"/>
         <Entry Key="VK_ACCELERATION_STRUCTURE_TYPE_GENERIC_KHR" Value="Generic"/>
@@ -725,6 +737,7 @@
     </Map>
 
     <Map Name="g_scVulkanCopyAccelerationStructureModeNames" KeyType="VkCopyAccelerationStructureModeKHR">
+        <Default Format="Unknown mode ({})"/>
         <Entry Key="VK_COPY_ACCELERATION_STRUCTURE_MODE_CLONE_KHR" Value="Clone"/>
         <Entry Key="VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_KHR" Value="Compact"/>
         <Entry Key="VK_COPY_ACCELERATION_STRUCTURE_MODE_SERIALIZE_KHR" Value="Serialize"/>
@@ -732,6 +745,7 @@
     </Map>
 
     <Map Name="g_scVulkanBuildAccelerationStructureModeNames" KeyType="VkBuildAccelerationStructureModeKHR">
+        <Default Format="Unknown mode ({})"/>
         <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR" Value="Build"/>
         <Entry Key="VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR" Value="Update"/>
     </Map>
@@ -752,10 +766,12 @@
     </Map>
 
     <Map Name="g_scVulkanMicromapTypeNames" KeyType="VkMicromapTypeEXT">
+        <Default Format="Unknown type ({})"/>
         <Entry Key="VK_MICROMAP_TYPE_OPACITY_MICROMAP_EXT" Value="Opacity micromap"/>
     </Map>
 
     <Map Name="g_scVulkanCopyMicromapModeNames" KeyType="VkCopyMicromapModeEXT">
+        <Default Format="Unknown mode ({})"/>
         <Entry Key="VK_COPY_MICROMAP_MODE_CLONE_EXT" Value="Clone"/>
         <Entry Key="VK_COPY_MICROMAP_MODE_SERIALIZE_EXT" Value="Serialize"/>
         <Entry Key="VK_COPY_MICROMAP_MODE_DESERIALIZE_EXT" Value="Deserialize"/>
@@ -763,6 +779,7 @@
     </Map>
 
     <Map Name="g_scVulkanBuildMicromapModeNames" KeyType="VkBuildMicromapModeEXT">
+        <Default Format="Unknown mode ({})"/>
         <Entry Key="VK_BUILD_MICROMAP_MODE_BUILD_EXT" Value="Build"/>
     </Map>
 
@@ -773,6 +790,7 @@
     </Map>
 
     <Map Name="g_scVulkanGeometryTypeNames" KeyType="VkGeometryTypeKHR">
+        <Default Format="Unknown type ({})"/>
         <Entry Key="VK_GEOMETRY_TYPE_TRIANGLES_KHR" Value="Triangles"/>
         <Entry Key="VK_GEOMETRY_TYPE_AABBS_KHR" Value="AABBs"/>
         <Entry Key="VK_GEOMETRY_TYPE_INSTANCES_KHR" Value="Instances"/>
