@@ -241,8 +241,8 @@ namespace Profiler
                 codeFontPath.string().c_str(), 12.0f, nullptr, pDefaultGlyphsRanges );
         }
 
-        // Build atlas
-        return fonts->Build();
+        // Atlas build is deferred to InitializeImages
+        return true;
     }
 
     /***********************************************************************************\
@@ -260,6 +260,14 @@ namespace Profiler
         DestroyImages();
 
         m_pBackend = pBackend;
+
+        // Since 1.92 ImGui will implicitly build the font atlas if the render backend supports ImTextureData interface.
+        // Otherwise, Build() must be called before the fonts are used.
+        ImGuiIO& io = ImGui::GetIO();
+        if( (io.BackendFlags & ImGuiBackendFlags_RendererHasTextures) == 0 )
+        {
+            io.Fonts->Build();
+        }
 
         // Create fonts image
         m_pBackend->CreateFontsImage();
@@ -311,13 +319,10 @@ namespace Profiler
             m_pBackend->WaitIdle();
             m_pBackend->DestroyFontsImage();
 
-            for( uint64_t& icon : m_Icons )
+            for( int& icon : m_Icons )
             {
-                if( icon )
-                {
-                    m_pBackend->DestroyImage( icon );
-                    icon = 0;
-                }
+                m_pBackend->DestroyImage( icon );
+                icon = -1;
             }
         }
 
@@ -378,8 +383,8 @@ namespace Profiler
     uint64_t OverlayResources::GetIcon( OverlayIcon icon ) const
     {
         assert( icon < OverlayIcon::IconCount );
-        assert( m_Icons[icon] );
-        return m_Icons[icon];
+        assert( m_Icons[icon] != -1 );
+        return m_pBackend->GetImageHandle( m_Icons[icon] );
     }
 
     /***********************************************************************************\
@@ -391,7 +396,7 @@ namespace Profiler
         Creates an image object from the asset data.
 
     \***********************************************************************************/
-    uint64_t OverlayResources::CreateImage( const uint8_t* pAsset, int assetSize )
+    int OverlayResources::CreateImage( const uint8_t* pAsset, int assetSize )
     {
         int width, height, channels;
         std::unique_ptr<stbi_uc[]> pixels;
@@ -407,7 +412,7 @@ namespace Profiler
 
         if( !pixels || channels != 4 )
         {
-            return 0;
+            return -1;
         }
 
         return m_pBackend->CreateImage( width, height, pixels.get() );

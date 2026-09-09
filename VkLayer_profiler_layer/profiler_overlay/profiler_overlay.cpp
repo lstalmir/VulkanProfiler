@@ -1003,7 +1003,7 @@ namespace Profiler
             VK_API_VERSION_MINOR( applicationInfo.apiVersion ) );
 
         // Add padding
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
+        ImGuiX::Space( 5 * io.FontGlobalScale );
 
         m_MainDockSpaceId = ImGui::GetID( "##m_MainDockSpaceId" );
         m_PerformanceTabDockSpaceId = ImGui::GetID( "##m_PerformanceTabDockSpaceId_3" );
@@ -1355,7 +1355,7 @@ namespace Profiler
 
             ImGui::PopStyleColor();
             ImGui::PopStyleVar();
-            ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+            ImGuiX::Space( 5 * interfaceScale );
         }
 
         PerformanceTabDockSpace();
@@ -1711,7 +1711,7 @@ namespace Profiler
 
         ImGui::PopStyleColor();
         ImGui::PopStyleVar();
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+        ImGuiX::Space( 5 * interfaceScale );
     }
 
     /***********************************************************************************\
@@ -1761,7 +1761,7 @@ namespace Profiler
 
             if( ImGui::BeginTooltip() )
             {
-                ImGui::Text( "Signal semaphores:" );
+                ImGui::TextUnformatted( "Signal semaphores:" );
 
                 ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
                 for( VkSemaphoreHandle semaphore : semaphores )
@@ -1769,7 +1769,7 @@ namespace Profiler
                     ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
                 }
                 ImGui::PopStyleVar();
-                ImGui::SetCursorPosY( ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y );
+                ImGuiX::Space( ImGui::GetStyle().ItemSpacing.y );
 
                 ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
                 ImGui::TextUnformatted( "Click to highlight all occurrences in frame" );
@@ -1786,7 +1786,7 @@ namespace Profiler
 
             if( ImGui::BeginTooltip() )
             {
-                ImGui::Text( "Wait semaphores:" );
+                ImGui::TextUnformatted( "Wait semaphores:" );
 
                 ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, { 0, 0 } );
                 for( VkSemaphoreHandle semaphore : semaphores )
@@ -1794,7 +1794,7 @@ namespace Profiler
                     ImGui::Text( " - %s", m_pStringSerializer->GetName( semaphore ).c_str() );
                 }
                 ImGui::PopStyleVar();
-                ImGui::SetCursorPosY( ImGui::GetCursorPosY() + ImGui::GetStyle().ItemSpacing.y );
+                ImGuiX::Space( ImGui::GetStyle().ItemSpacing.y );
 
                 ImGui::PushStyleColor( ImGuiCol_Text, { 0.55f, 0.55f, 0.55f, 1.0f } );
                 ImGui::TextUnformatted( "Click to highlight all occurrences in frame" );
@@ -2310,7 +2310,7 @@ namespace Profiler
             }
         }
 
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+        ImGuiX::Space( 5 * interfaceScale );
 
         // Show a combo box that allows the user to select the filter the profiled range.
         ImGui::TextUnformatted( Lang::PerformanceCountersRange );
@@ -2564,7 +2564,7 @@ namespace Profiler
             ImGui::EndDisabled();
         }
 
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 * interfaceScale );
+        ImGuiX::Space( 5 * interfaceScale );
 
         // Scroll the counters only.
         if( ImGui::BeginChild( "###PerformanceCountersData" ) )
@@ -3676,7 +3676,7 @@ namespace Profiler
         ImGui::SameLine( 0, 20.f * interfaceScale );
         ImGui::Checkbox( "Scroll graphs", &m_MemoryConsumptionHistoryAutoScroll );
 
-        ImGui::Dummy( ImVec2( 1, 5 ) );
+        ImGuiX::Space( 5 * interfaceScale );
 
         // Set selected frame data.
         std::shared_ptr<DeviceProfilerFrameData> pRestoreData =
@@ -3720,6 +3720,8 @@ namespace Profiler
 
             for( uint32_t i = 0; i < memoryProperties.memoryHeapCount; ++i )
             {
+                ImGui::PushID( static_cast<int>( i ) );
+
                 const int64_t allocationSize = m_pData->m_Memory.m_Heaps[i].m_AllocationSize;
                 const int64_t allocationCount = m_pData->m_Memory.m_Heaps[i].m_AllocationCount;
                 const int64_t budgetSize = m_pData->m_Memory.m_Heaps[i].m_BudgetSize;
@@ -3776,21 +3778,19 @@ namespace Profiler
                     if( allocationSizeDifference )
                     {
                         snprintf( usageStr, sizeof( usageStr ),
-                            "(%+.2f) %.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown%u",
+                            "(%+.2f) %.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown",
                             allocationSizeDifference / 1048576.f,
                             allocationSize / 1048576.f,
                             memoryHeapSize / 1048576.f,
-                            usage,
-                            i );
+                            usage );
                     }
                     else
                     {
                         snprintf( usageStr, sizeof( usageStr ),
-                            "%.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown%u",
+                            "%.2f / %.2f MB (%.1f%%)###MemoryHeapBreakdown",
                             allocationSize / 1048576.f,
                             memoryHeapSize / 1048576.f,
-                            usage,
-                            i );
+                            usage );
                     }
                 }
 
@@ -3922,7 +3922,7 @@ namespace Profiler
                 if( m_MemoryConsumptionHistoryVisible )
                 {
                     if( ImPlot::BeginPlot(
-                            fmt::format( "##MemoryHistory{}", i ).c_str(),
+                            "##MemoryHistory",
                             ImVec2( -1, 100.f * interfaceScale ),
                             ImPlotFlags_NoFrame | ImPlotFlags_NoLegend | ImPlotFlags_NoMenus ) )
                     {
@@ -3972,12 +3972,14 @@ namespace Profiler
 
                 // Force text baseline to 0 to align the next cell correctly.
                 ImGui::ItemSize( ImVec2(), 0.0f );
+
+                ImGui::PopID();
             }
 
             ImGui::EndTable();
         }
 
-        ImGui::Dummy( ImVec2( 1, 5 ) );
+        ImGuiX::Space( 5 * interfaceScale );
 
         ImGui::PushFont( m_Resources.GetBoldFont() );
         ImGui::TextUnformatted( "Resources" );
@@ -4450,7 +4452,7 @@ namespace Profiler
         ImGui::SameLine( columnValueOffset1 );
         ImGui::Text( "%" PRIu64, accelerationStructureData.m_Offset );
 
-        ImGui::Dummy( ImVec2( 1, 5 ) );
+        ImGuiX::Space( 5 * interfaceScale );
         ImGui::Separator();
 
         DrawResourceInspectorBufferInfo( accelerationStructureData.m_Buffer, bufferData );
@@ -4506,7 +4508,7 @@ namespace Profiler
         ImGui::SameLine( columnValueOffset1 );
         ImGui::Text( "%" PRIu64, micromapData.m_Offset );
 
-        ImGui::Dummy( ImVec2( 1, 5 ) );
+        ImGuiX::Space( 5 * interfaceScale );
         ImGui::Separator();
 
         DrawResourceInspectorBufferInfo( micromapData.m_Buffer, bufferData );
@@ -4558,7 +4560,7 @@ namespace Profiler
         ImGui::SameLine( columnValueOffset1 );
         ImGui::Text( "%s", m_pStringSerializer->GetBufferUsageFlagNames( bufferData.m_BufferUsage, "\n" ).c_str() );
 
-        ImGui::Dummy( ImVec2( 1, 5 ) );
+        ImGuiX::Space( 5 * interfaceScale );
 
         if( ImGui::BeginTable( "##BufferBindingsTable", 6 ) )
         {
@@ -4702,7 +4704,7 @@ namespace Profiler
         ImGui::SameLine( columnValueOffset1 );
         ImGui::Text( "%s", m_pStringSerializer->GetImageUsageFlagNames( imageData.m_ImageUsage, "\n" ).c_str() );
 
-        ImGui::Dummy( ImVec2( 1, 5 ) );
+        ImGuiX::Space( 5 * interfaceScale );
 
         if( imageData.m_ImageFlags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT )
         {
@@ -4958,7 +4960,7 @@ namespace Profiler
 
         if( ImGui::BeginChild( "##ImageMemoryMap",
                 ImVec2( 0, blockMapSize.y + 25.f * interfaceScale ),
-                ImGuiChildFlags_Border,
+                ImGuiChildFlags_Borders,
                 ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoScrollWithMouse ) )
         {
             ImVec2 mousePos = ImGui::GetMousePos();
@@ -5107,7 +5109,7 @@ namespace Profiler
             allocatedBlockCount * m_ResourceInspectorImageData.m_MemoryRequirements.alignment / 1024.f,
             totalBlockCount * m_ResourceInspectorImageData.m_MemoryRequirements.alignment / 1024.f );
 
-        ImGui::Dummy( ImVec2( 0, 5.f * interfaceScale ) );
+        ImGuiX::Space( 5 * interfaceScale );
     }
 
     /***********************************************************************************\
@@ -5665,7 +5667,7 @@ namespace Profiler
             return;
         }
 
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + 5 );
+        ImGuiX::Space( 5 * ImGui::GetIO().FontGlobalScale );
 
         switch( m_InspectorPipeline.m_Type )
         {

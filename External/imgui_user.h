@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Lukasz Stalmirski
+// Copyright (c) 2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,12 +18,5 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
-#include <stdint.h>
-
-// Vulkan handles are always 64-bit.
-#define ImTextureID uint64_t
-
-// ImGui undefs Status macro which breaks Xlib and XCB headers.
-#pragma push_macro( "Status" )
-#undef Status
+// Reintroduce Status macro pushed in imgui_config.h
+#pragma pop_macro( "Status" )
