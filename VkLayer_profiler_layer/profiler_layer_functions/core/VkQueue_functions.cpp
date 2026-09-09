@@ -42,12 +42,14 @@ namespace Profiler
         // Synchronize host access to the queue object in case the overlay tries to use it.
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        dd.Profiler.PreSubmitCommandBuffers( queue );
+        DeviceProfilerSubmitBatchesPerFrame submitBatchesPerFrame =
+            dd.Profiler.GetSubmitBatches( queue, submitCount, pSubmits );
+        dd.Profiler.PreSubmitCommandBuffers( queue, submitBatchesPerFrame );
 
         // Submit the command buffers
         VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
+        dd.Profiler.PostSubmitCommandBuffers( queue, submitBatchesPerFrame );
 
         // Consume the collected data
         if( dd.pOutput )
@@ -78,12 +80,14 @@ namespace Profiler
         // Synchronize host access to the queue object in case the overlay tries to use it.
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        dd.Profiler.PreSubmitCommandBuffers( queue );
+        DeviceProfilerSubmitBatchesPerFrame submitBatchesPerFrame =
+            dd.Profiler.GetSubmitBatches( queue, submitCount, pSubmits );
+        dd.Profiler.PreSubmitCommandBuffers( queue, submitBatchesPerFrame );
 
         // Submit the command buffers
         VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, submitCount, pSubmits, fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
+        dd.Profiler.PostSubmitCommandBuffers( queue, submitBatchesPerFrame );
 
         // Consume the collected data
         if( dd.pOutput )

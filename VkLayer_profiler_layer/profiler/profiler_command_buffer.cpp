@@ -1059,6 +1059,28 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ResetQueryPools
+
+    Description:
+        Reset all query pools before the next profiling run using the provided command buffer.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::ResetQueryPools( VkCommandBuffer commandBuffer ) const
+    {
+        if( m_ProfilingEnabled )
+        {
+            m_pQueryPool->ResetQueryPools( commandBuffer );
+
+            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
+            {
+                pSecondaryCommandBuffer->ResetQueryPools( commandBuffer );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetSecondaryCommandBuffers
 
     Description:
