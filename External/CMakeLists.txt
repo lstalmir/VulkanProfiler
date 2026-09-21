@@ -57,6 +57,7 @@ set (INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 add_subdirectory (googletest)
 
 # intel/metrics-discovery
+if (PROFILER_WITH_INTEL_METRICS AND PROFILER_ARCH_X86)
 add_library (metrics-discovery INTERFACE)
 target_include_directories (metrics-discovery
     INTERFACE metrics-discovery/inc/common/instrumentation/api)
@@ -87,6 +88,7 @@ if (UNIX)
         list (APPEND _PROFILER_INSTALL_EXTERNAL_TARGETS metrics_discovery)
     endif ()
 endif ()
+endif () # PROFILER_WITH_INTEL_METRICS
 
 # KhronosGroup/Vulkan-Headers
 execute_process (COMMAND "${CMAKE_COMMAND}"
@@ -155,6 +157,7 @@ endfunction ()
 build_rapidyaml()
 
 # nvidia/nvperf
+if (PROFILER_WITH_NV_METRICS)
 function (build_nvperf_sdk)
     # Generate metrics configuration headers:
     file (GLOB nvperf_metric_configurations_dirs LIST_DIRECTORIES TRUE CONFIGURE_DEPENDS
@@ -204,6 +207,7 @@ function (build_nvperf_sdk)
 endfunction ()
 
 build_nvperf_sdk()
+endif () # PROFILER_WITH_NV_METRICS
 
 # ocornut/imgui
 set (imgui_backends

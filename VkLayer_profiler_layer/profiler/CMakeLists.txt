@@ -76,6 +76,18 @@ add_library (profiler
     ${headers})
 
 target_link_libraries (profiler
-    PUBLIC profiler_common
-    PUBLIC metrics-discovery
-    PUBLIC nvperf)
+    PUBLIC profiler_common)
+
+if (TARGET metrics-discovery)
+    # Intel metrics-discovery may not be available on all platforms.
+    target_link_libraries (profiler PUBLIC metrics-discovery)
+    target_compile_definitions (profiler
+        PUBLIC PROFILER_WITH_INTEL_METRICS=1)
+endif ()
+
+if (TARGET nvperf)
+    # nvperf may not be available on all platforms.
+    target_link_libraries (profiler PUBLIC nvperf)
+    target_compile_definitions (profiler
+        PUBLIC PROFILER_WITH_NV_METRICS=1)
+endif ()

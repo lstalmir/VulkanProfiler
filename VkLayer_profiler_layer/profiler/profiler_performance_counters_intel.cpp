@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifdef PROFILER_WITH_INTEL_METRICS
+
 #include "profiler_performance_counters_intel.h"
 #include "profiler/profiler_config.h"
 #include "profiler/profiler_helpers.h"
@@ -1671,3 +1673,5 @@ namespace Profiler
         return true;
     }
 }
+
+#endif // PROFILER_WITH_INTEL_METRICS

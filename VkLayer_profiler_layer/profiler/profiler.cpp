@@ -230,6 +230,7 @@ namespace Profiler
         }
 
         // Enable performance query extensions if requested and available.
+#ifdef PROFILER_WITH_INTEL_METRICS
         if( config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::intel )
         {
             if( availableExtensionNames.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
@@ -238,7 +239,9 @@ namespace Profiler
                 deviceExtensions.insert( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME );
             }
         }
-        else if( config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::khr )
+        else
+#endif // PROFILER_WITH_INTEL_METRICS
+        if( config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::khr )
         {
             if( availableExtensionNames.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) )
             {
@@ -408,20 +411,30 @@ namespace Profiler
         m_MemoryTracker.Initialize( m_pDevice );
 
         // Enable performance counters if available
+#ifdef PROFILER_WITH_INTEL_METRICS
         if( m_pDevice->EnabledExtensions.count( VK_INTEL_PERFORMANCE_QUERY_EXTENSION_NAME ) )
         {
             // Use INTEL performance query extension.
             m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersINTEL>();
         }
-        else if( m_pDevice->EnabledExtensions.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) )
+        else
+#endif // PROFILER_WITH_INTEL_METRICS
+        if( m_pDevice->EnabledExtensions.count( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME ) )
         {
             // Use KHR performance query extension.
             m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersKHR>();
         }
-        else if( m_Config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::nvidia )
+        else
+#ifdef PROFILER_WITH_NV_METRICS
+        if( m_Config.m_EnablePerformanceQueryExt == enable_performance_query_ext_t::nvidia )
         {
             // Use NVIDIA performance counters if requested.
             m_pPerformanceCounters = std::make_unique<DeviceProfilerPerformanceCountersNVIDIA>();
+        }
+        else
+#endif // PROFILER_WITH_NV_METRICS
+        {
+            // No performance counters available.
         }
 
         if( m_pPerformanceCounters )
