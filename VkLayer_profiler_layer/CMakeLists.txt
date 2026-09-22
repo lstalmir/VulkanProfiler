@@ -211,6 +211,7 @@ target_link_libraries (profiler_common
     INTERFACE spirv-cross-c
     INTERFACE farmhash
     INTERFACE fmt
+    INTERFACE scn
     INTERFACE simdjson
     INTERFACE ryml)
 target_include_directories (profiler_common
