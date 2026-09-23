@@ -474,7 +474,7 @@ namespace Profiler
             {
                 for( const DeviceProfilerSubmitBatch& submitBatch : pFrame->m_PendingSubmits )
                 {
-                    if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
+                    if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) && submitBatch.m_DataCopyFence )
                     {
                         // Wait for this submit batch.
                         waitFences.push_back( submitBatch.m_DataCopyFence.get() );
@@ -517,24 +517,34 @@ namespace Profiler
                 // Aggregate only submits that contain the specified command buffer.
                 if( !pWaitForCommandBuffer || submitBatchIt->m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
                 {
-                    result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
-                        m_pProfiler->m_pDevice->Handle,
-                        submitBatchIt->m_DataCopyFence.get() );
+                    if( submitBatchIt->m_DataCopyFence )
+                    {
+                        result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
+                            m_pProfiler->m_pDevice->Handle,
+                            submitBatchIt->m_DataCopyFence.get() );
+                    }
+                    else
+                    {
+                        result = VK_SUCCESS;
+                    }
                 }
 
                 if( result == VK_SUCCESS )
                 {
-                    bool succeeded = true;
-                    if( !submitBatchIt->m_pDataBuffer->UsesGpuAllocation() )
+                    if( submitBatchIt->m_pDataBuffer )
                     {
-                        succeeded = WriteQueryDataToCpuBuffer( *submitBatchIt );
-                    }
+                        bool succeeded = true;
+                        if( !submitBatchIt->m_pDataBuffer->UsesGpuAllocation() )
+                        {
+                            succeeded = WriteQueryDataToCpuBuffer( *submitBatchIt );
+                        }
 
-                    if( succeeded )
-                    {
-                        ResolveSubmitBatchData(
-                            *submitBatchIt,
-                            pFrame->m_CompleteSubmits[submitBatchIt->m_SubmitBatchDataIndex] );
+                        if( succeeded )
+                        {
+                            ResolveSubmitBatchData(
+                                *submitBatchIt,
+                                pFrame->m_CompleteSubmits[submitBatchIt->m_SubmitBatchDataIndex] );
+                        }
                     }
 
                     FreeDynamicAllocations( *submitBatchIt );
@@ -1330,6 +1340,12 @@ namespace Profiler
     \***********************************************************************************/
     bool ProfilerDataAggregator::ResetQueryPools( DeviceProfilerSubmitBatch& submitBatch )
     {
+        if( submitBatch.m_pSubmittedCommandBuffers.empty() )
+        {
+            // Nothing to reset.
+            return true;
+        }
+
         // Synchronize access to the command pool.
         std::unique_lock commandPoolLock( submitBatch.m_pInternalCommandPool->GetMutex() );
 
@@ -1400,6 +1416,12 @@ namespace Profiler
     \***********************************************************************************/
     bool ProfilerDataAggregator::WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
     {
+        if( submitBatch.m_pSubmittedCommandBuffers.empty() )
+        {
+            // Nothing to write.
+            return true;
+        }
+
         // Always submit the fence to GPU to check for data availability later.
         uint32_t submitCount = 0;
         VkSubmitInfo submitInfo = {};

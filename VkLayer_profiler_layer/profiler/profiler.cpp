@@ -1513,28 +1513,31 @@ namespace Profiler
             // Prepare the submit batch for submission
             m_DataAggregator.PrepareSubmit( submitBatch );
 
-            // Append additional command buffers with query resets and data collection commands
-            auto* pCommandBuffers = scratchData.m_Allocator.Allocate<typename T::CommandBufferSubmitInfo>( commandBufferCount + 2 );
-            if( pCommandBuffers )
+            // Append additional command buffers with query resets and data collection commands.
+            if( submitBatch.m_QueryResetCommandBuffer && submitBatch.m_DataCopyCommandBuffer )
             {
-                // Reset queries.
-                pCommandBuffers[0] = T::MakeCommandBufferSubmitInfo( submitBatch.m_QueryResetCommandBuffer );
-
-                // Execute application command buffers.
-                auto* pApplicationCommandBuffers = T::GetCommandBufferSubmitInfos( submitInfo );
-                for( uint32_t commandBufferIdx = 0; commandBufferIdx < commandBufferCount; ++commandBufferIdx )
+                auto* pCommandBuffers = scratchData.m_Allocator.Allocate<typename T::CommandBufferSubmitInfo>( commandBufferCount + 2 );
+                if( pCommandBuffers )
                 {
-                    pCommandBuffers[commandBufferIdx + 1] = pApplicationCommandBuffers[commandBufferIdx];
+                    // Reset queries.
+                    pCommandBuffers[0] = T::MakeCommandBufferSubmitInfo( submitBatch.m_QueryResetCommandBuffer );
+
+                    // Execute application command buffers.
+                    auto* pApplicationCommandBuffers = T::GetCommandBufferSubmitInfos( submitInfo );
+                    for( uint32_t commandBufferIdx = 0; commandBufferIdx < commandBufferCount; ++commandBufferIdx )
+                    {
+                        pCommandBuffers[commandBufferIdx + 1] = pApplicationCommandBuffers[commandBufferIdx];
+                    }
+
+                    // Collect query data.
+                    pCommandBuffers[commandBufferCount + 1] = T::MakeCommandBufferSubmitInfo( submitBatch.m_DataCopyCommandBuffer );
+
+                    // Update the submit info with the new command buffers.
+                    T::SetCommandBufferSubmitInfos( submitInfo, commandBufferCount + 2, pCommandBuffers );
                 }
 
-                // Collect query data.
-                pCommandBuffers[commandBufferCount + 1] = T::MakeCommandBufferSubmitInfo( submitBatch.m_DataCopyCommandBuffer );
-
-                // Update the submit info with the new command buffers.
-                T::SetCommandBufferSubmitInfos( submitInfo, commandBufferCount + 2, pCommandBuffers );
+                submitBatch.m_DataCopyFence = scratchData.m_Fence;
             }
-
-            submitBatch.m_DataCopyFence = scratchData.m_Fence;
         }
 
         // Configure the queue for performance counters collection, if needed.
