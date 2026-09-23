@@ -1368,9 +1368,12 @@ namespace Profiler
         if( result == VK_SUCCESS )
         {
             // Reset all query pools on the GPU.
-            for( ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+            for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
             {
-                pCommandBuffer->ResetQueryPools( submitBatch.m_QueryResetCommandBuffer );
+                for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+                {
+                    pCommandBuffer->ResetQueryPools( submitBatch.m_QueryResetCommandBuffer );
+                }
             }
 
             result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
@@ -1405,9 +1408,12 @@ namespace Profiler
         // Allocate a buffer for the query data.
         uint64_t bufferSize = 0;
 
-        for( const ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+        for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
         {
-            bufferSize += pCommandBuffer->GetRequiredQueryDataBufferSize();
+            for( const ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+            {
+                bufferSize += pCommandBuffer->GetRequiredQueryDataBufferSize();
+            }
         }
 
         submitBatch.m_pDataBuffer = new DeviceProfilerQueryDataBuffer( *m_pProfiler, bufferSize );
@@ -1458,9 +1464,12 @@ namespace Profiler
                     *submitBatch.m_pDataBuffer,
                     submitBatch.m_DataCopyCommandBuffer );
 
-                for( ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+                for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
                 {
-                    pCommandBuffer->WriteQueryData( writer );
+                    for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+                    {
+                        pCommandBuffer->WriteQueryData( writer );
+                    }
                 }
 
                 result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
