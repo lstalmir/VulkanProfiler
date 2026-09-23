@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -42,14 +42,38 @@ namespace Profiler
         // Synchronize host access to the queue object in case the overlay tries to use it.
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        DeviceProfilerSubmitBatchesPerFrame submitBatchesPerFrame =
-            dd.Profiler.GetSubmitBatches( queue, submitCount, pSubmits );
-        dd.Profiler.PreSubmitCommandBuffers( queue, submitBatchesPerFrame );
+        // Prepare the command buffers for profiling.
+        // This may insert additional command buffers to each VkSubmitInfo to reset queries and copy data to buffers.
+        DeviceProfilerSubmitCommandScratchData<VkSubmitInfo> scratchData;
+        scratchData.m_Queue = queue;
+        scratchData.m_SubmitInfos = std::vector( pSubmits, pSubmits + submitCount );
+        dd.Profiler.PrepareQueueSubmit( scratchData );
+
+        // Additionally, synchronize all queues if requested by the user.
+        std::unique_lock queueLock( dd.Profiler.m_SubmitMutex, std::defer_lock );
+        if( dd.Profiler.m_Config.m_SynchronizeQueues )
+        {
+            queueLock.lock();
+        }
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
+        VkResult result = dd.Device.Callbacks.QueueSubmit( queue, static_cast<uint32_t>( scratchData.m_SubmitInfos.size() ), scratchData.m_SubmitInfos.data(), fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( queue, submitBatchesPerFrame );
+        // Signal fence to wait for query results.
+        if( scratchData.m_Fence.use_count() > 1 )
+        {
+            dd.Device.Callbacks.QueueSubmit( queue, 0, nullptr, scratchData.m_Fence.get() );
+        }
+
+        // Wait for the command buffers to finish executing to ensure the queues are not executing in parallel.
+        if( dd.Profiler.m_Config.m_SynchronizeQueues )
+        {
+            dd.Device.Callbacks.QueueWaitIdle( queue );
+            queueLock.unlock();
+        }
+
+        // Finalize the submission.
+        dd.Profiler.FinishQueueSubmit( scratchData );
 
         // Consume the collected data
         if( dd.pOutput )
@@ -80,14 +104,38 @@ namespace Profiler
         // Synchronize host access to the queue object in case the overlay tries to use it.
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        DeviceProfilerSubmitBatchesPerFrame submitBatchesPerFrame =
-            dd.Profiler.GetSubmitBatches( queue, submitCount, pSubmits );
-        dd.Profiler.PreSubmitCommandBuffers( queue, submitBatchesPerFrame );
+        // Prepare the command buffers for profiling.
+        // This may insert additional command buffers to each VkSubmitInfo to reset queries and copy data to buffers.
+        DeviceProfilerSubmitCommandScratchData<VkSubmitInfo2> scratchData;
+        scratchData.m_Queue = queue;
+        scratchData.m_SubmitInfos = std::vector( pSubmits, pSubmits + submitCount );
+        dd.Profiler.PrepareQueueSubmit( scratchData );
+
+        // Additionally, synchronize all queues if requested by the user.
+        std::unique_lock queueLock( dd.Profiler.m_SubmitMutex, std::defer_lock );
+        if( dd.Profiler.m_Config.m_SynchronizeQueues )
+        {
+            queueLock.lock();
+        }
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, submitCount, pSubmits, fence );
+        VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, static_cast<uint32_t>( scratchData.m_SubmitInfos.size() ), scratchData.m_SubmitInfos.data(), fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( queue, submitBatchesPerFrame );
+        // Signal fence to wait for query results.
+        if( scratchData.m_Fence.use_count() > 1 )
+        {
+            dd.Device.Callbacks.QueueSubmit( queue, 0, nullptr, scratchData.m_Fence.get() );
+        }
+
+        // Wait for the command buffers to finish executing to ensure the queues are not executing in parallel.
+        if( dd.Profiler.m_Config.m_SynchronizeQueues )
+        {
+            dd.Device.Callbacks.QueueWaitIdle( queue );
+            queueLock.unlock();
+        }
+
+        // Finalize the submission.
+        dd.Profiler.FinishQueueSubmit( scratchData );
 
         // Consume the collected data
         if( dd.pOutput )

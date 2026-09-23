@@ -122,10 +122,9 @@ namespace Profiler
         void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo2* );
         void DestroyRenderPass( VkRenderPass );
 
-        auto GetSubmitBatches( VkQueue, uint32_t, const VkSubmitInfo* ) -> DeviceProfilerSubmitBatchesPerFrame;
-        auto GetSubmitBatches( VkQueue, uint32_t, const VkSubmitInfo2* ) -> DeviceProfilerSubmitBatchesPerFrame;
-        void PreSubmitCommandBuffers( VkQueue, DeviceProfilerSubmitBatchesPerFrame& );
-        void PostSubmitCommandBuffers( VkQueue, DeviceProfilerSubmitBatchesPerFrame& );
+        void PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<VkSubmitInfo>& );
+        void PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<VkSubmitInfo2>& );
+        void FinishQueueSubmit( DeviceProfilerSubmitBatchList& );
 
         void FinishFrame();
         void FinishFrame( const VkPresentInfoKHR* );
@@ -221,7 +220,7 @@ namespace Profiler
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator );
 
         template<typename SubmitInfoT>
-        auto GetSubmitBatchesImpl( VkQueue, uint32_t, const SubmitInfoT* ) -> DeviceProfilerSubmitBatchesPerFrame;
+        void PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<SubmitInfoT>& );
 
         void ResolveFrameData( TipRangeId& tip );
 

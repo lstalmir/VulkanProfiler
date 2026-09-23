@@ -95,23 +95,80 @@ namespace
     template<>
     struct SubmitInfoTraits<VkSubmitInfo>
     {
+        using CommandBufferSubmitInfo = VkCommandBuffer;
+
         PROFILER_FORCE_INLINE static uint32_t CommandBufferCount( const VkSubmitInfo& info ) { return info.commandBufferCount; }
         PROFILER_FORCE_INLINE static uint32_t SignalSemaphoreCount( const VkSubmitInfo& info ) { return info.signalSemaphoreCount; }
         PROFILER_FORCE_INLINE static uint32_t WaitSemaphoreCount( const VkSubmitInfo& info ) { return info.waitSemaphoreCount; }
         PROFILER_FORCE_INLINE static VkCommandBuffer CommandBuffer( const VkSubmitInfo& info, uint32_t i ) { return info.pCommandBuffers[ i ]; }
         PROFILER_FORCE_INLINE static VkSemaphore SignalSemaphore( const VkSubmitInfo& info, uint32_t i ) { return info.pSignalSemaphores[ i ]; }
         PROFILER_FORCE_INLINE static VkSemaphore WaitSemaphore( const VkSubmitInfo& info, uint32_t i ) { return info.pWaitSemaphores[ i ]; }
+
+        PROFILER_FORCE_INLINE static auto* GetCommandBufferSubmitInfos( const VkSubmitInfo& info )
+        {
+            return info.pCommandBuffers;
+        }
+
+        PROFILER_FORCE_INLINE static void SetCommandBufferSubmitInfos( VkSubmitInfo& info, uint32_t count, VkCommandBuffer* pCommandBuffers )
+        {
+            info.pCommandBuffers = pCommandBuffers;
+            info.commandBufferCount = count;
+        }
+
+        PROFILER_FORCE_INLINE static auto MakeCommandBufferSubmitInfo( VkCommandBuffer commandBuffer )
+        {
+            return commandBuffer;
+        }
     };
 
     template<>
     struct SubmitInfoTraits<VkSubmitInfo2>
     {
+        using CommandBufferSubmitInfo = VkCommandBufferSubmitInfo;
+
         PROFILER_FORCE_INLINE static uint32_t CommandBufferCount( const VkSubmitInfo2& info ) { return info.commandBufferInfoCount; }
         PROFILER_FORCE_INLINE static uint32_t SignalSemaphoreCount( const VkSubmitInfo2& info ) { return info.signalSemaphoreInfoCount; }
         PROFILER_FORCE_INLINE static uint32_t WaitSemaphoreCount( const VkSubmitInfo2& info ) { return info.waitSemaphoreInfoCount; }
         PROFILER_FORCE_INLINE static VkCommandBuffer CommandBuffer( const VkSubmitInfo2& info, uint32_t i ) { return info.pCommandBufferInfos[ i ].commandBuffer; }
         PROFILER_FORCE_INLINE static VkSemaphore SignalSemaphore( const VkSubmitInfo2& info, uint32_t i ) { return info.pSignalSemaphoreInfos[ i ].semaphore; }
         PROFILER_FORCE_INLINE static VkSemaphore WaitSemaphore( const VkSubmitInfo2& info, uint32_t i ) { return info.pWaitSemaphoreInfos[ i ].semaphore; }
+
+        PROFILER_FORCE_INLINE static auto* GetCommandBufferSubmitInfos( const VkSubmitInfo2& info )
+        {
+            return info.pCommandBufferInfos;
+        }
+
+        PROFILER_FORCE_INLINE static void SetCommandBufferSubmitInfos( VkSubmitInfo2& info, uint32_t count, VkCommandBufferSubmitInfo* pCommandBuffers )
+        {
+            info.pCommandBufferInfos = pCommandBuffers;
+            info.commandBufferInfoCount = count;
+        }
+
+        PROFILER_FORCE_INLINE static auto MakeCommandBufferSubmitInfo( VkCommandBuffer commandBuffer )
+        {
+            VkCommandBufferSubmitInfo submitInfo = {};
+            submitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+            submitInfo.commandBuffer = commandBuffer;
+            return submitInfo;
+        }
+    };
+
+    struct FenceDeleter
+    {
+        Profiler::VkDevice_Object* m_pDevice = nullptr;
+
+        explicit FenceDeleter( Profiler::VkDevice_Object* pDevice )
+            : m_pDevice( pDevice )
+        {
+        }
+
+        void operator()( VkFence fence ) const
+        {
+            if( fence != VK_NULL_HANDLE )
+            {
+                m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, fence, nullptr );
+            }
+        }
     };
 }
 
@@ -1336,141 +1393,68 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PreSubmitCommandBuffers
+        PrepareQueueSubmit
 
     Description:
 
     \***********************************************************************************/
-    auto DeviceProfiler::GetSubmitBatches( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfos )
-        -> DeviceProfilerSubmitBatchesPerFrame
+    void DeviceProfiler::PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<VkSubmitInfo>& scratchData )
     {
-        return GetSubmitBatchesImpl<VkSubmitInfo>( queue, count, pSubmitInfos );
+        PrepareQueueSubmit<VkSubmitInfo>( scratchData );
     }
 
     /***********************************************************************************\
 
     Function:
-        PreSubmitCommandBuffers
+        PrepareQueueSubmit
 
     Description:
 
     \***********************************************************************************/
-    auto DeviceProfiler::GetSubmitBatches( VkQueue queue, uint32_t count, const VkSubmitInfo2* pSubmitInfos )
-        -> DeviceProfilerSubmitBatchesPerFrame
+    void DeviceProfiler::PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<VkSubmitInfo2>& scratchData )
     {
-        return GetSubmitBatchesImpl<VkSubmitInfo2>( queue, count, pSubmitInfos );
+        PrepareQueueSubmit<VkSubmitInfo2>( scratchData );
     }
 
     /***********************************************************************************\
 
     Function:
-        PreSubmitCommandBuffers
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfiler::PreSubmitCommandBuffers( VkQueue queue, DeviceProfilerSubmitBatchesPerFrame& submitBatchesPerFrame )
-    {
-        // Synchronize access to the queue if requested.
-        if( m_Config.m_SynchronizeQueues )
-        {
-            m_SubmitMutex.lock();
-        }
-
-        // Configure the queue for performance counters collection, if needed.
-        if( m_pPerformanceCounters )
-        {
-            m_pPerformanceCounters->SetQueuePerformanceConfiguration( queue );
-        }
-
-        // Prepare command buffers for submission.
-        for( auto& [frameIndex, submitBatch] : submitBatchesPerFrame.m_FrameSubmitBatches )
-        {
-            m_DataAggregator.PrepareSubmit( submitBatch );
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PostSubmitCommandBuffers
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, DeviceProfilerSubmitBatchesPerFrame& submitBatchesPerFrame )
-    {
-        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
-
-        // Append the submit batches for aggregation.
-        for( auto& [frameIndex, submitBatch] : submitBatchesPerFrame.m_FrameSubmitBatches )
-        {
-            m_DataAggregator.AppendSubmit( frameIndex, submitBatch );
-        }
-
-        // Delimit frames if needed.
-        if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
-        {
-            m_DataAggregator.EndFrame( m_FrameIndex );
-            m_FrameIndex++;
-        }
-
-        if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
-        {
-            for( uint32_t frameIndex : submitBatchesPerFrame.m_FrameEndedIndices )
-            {
-                m_DataAggregator.EndFrame( frameIndex );
-            }
-        }
-
-        // If synchronization between queues is enabled, wait with the mutex locked to ensure it is completed before the next submission.
-        if( m_Config.m_SynchronizeQueues )
-        {
-            m_pDevice->Callbacks.QueueWaitIdle( queue );
-        }
-
-        // Get data captured during the last frame
-        ResolveFrameData( tip );
-
-        // Release the lock acquired in PreSubmitCommandBuffers.
-        if( m_Config.m_SynchronizeQueues )
-        {
-            m_SubmitMutex.unlock();
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PostSubmitCommandBuffers
+        PrepareQueueSubmit
 
     Description:
 
     \***********************************************************************************/
     template<typename SubmitInfoT>
-    auto DeviceProfiler::GetSubmitBatchesImpl( VkQueue queue, uint32_t submitCount, const SubmitInfoT* pSubmits )
-        -> DeviceProfilerSubmitBatchesPerFrame
+    void DeviceProfiler::PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<SubmitInfoT>& scratchData )
     {
         using T = SubmitInfoTraits<SubmitInfoT>;
 
-        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
-        // Applications can issue submissions belonging to different frames in a single call.
-        // Split those submissions into separate batches.
-        DeviceProfilerSubmitBatchesPerFrame submitBatchesPerFrame;
+        scratchData.m_Queue = ResolveObjectHandle( scratchData.m_Queue );
 
+        // Record the submitted command buffers and semaphores.
         const uint64_t timestamp = m_CpuTimestampCounter.GetCurrentValue();
         const uint32_t threadId = ProfilerPlatformFunctions::GetCurrentThreadId();
+
+        // Create a fence to signal when the data copy command buffers have completed execution.
+        VkFence fence = VK_NULL_HANDLE;
+        VkFenceCreateInfo fenceCreateInfo = {};
+        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        m_pDevice->Callbacks.CreateFence( m_pDevice->Handle, &fenceCreateInfo, nullptr, &fence );
+
+        scratchData.m_Fence.reset( fence, FenceDeleter( m_pDevice ) );
 
         // Synchronize read access to m_pCommandBuffers
         std::shared_lock lk( m_pCommandBuffers );
 
-        for( uint32_t submitIdx = 0; submitIdx < submitCount; ++submitIdx )
+        for( SubmitInfoT& submitInfo : scratchData.m_SubmitInfos )
         {
-            const SubmitInfoT& submitInfo = pSubmits[submitIdx];
-
-            // Resolve index of the frame this submission belongs to.
-            uint32_t submitFrameIndex = m_FrameIndex;
+            DeviceProfilerSubmitBatch& submitBatch = scratchData.m_Batches.emplace_back();
+            submitBatch.m_Handle = scratchData.m_Queue;
+            submitBatch.m_Timestamp = timestamp;
+            submitBatch.m_ThreadId = threadId;
+            submitBatch.m_FrameIndex = m_FrameIndex;
 
             if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
             {
@@ -1480,26 +1464,10 @@ namespace Profiler
 
                 if( pFrameBoundary != nullptr )
                 {
-                    submitFrameIndex = static_cast<uint32_t>( pFrameBoundary->frameID );
-
-                    if( pFrameBoundary->flags & VK_FRAME_BOUNDARY_FRAME_END_BIT_EXT )
-                    {
-                        submitBatchesPerFrame.m_FrameEndedIndices.push_back( submitFrameIndex );
-                    }
+                    submitBatch.m_FrameIndex = static_cast<uint32_t>( pFrameBoundary->frameID );
+                    submitBatch.m_FrameBoundary = ( pFrameBoundary->flags & VK_FRAME_BOUNDARY_FRAME_END_BIT_EXT );
                 }
             }
-
-            // Get submit batch associated with the frame index of the submission.
-            auto it = submitBatchesPerFrame.m_FrameSubmitBatches.find( submitFrameIndex );
-            if( it == submitBatchesPerFrame.m_FrameSubmitBatches.end() )
-            {
-                it = submitBatchesPerFrame.m_FrameSubmitBatches.emplace( submitFrameIndex, DeviceProfilerSubmitBatch{} ).first;
-                it->second.m_Handle = ResolveObjectHandle<VkQueueHandle>( queue );
-                it->second.m_Timestamp = timestamp;
-                it->second.m_ThreadId = threadId;
-            }
-
-            DeviceProfilerSubmitBatch& submitBatch = it->second;
 
             // Wrap submit info into our structure
             DeviceProfilerSubmit& submit = submitBatch.m_Submits.emplace_back();
@@ -1507,7 +1475,8 @@ namespace Profiler
             submit.m_SignalSemaphores.reserve( T::SignalSemaphoreCount( submitInfo ) );
             submit.m_WaitSemaphores.reserve( T::WaitSemaphoreCount( submitInfo ) );
 
-            for( uint32_t commandBufferIdx = 0; commandBufferIdx < T::CommandBufferCount( submitInfo ); ++commandBufferIdx )
+            const uint32_t commandBufferCount = T::CommandBufferCount( submitInfo );
+            for( uint32_t commandBufferIdx = 0; commandBufferIdx < commandBufferCount; ++commandBufferIdx )
             {
                 // Get command buffer handle
                 VkCommandBuffer commandBuffer = T::CommandBuffer( submitInfo, commandBufferIdx );
@@ -1540,9 +1509,79 @@ namespace Profiler
                 submit.m_WaitSemaphores.push_back(
                     ResolveObjectHandle<VkSemaphoreHandle>( T::WaitSemaphore( submitInfo, semaphoreIdx ) ) );
             }
+
+            // Prepare the submit batch for submission
+            m_DataAggregator.PrepareSubmit( submitBatch );
+
+            // Append additional command buffers with query resets and data collection commands
+            auto* pCommandBuffers = scratchData.m_Allocator.Allocate<typename T::CommandBufferSubmitInfo>( commandBufferCount + 2 );
+            if( pCommandBuffers )
+            {
+                // Reset queries.
+                pCommandBuffers[0] = T::MakeCommandBufferSubmitInfo( submitBatch.m_QueryResetCommandBuffer );
+
+                // Execute application command buffers.
+                auto* pApplicationCommandBuffers = T::GetCommandBufferSubmitInfos( submitInfo );
+                for( uint32_t commandBufferIdx = 0; commandBufferIdx < commandBufferCount; ++commandBufferIdx )
+                {
+                    pCommandBuffers[commandBufferIdx + 1] = pApplicationCommandBuffers[commandBufferIdx];
+                }
+
+                // Collect query data.
+                pCommandBuffers[commandBufferCount + 1] = T::MakeCommandBufferSubmitInfo( submitBatch.m_DataCopyCommandBuffer );
+
+                // Update the submit info with the new command buffers.
+                T::SetCommandBufferSubmitInfos( submitInfo, commandBufferCount + 2, pCommandBuffers );
+            }
+
+            submitBatch.m_DataCopyFence = scratchData.m_Fence;
         }
 
-        return submitBatchesPerFrame;
+        // Configure the queue for performance counters collection, if needed.
+        if( m_pPerformanceCounters )
+        {
+            m_pPerformanceCounters->SetQueuePerformanceConfiguration( scratchData.m_Queue );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FinishQueueSubmit
+
+    Description:
+        Finalizes the submission of a batch of command buffers to the queue.
+
+    \***********************************************************************************/
+    void DeviceProfiler::FinishQueueSubmit( DeviceProfilerSubmitBatchList& scratchData )
+    {
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
+
+        // Pass the submitted command buffers to the data aggregator for processing.
+        for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+        {
+            m_DataAggregator.AppendSubmit( submitBatch.m_FrameIndex, submitBatch );
+        }
+
+        // Delimit frames if needed.
+        if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
+        {
+            for( const DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+            {
+                if( submitBatch.m_FrameBoundary )
+                {
+                    m_DataAggregator.EndFrame( submitBatch.m_FrameIndex );
+                }
+            }
+        }
+        else if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
+        {
+            m_DataAggregator.EndFrame( m_FrameIndex );
+            m_FrameIndex++;
+        }
+
+        // Get data captured during the last frame
+        ResolveFrameData( tip );
     }
 
     /***********************************************************************************\

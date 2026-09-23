@@ -45,26 +45,37 @@ namespace Profiler
 
     struct DeviceProfilerSubmitBatch
     {
-        VkQueueHandle                                   m_Handle = {};
+        VkQueueHandle                                   m_Handle = VK_NULL_HANDLE;
         ContainerType<DeviceProfilerSubmit>             m_Submits = {};
-        uint64_t                                        m_Timestamp = {};
-        uint32_t                                        m_ThreadId = {};
-
-        DeviceProfilerQueryDataBuffer*                  m_pDataBuffer = {};
-
-        DeviceProfilerInternalCommandPool*              m_pInternalCommandPool = {};
-        VkCommandBuffer                                 m_QueryResetCommandBuffer  = {};
-        VkCommandBuffer                                 m_DataCopyCommandBuffer = {};
-        VkFence                                         m_DataCopyFence = {};
+        uint64_t                                        m_Timestamp = 0;
+        uint32_t                                        m_ThreadId = 0;
+        uint32_t                                        m_FrameIndex = 0;
+        bool                                            m_FrameBoundary = false;
 
         uint32_t                                        m_SubmitBatchDataIndex = 0;
         std::unordered_set<ProfilerCommandBuffer*>      m_pSubmittedCommandBuffers = {};
+
+        DeviceProfilerQueryDataBuffer*                  m_pDataBuffer = nullptr;
+
+        DeviceProfilerInternalCommandPool*              m_pInternalCommandPool = nullptr;
+        VkCommandBuffer                                 m_QueryResetCommandBuffer  = VK_NULL_HANDLE;
+        VkCommandBuffer                                 m_DataCopyCommandBuffer = VK_NULL_HANDLE;
+        std::shared_ptr<VkFence_T>                      m_DataCopyFence = nullptr;
     };
 
-    struct DeviceProfilerSubmitBatchesPerFrame
+    struct DeviceProfilerSubmitBatchList
     {
-        std::unordered_map<uint32_t, DeviceProfilerSubmitBatch> m_FrameSubmitBatches = {};
-        std::vector<uint32_t>                           m_FrameEndedIndices = {};
+        VkQueueHandle                                   m_Queue = VK_NULL_HANDLE;
+        std::shared_ptr<VkFence_T>                      m_Fence = nullptr;
+        std::vector<DeviceProfilerSubmitBatch>          m_Batches = {};
+    };
+
+    template<typename SubmitInfoT>
+    struct DeviceProfilerSubmitCommandScratchData
+        : public DeviceProfilerSubmitBatchList
+    {
+        std::vector<SubmitInfoT>                        m_SubmitInfos = {};
+        ScopedAllocator                                 m_Allocator;
     };
 
     /***********************************************************************************\

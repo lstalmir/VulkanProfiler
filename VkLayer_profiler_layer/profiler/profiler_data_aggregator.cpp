@@ -336,8 +336,15 @@ namespace Profiler
         submitBatch.m_pInternalCommandPool = &m_CopyCommandPools.at( submitBatch.m_Handle );
 
         // Reset all query pools used in this submit batch.
-        bool succeeded = ResetQueryPools( submitBatch );
-        if( !succeeded )
+        if( !ResetQueryPools( submitBatch ) )
+        {
+            FreeDynamicAllocations( submitBatch );
+            return;
+        }
+
+        // Try to copy the data using GPU.
+        // It may fallback to CPU allocation if the function fails to allocate the command buffer.
+        if( !WriteQueryDataToGpuBuffer( submitBatch ) )
         {
             FreeDynamicAllocations( submitBatch );
             return;
@@ -356,15 +363,6 @@ namespace Profiler
     void ProfilerDataAggregator::AppendSubmit( uint32_t frameIndex, DeviceProfilerSubmitBatch& submitBatch )
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
-
-        // Try to copy the data using GPU.
-        // It may fallback to CPU allocation if the function fails to allocate the command buffer.
-        bool succeeded = WriteQueryDataToGpuBuffer( submitBatch );
-        if( !succeeded )
-        {
-            FreeDynamicAllocations( submitBatch );
-            return;
-        }
 
         // Synchronize with data collection thread.
         std::scoped_lock lk( m_Mutex );
@@ -479,7 +477,7 @@ namespace Profiler
                     if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
                     {
                         // Wait for this submit batch.
-                        waitFences.push_back( submitBatch.m_DataCopyFence );
+                        waitFences.push_back( submitBatch.m_DataCopyFence.get() );
                     }
                 }
             }
@@ -521,7 +519,7 @@ namespace Profiler
                 {
                     result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
                         m_pProfiler->m_pDevice->Handle,
-                        submitBatchIt->m_DataCopyFence );
+                        submitBatchIt->m_DataCopyFence.get() );
                 }
 
                 if( result == VK_SUCCESS )
@@ -1289,16 +1287,6 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::FreeDynamicAllocations( DeviceProfilerSubmitBatch& submitBatch )
     {
-        if( submitBatch.m_DataCopyFence )
-        {
-            m_pProfiler->m_pDevice->Callbacks.DestroyFence(
-                m_pProfiler->m_pDevice->Handle,
-                submitBatch.m_DataCopyFence,
-                nullptr );
-
-            submitBatch.m_DataCopyFence = VK_NULL_HANDLE;
-        }
-
         if( submitBatch.m_QueryResetCommandBuffer )
         {
             assert( submitBatch.m_pInternalCommandPool != nullptr );
@@ -1387,21 +1375,6 @@ namespace Profiler
 
             result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
                 submitBatch.m_QueryResetCommandBuffer );
-        }
-
-        if( result == VK_SUCCESS )
-        {
-            // Submit the command buffer for execution.
-            VkSubmitInfo submitInfo = {};
-            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &submitBatch.m_QueryResetCommandBuffer;
-
-            result = m_pProfiler->m_pDevice->Callbacks.QueueSubmit(
-                submitBatch.m_Handle,
-                1,
-                &submitInfo,
-                VK_NULL_HANDLE );
         }
 
         if( result != VK_SUCCESS )
@@ -1509,27 +1482,7 @@ namespace Profiler
             }
         }
 
-        // Always submit the fence, which is required to check for data availability.
-        VkFenceCreateInfo fenceCreateInfo = {};
-        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-
-        VkResult result = m_pProfiler->m_pDevice->Callbacks.CreateFence(
-            m_pProfiler->m_pDevice->Handle,
-            &fenceCreateInfo,
-            nullptr,
-            &submitBatch.m_DataCopyFence );
-
-        if( result == VK_SUCCESS )
-        {
-            // Submit the fence, and optionally the command buffer, for execution.
-            result = m_pProfiler->m_pDevice->Callbacks.QueueSubmit(
-                submitBatch.m_Handle,
-                submitCount,
-                &submitInfo,
-                submitBatch.m_DataCopyFence );
-        }
-
-        return ( result == VK_SUCCESS );
+        return true;
     }
 
     /***********************************************************************************\
