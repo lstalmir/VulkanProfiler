@@ -1516,7 +1516,7 @@ namespace Profiler
             // Append additional command buffers with query resets and data collection commands.
             if( submitBatch.m_QueryResetCommandBuffer && submitBatch.m_DataCopyCommandBuffer )
             {
-                auto* pCommandBuffers = scratchData.m_Allocator.Allocate<typename T::CommandBufferSubmitInfo>( commandBufferCount + 2 );
+                auto* pCommandBuffers = scratchData.m_Allocator.template Allocate<typename T::CommandBufferSubmitInfo>( commandBufferCount + 2 );
                 if( pCommandBuffers )
                 {
                     // Reset queries.
