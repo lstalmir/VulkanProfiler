@@ -63,7 +63,9 @@ namespace Profiler
 
         if( result != VK_SUCCESS )
         {
-            memset( &m_AllocationInfo, 0, sizeof( m_AllocationInfo ) );
+            m_Buffer = VK_NULL_HANDLE;
+            m_Allocation = VK_NULL_HANDLE;
+            m_AllocationInfo = {};
 
             // Fallback to CPU allocation.
             m_pCpuAllocation = malloc( bufferCreateInfo.size );
@@ -117,7 +119,10 @@ namespace Profiler
             m_Profiler.m_MemoryManager.FreeBuffer(
                 m_Buffer,
                 m_Allocation );
-            memset( &m_AllocationInfo, 0, sizeof( m_AllocationInfo ) );
+
+            m_Buffer = VK_NULL_HANDLE;
+            m_Allocation = VK_NULL_HANDLE;
+            m_AllocationInfo = {};
 
             m_pCpuAllocation = malloc( bufferSize );
 
@@ -127,6 +132,20 @@ namespace Profiler
                 m_AllocationInfo.pMappedData = m_pCpuAllocation;
             }
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        IsValid
+
+    Description:
+        Checks if either GPU or CPU allocation is valid.
+
+    \***********************************************************************************/
+    bool DeviceProfilerQueryDataBuffer::IsValid() const
+    {
+        return m_Buffer != VK_NULL_HANDLE || m_pCpuAllocation != nullptr;
     }
 
     /***********************************************************************************\

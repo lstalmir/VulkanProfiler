@@ -55,13 +55,14 @@ namespace Profiler
         }
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit2KHR( queue, static_cast<uint32_t>( scratchData.m_SubmitInfos.size() ), scratchData.m_SubmitInfos.data(), fence );
+        VkResult result = dd.Device.Callbacks.QueueSubmit2KHR(
+            queue,
+            scratchData.GetSubmitInfoCount(),
+            scratchData.GetSubmitInfos(),
+            fence );
 
-        // Signal fence to wait for query results.
-        if( scratchData.m_Fence.use_count() > 1 )
-        {
-            dd.Device.Callbacks.QueueSubmit( queue, 0, nullptr, scratchData.m_Fence.get() );
-        }
+        // Finalize the submission.
+        dd.Profiler.FinishQueueSubmit( scratchData, result );
 
         // Wait for the command buffers to finish executing to ensure the queues are not executing in parallel.
         if( dd.Profiler.m_Config.m_SynchronizeQueues )
@@ -69,9 +70,6 @@ namespace Profiler
             dd.Device.Callbacks.QueueWaitIdle( queue );
             queueLock.unlock();
         }
-
-        // Finalize the submission.
-        dd.Profiler.FinishQueueSubmit( scratchData );
 
         // Consume the collected data
         if( dd.pOutput )

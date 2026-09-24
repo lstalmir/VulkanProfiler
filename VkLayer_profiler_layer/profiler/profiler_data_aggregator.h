@@ -87,6 +87,9 @@ namespace Profiler
                 m_SubmitInfos.assign( pSubmits, pSubmits + submitCount );
             }
         }
+
+        uint32_t GetSubmitInfoCount() const { return static_cast<uint32_t>( m_SubmitInfos.size() ); }
+        const SubmitInfoT* GetSubmitInfos() const { return m_SubmitInfos.data(); }
     };
 
     /***********************************************************************************\
@@ -129,6 +132,7 @@ namespace Profiler
         void StopDataCollectionThread();
 
         void PrepareSubmit( DeviceProfilerSubmitBatch& );
+        void DiscardSubmitData( DeviceProfilerSubmitBatch& );
         void AppendSubmit( uint32_t, DeviceProfilerSubmitBatch& );
         void EndFrame( uint32_t );
         void EndPendingFrames();

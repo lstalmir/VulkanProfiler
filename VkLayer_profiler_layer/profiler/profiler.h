@@ -124,7 +124,7 @@ namespace Profiler
 
         void PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<VkSubmitInfo>& );
         void PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<VkSubmitInfo2>& );
-        void FinishQueueSubmit( DeviceProfilerSubmitBatchList& );
+        void FinishQueueSubmit( DeviceProfilerSubmitBatchList&, VkResult );
 
         void FinishFrame();
         void FinishFrame( const VkPresentInfoKHR* );

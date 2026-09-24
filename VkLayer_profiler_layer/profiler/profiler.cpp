@@ -1546,9 +1546,9 @@ namespace Profiler
 
                     // Update the submit info with the new command buffers.
                     T::SetCommandBufferSubmitInfos( submitInfo, commandBufferCount + 2, pCommandBuffers );
-                }
 
-                submitBatch.m_DataCopyFence = scratchData.m_Fence;
+                    submitBatch.m_DataCopyFence = scratchData.m_Fence;
+                }
             }
         }
 
@@ -1568,31 +1568,73 @@ namespace Profiler
         Finalizes the submission of a batch of command buffers to the queue.
 
     \***********************************************************************************/
-    void DeviceProfiler::FinishQueueSubmit( DeviceProfilerSubmitBatchList& scratchData )
+    void DeviceProfiler::FinishQueueSubmit( DeviceProfilerSubmitBatchList& scratchData, VkResult submitResult )
     {
         TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
 
-        // Pass the submitted command buffers to the data aggregator for processing.
-        for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+        if( submitResult == VK_SUCCESS )
         {
-            m_DataAggregator.AppendSubmit( submitBatch.m_FrameIndex, submitBatch );
-        }
-
-        // Delimit frames if needed.
-        if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
-        {
-            for( const DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+            // Signal the fence to indicate that the data copy command buffers have completed execution.
+            if( scratchData.m_Fence.use_count() > 1 )
             {
-                if( submitBatch.m_FrameBoundary )
+                VkResult fenceSubmitResult = m_pDevice->Callbacks.QueueSubmit(
+                    scratchData.m_Queue,
+                    0, nullptr,
+                    scratchData.m_Fence.get() );
+
+                if( fenceSubmitResult != VK_SUCCESS )
                 {
-                    m_DataAggregator.EndFrame( submitBatch.m_FrameIndex );
+                    fenceSubmitResult = m_pDevice->Callbacks.QueueWaitIdle(
+                        scratchData.m_Queue );
+
+                    // Don't wait for the fence since the signal submission failed.
+                    for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+                    {
+                        submitBatch.m_DataCopyFence = VK_NULL_HANDLE;
+                    }
+                }
+
+                if( fenceSubmitResult == VK_ERROR_DEVICE_LOST )
+                {
+                    // Unrecoverable error.
+                    submitResult = VK_ERROR_DEVICE_LOST;
                 }
             }
         }
-        else if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
+
+        if( submitResult != VK_SUCCESS )
         {
-            m_DataAggregator.EndFrame( m_FrameIndex );
-            m_FrameIndex++;
+            // Discard the data collection for the command buffers if any error occurred during submission.
+            for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+            {
+                m_DataAggregator.DiscardSubmitData( submitBatch );
+            }
+        }
+
+        if( submitResult == VK_SUCCESS )
+        {
+            // Pass the submitted command buffers to the data aggregator for processing.
+            for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+            {
+                m_DataAggregator.AppendSubmit( submitBatch.m_FrameIndex, submitBatch );
+            }
+
+            // Delimit frames if needed.
+            if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
+            {
+                for( const DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+                {
+                    if( submitBatch.m_FrameBoundary )
+                    {
+                        m_DataAggregator.EndFrame( submitBatch.m_FrameIndex );
+                    }
+                }
+            }
+            else if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
+            {
+                m_DataAggregator.EndFrame( m_FrameIndex );
+                m_FrameIndex++;
+            }
         }
 
         // Get data captured during the last frame

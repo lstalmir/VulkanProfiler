@@ -55,7 +55,11 @@ namespace Profiler
         }
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit( queue, static_cast<uint32_t>( scratchData.m_SubmitInfos.size() ), scratchData.m_SubmitInfos.data(), fence );
+        VkResult result = dd.Device.Callbacks.QueueSubmit(
+            queue,
+            scratchData.GetSubmitInfoCount(),
+            scratchData.GetSubmitInfos(),
+            fence );
 
         // Signal fence to wait for query results.
         if( scratchData.m_Fence.use_count() > 1 )
@@ -71,7 +75,7 @@ namespace Profiler
         }
 
         // Finalize the submission.
-        dd.Profiler.FinishQueueSubmit( scratchData );
+        dd.Profiler.FinishQueueSubmit( scratchData, result );
 
         // Consume the collected data
         if( dd.pOutput )
@@ -115,7 +119,11 @@ namespace Profiler
         }
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, static_cast<uint32_t>( scratchData.m_SubmitInfos.size() ), scratchData.m_SubmitInfos.data(), fence );
+        VkResult result = dd.Device.Callbacks.QueueSubmit2(
+            queue,
+            scratchData.GetSubmitInfoCount(),
+            scratchData.GetSubmitInfos(),
+            fence );
 
         // Signal fence to wait for query results.
         if( scratchData.m_Fence.use_count() > 1 )
@@ -131,7 +139,7 @@ namespace Profiler
         }
 
         // Finalize the submission.
-        dd.Profiler.FinishQueueSubmit( scratchData );
+        dd.Profiler.FinishQueueSubmit( scratchData, result );
 
         // Consume the collected data
         if( dd.pOutput )
