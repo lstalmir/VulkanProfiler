@@ -119,6 +119,9 @@ namespace
         {
             return commandBuffer;
         }
+
+        constexpr static uint32_t GetCommandBufferDeviceMask( const CommandBufferSubmitInfo& ) { return 0; }
+        constexpr static void SetCommandBufferDeviceMask( CommandBufferSubmitInfo&, uint32_t ) {}
     };
 
     template<>
@@ -151,6 +154,9 @@ namespace
             submitInfo.commandBuffer = commandBuffer;
             return submitInfo;
         }
+
+        PROFILER_FORCE_INLINE static uint32_t GetCommandBufferDeviceMask( const CommandBufferSubmitInfo& info ) { return info.deviceMask; }
+        PROFILER_FORCE_INLINE static void SetCommandBufferDeviceMask( CommandBufferSubmitInfo& info, uint32_t deviceMask ) { info.deviceMask = deviceMask; }
     };
 
     struct FenceDeleter
@@ -1519,6 +1525,8 @@ namespace Profiler
                 auto* pCommandBuffers = scratchData.m_Allocator.template Allocate<typename T::CommandBufferSubmitInfo>( commandBufferCount + 2 );
                 if( pCommandBuffers )
                 {
+                    uint32_t deviceMask = 0;
+
                     // Reset queries.
                     pCommandBuffers[0] = T::MakeCommandBufferSubmitInfo( submitBatch.m_QueryResetCommandBuffer );
 
@@ -1527,10 +1535,14 @@ namespace Profiler
                     for( uint32_t commandBufferIdx = 0; commandBufferIdx < commandBufferCount; ++commandBufferIdx )
                     {
                         pCommandBuffers[commandBufferIdx + 1] = pApplicationCommandBuffers[commandBufferIdx];
+                        deviceMask |= T::GetCommandBufferDeviceMask( pApplicationCommandBuffers[commandBufferIdx] );
                     }
 
                     // Collect query data.
                     pCommandBuffers[commandBufferCount + 1] = T::MakeCommandBufferSubmitInfo( submitBatch.m_DataCopyCommandBuffer );
+
+                    T::SetCommandBufferDeviceMask( pCommandBuffers[0], deviceMask );
+                    T::SetCommandBufferDeviceMask( pCommandBuffers[commandBufferCount + 1], deviceMask );
 
                     // Update the submit info with the new command buffers.
                     T::SetCommandBufferSubmitInfos( submitInfo, commandBufferCount + 2, pCommandBuffers );
