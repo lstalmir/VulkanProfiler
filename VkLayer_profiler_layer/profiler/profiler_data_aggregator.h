@@ -76,6 +76,17 @@ namespace Profiler
     {
         std::vector<SubmitInfoT>                        m_SubmitInfos = {};
         ScopedAllocator                                 m_Allocator;
+
+        DeviceProfilerSubmitCommandScratchData() = default;
+        DeviceProfilerSubmitCommandScratchData( VkQueue queue, uint32_t submitCount, const SubmitInfoT* pSubmits )
+            : DeviceProfilerSubmitBatchList{ queue }
+        {
+            if( submitCount > 0 )
+            {
+                assert( pSubmits != nullptr );
+                m_SubmitInfos.assign( pSubmits, pSubmits + submitCount );
+            }
+        }
     };
 
     /***********************************************************************************\

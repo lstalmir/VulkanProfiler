@@ -44,9 +44,7 @@ namespace Profiler
 
         // Prepare the command buffers for profiling.
         // This may insert additional command buffers to each VkSubmitInfo to reset queries and copy data to buffers.
-        DeviceProfilerSubmitCommandScratchData<VkSubmitInfo2KHR> scratchData;
-        scratchData.m_Queue = queue;
-        scratchData.m_SubmitInfos = std::vector( pSubmits, pSubmits + submitCount );
+        DeviceProfilerSubmitCommandScratchData scratchData( queue, submitCount, pSubmits );
         dd.Profiler.PrepareQueueSubmit( scratchData );
 
         // Additionally, synchronize all queues if requested by the user.
