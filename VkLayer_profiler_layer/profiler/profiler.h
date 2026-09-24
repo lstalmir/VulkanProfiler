@@ -38,6 +38,7 @@
 #include <sstream>
 #include <string>
 #include <functional>
+#include <atomic>
 
 #include "lockable_unordered_map.h"
 
@@ -171,7 +172,7 @@ namespace Profiler
         DeviceProfilerMemoryManager m_MemoryManager;
         ProfilerDataAggregator  m_DataAggregator;
 
-        uint32_t                m_FrameIndex;
+        std::atomic_uint32_t    m_FrameIndex;
         uint32_t                m_DataBufferSize;
         uint32_t                m_MinDataBufferSize;
         uint64_t                m_LastFrameBeginTimestamp;

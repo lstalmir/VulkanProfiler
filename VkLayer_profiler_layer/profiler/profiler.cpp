@@ -1443,6 +1443,12 @@ namespace Profiler
         const uint64_t timestamp = m_CpuTimestampCounter.GetCurrentValue();
         const uint32_t threadId = ProfilerPlatformFunctions::GetCurrentThreadId();
 
+        uint32_t frameIndex = m_FrameIndex.load();
+        if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
+        {
+            frameIndex = m_FrameIndex.fetch_add( 1 );
+        }
+
         // Create a fence to signal when the data copy command buffers have completed execution.
         VkFence fence = VK_NULL_HANDLE;
         VkFenceCreateInfo fenceCreateInfo = {};
@@ -1461,7 +1467,7 @@ namespace Profiler
             submitBatch.m_Fence = scratchData.m_Fence;
             submitBatch.m_Timestamp = timestamp;
             submitBatch.m_ThreadId = threadId;
-            submitBatch.m_FrameIndex = m_FrameIndex;
+            submitBatch.m_FrameIndex = frameIndex;
 
             if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
             {
@@ -1650,8 +1656,10 @@ namespace Profiler
             }
             else if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
             {
-                m_DataAggregator.EndFrame( m_FrameIndex );
-                m_FrameIndex++;
+                if( !scratchData.m_Batches.empty() )
+                {
+                    m_DataAggregator.EndFrame( scratchData.m_Batches[0].m_FrameIndex );
+                }
             }
         }
 
@@ -1676,8 +1684,7 @@ namespace Profiler
         m_CpuFpsCounter.Update();
 
         // Start new frame
-        m_DataAggregator.EndFrame( m_FrameIndex );
-        m_FrameIndex++;
+        m_DataAggregator.EndFrame( m_FrameIndex.fetch_add( 1 ) );
 
         // Get data captured during the last frame
         ResolveFrameData( tip );
@@ -1701,8 +1708,7 @@ namespace Profiler
         // Delimit frames if needed.
         if( m_Config.m_FrameDelimiter == frame_delimiter_t::present )
         {
-            m_DataAggregator.EndFrame( m_FrameIndex );
-            m_FrameIndex++;
+            m_DataAggregator.EndFrame( m_FrameIndex.fetch_add( 1 ) );
         }
 
         if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
