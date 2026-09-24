@@ -1458,6 +1458,7 @@ namespace Profiler
         {
             DeviceProfilerSubmitBatch& submitBatch = scratchData.m_Batches.emplace_back();
             submitBatch.m_Handle = scratchData.m_Queue;
+            submitBatch.m_Fence = scratchData.m_Fence;
             submitBatch.m_Timestamp = timestamp;
             submitBatch.m_ThreadId = threadId;
             submitBatch.m_FrameIndex = m_FrameIndex;
@@ -1520,15 +1521,22 @@ namespace Profiler
             m_DataAggregator.PrepareSubmit( submitBatch );
 
             // Append additional command buffers with query resets and data collection commands.
-            if( submitBatch.m_QueryResetCommandBuffer && submitBatch.m_DataCopyCommandBuffer )
+            const uint32_t additionalCommandBufferCount =
+                ( submitBatch.m_ResetCommandBuffer != VK_NULL_HANDLE ? 1 : 0 ) +
+                ( submitBatch.m_CopyCommandBuffer != VK_NULL_HANDLE ? 1 : 0 );
+
+            if( additionalCommandBufferCount > 0 )
             {
-                auto* pCommandBuffers = scratchData.m_Allocator.template Allocate<typename T::CommandBufferSubmitInfo>( commandBufferCount + 2 );
+                auto* pCommandBuffers = scratchData.m_Allocator.template Allocate<typename T::CommandBufferSubmitInfo>(
+                    commandBufferCount +
+                    additionalCommandBufferCount );
+
                 if( pCommandBuffers )
                 {
                     uint32_t deviceMask = 0;
 
                     // Reset queries.
-                    pCommandBuffers[0] = T::MakeCommandBufferSubmitInfo( submitBatch.m_QueryResetCommandBuffer );
+                    pCommandBuffers[0] = T::MakeCommandBufferSubmitInfo( submitBatch.m_ResetCommandBuffer );
 
                     // Execute application command buffers.
                     auto* pApplicationCommandBuffers = T::GetCommandBufferSubmitInfos( submitInfo );
@@ -1539,15 +1547,19 @@ namespace Profiler
                     }
 
                     // Collect query data.
-                    pCommandBuffers[commandBufferCount + 1] = T::MakeCommandBufferSubmitInfo( submitBatch.m_DataCopyCommandBuffer );
+                    pCommandBuffers[commandBufferCount + 1] = T::MakeCommandBufferSubmitInfo( submitBatch.m_CopyCommandBuffer );
 
                     T::SetCommandBufferDeviceMask( pCommandBuffers[0], deviceMask );
                     T::SetCommandBufferDeviceMask( pCommandBuffers[commandBufferCount + 1], deviceMask );
 
                     // Update the submit info with the new command buffers.
                     T::SetCommandBufferSubmitInfos( submitInfo, commandBufferCount + 2, pCommandBuffers );
-
-                    submitBatch.m_DataCopyFence = scratchData.m_Fence;
+                }
+                else
+                {
+                    // Failed to allocate memory for the additional command buffers.
+                    // TODO: Try to take a CPU fallback path? But we're out of memory anyway.
+                    m_DataAggregator.DiscardSubmitData( submitBatch );
                 }
             }
         }
@@ -1574,31 +1586,37 @@ namespace Profiler
 
         if( submitResult == VK_SUCCESS )
         {
+            VkResult fenceSubmitResult = VK_ERROR_UNKNOWN;
+
             // Signal the fence to indicate that the data copy command buffers have completed execution.
             if( scratchData.m_Fence.use_count() > 1 )
             {
-                VkResult fenceSubmitResult = m_pDevice->Callbacks.QueueSubmit(
+                fenceSubmitResult = m_pDevice->Callbacks.QueueSubmit(
                     scratchData.m_Queue,
                     0, nullptr,
                     scratchData.m_Fence.get() );
+            }
+            else
+            {
+                fenceSubmitResult = VK_SUCCESS;
+            }
 
-                if( fenceSubmitResult != VK_SUCCESS )
+            // Fallback to queue wait idle if the fence submission failed.
+            if( fenceSubmitResult != VK_SUCCESS )
+            {
+                fenceSubmitResult = m_pDevice->Callbacks.QueueWaitIdle(
+                    scratchData.m_Queue );
+
+                for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
                 {
-                    fenceSubmitResult = m_pDevice->Callbacks.QueueWaitIdle(
-                        scratchData.m_Queue );
-
-                    // Don't wait for the fence since the signal submission failed.
-                    for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
-                    {
-                        submitBatch.m_DataCopyFence = VK_NULL_HANDLE;
-                    }
+                    submitBatch.m_Fence.reset();
                 }
+            }
 
-                if( fenceSubmitResult == VK_ERROR_DEVICE_LOST )
-                {
-                    // Unrecoverable error.
-                    submitResult = VK_ERROR_DEVICE_LOST;
-                }
+            if( fenceSubmitResult == VK_ERROR_DEVICE_LOST )
+            {
+                // Unrecoverable error.
+                submitResult = VK_ERROR_DEVICE_LOST;
             }
         }
 

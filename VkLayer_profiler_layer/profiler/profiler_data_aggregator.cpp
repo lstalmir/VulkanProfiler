@@ -494,10 +494,10 @@ namespace Profiler
             {
                 for( const DeviceProfilerSubmitBatch& submitBatch : pFrame->m_PendingSubmits )
                 {
-                    if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) && submitBatch.m_DataCopyFence )
+                    if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) && submitBatch.m_Fence )
                     {
                         // Wait for this submit batch.
-                        waitFences.push_back( submitBatch.m_DataCopyFence.get() );
+                        waitFences.push_back( submitBatch.m_Fence.get() );
                     }
                 }
             }
@@ -537,11 +537,11 @@ namespace Profiler
                 // Aggregate only submits that contain the specified command buffer.
                 if( !pWaitForCommandBuffer || submitBatchIt->m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
                 {
-                    if( submitBatchIt->m_DataCopyFence )
+                    if( submitBatchIt->m_Fence )
                     {
                         result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
                             m_pProfiler->m_pDevice->Handle,
-                            submitBatchIt->m_DataCopyFence.get() );
+                            submitBatchIt->m_Fence.get() );
                     }
                     else
                     {
@@ -1317,7 +1317,7 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::FreeDynamicAllocations( DeviceProfilerSubmitBatch& submitBatch )
     {
-        if( submitBatch.m_QueryResetCommandBuffer )
+        if( submitBatch.m_ResetCommandBuffer )
         {
             assert( submitBatch.m_pInternalCommandPool != nullptr );
             std::unique_lock commandPoolLock( submitBatch.m_pInternalCommandPool->GetMutex() );
@@ -1325,12 +1325,12 @@ namespace Profiler
             m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
                 m_pProfiler->m_pDevice->Handle,
                 submitBatch.m_pInternalCommandPool->GetHandle(),
-                1, &submitBatch.m_QueryResetCommandBuffer );
+                1, &submitBatch.m_ResetCommandBuffer );
 
-            submitBatch.m_QueryResetCommandBuffer = VK_NULL_HANDLE;
+            submitBatch.m_ResetCommandBuffer = VK_NULL_HANDLE;
         }
 
-        if( submitBatch.m_DataCopyCommandBuffer )
+        if( submitBatch.m_CopyCommandBuffer )
         {
             assert( submitBatch.m_pInternalCommandPool != nullptr );
             std::unique_lock commandPoolLock( submitBatch.m_pInternalCommandPool->GetMutex() );
@@ -1338,9 +1338,9 @@ namespace Profiler
             m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
                 m_pProfiler->m_pDevice->Handle,
                 submitBatch.m_pInternalCommandPool->GetHandle(),
-                1, &submitBatch.m_DataCopyCommandBuffer );
+                1, &submitBatch.m_CopyCommandBuffer );
 
-            submitBatch.m_DataCopyCommandBuffer = VK_NULL_HANDLE;
+            submitBatch.m_CopyCommandBuffer = VK_NULL_HANDLE;
         }
 
         submitBatch.m_pInternalCommandPool = nullptr;
@@ -1348,7 +1348,7 @@ namespace Profiler
         delete submitBatch.m_pDataBuffer;
         submitBatch.m_pDataBuffer = nullptr;
 
-        submitBatch.m_DataCopyFence = VK_NULL_HANDLE;
+        submitBatch.m_Fence.reset();
     }
 
     /***********************************************************************************\
@@ -1375,14 +1375,14 @@ namespace Profiler
         VkResult result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
             m_pProfiler->m_pDevice->Handle,
             &commandBufferAllocateInfo,
-            &submitBatch.m_QueryResetCommandBuffer );
+            &submitBatch.m_ResetCommandBuffer );
 
         if( result == VK_SUCCESS )
         {
             // Command buffers are dispatchable handles, update pointers to parent's dispatch table.
             result = m_pProfiler->m_pDevice->SetDeviceLoaderData(
                 m_pProfiler->m_pDevice->Handle,
-                submitBatch.m_QueryResetCommandBuffer );
+                submitBatch.m_ResetCommandBuffer );
         }
 
         if( result == VK_SUCCESS )
@@ -1393,7 +1393,7 @@ namespace Profiler
             commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
             result = m_pProfiler->m_pDevice->Callbacks.BeginCommandBuffer(
-                submitBatch.m_QueryResetCommandBuffer,
+                submitBatch.m_ResetCommandBuffer,
                 &commandBufferBeginInfo );
         }
 
@@ -1404,17 +1404,28 @@ namespace Profiler
             {
                 for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
                 {
-                    pCommandBuffer->ResetQueryPools( submitBatch.m_QueryResetCommandBuffer );
+                    pCommandBuffer->ResetQueryPools( submitBatch.m_ResetCommandBuffer );
                 }
             }
 
             result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
-                submitBatch.m_QueryResetCommandBuffer );
+                submitBatch.m_ResetCommandBuffer );
         }
 
         if( result != VK_SUCCESS )
         {
             // todo: Reset using host.
+
+            // And don't execute the GPU reset command buffer.
+            if( submitBatch.m_ResetCommandBuffer != VK_NULL_HANDLE )
+            {
+                m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
+                    m_pProfiler->m_pDevice->Handle,
+                    submitBatch.m_pInternalCommandPool->GetHandle(),
+                    1, &submitBatch.m_ResetCommandBuffer );
+
+                submitBatch.m_ResetCommandBuffer = VK_NULL_HANDLE;
+            }
         }
 
         return ( result == VK_SUCCESS );
@@ -1446,7 +1457,7 @@ namespace Profiler
         if( bufferSize == 0 )
         {
             // No query data to write.
-            return true;
+            return false;
         }
 
         submitBatch.m_pDataBuffer = new DeviceProfilerQueryDataBuffer( *m_pProfiler, bufferSize );
@@ -1467,14 +1478,14 @@ namespace Profiler
             VkResult result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
                 m_pProfiler->m_pDevice->Handle,
                 &commandBufferAllocateInfo,
-                &submitBatch.m_DataCopyCommandBuffer );
+                &submitBatch.m_CopyCommandBuffer );
 
             if( result == VK_SUCCESS )
             {
                 // Command buffers are dispatchable handles, update pointers to parent's dispatch table.
                 result = m_pProfiler->m_pDevice->SetDeviceLoaderData(
                     m_pProfiler->m_pDevice->Handle,
-                    submitBatch.m_DataCopyCommandBuffer );
+                    submitBatch.m_CopyCommandBuffer );
             }
 
             if( result == VK_SUCCESS )
@@ -1485,7 +1496,7 @@ namespace Profiler
                 commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
                 result = m_pProfiler->m_pDevice->Callbacks.BeginCommandBuffer(
-                    submitBatch.m_DataCopyCommandBuffer,
+                    submitBatch.m_CopyCommandBuffer,
                     &commandBufferBeginInfo );
             }
 
@@ -1495,7 +1506,7 @@ namespace Profiler
                 DeviceProfilerQueryDataBufferWriter writer(
                     *m_pProfiler,
                     *submitBatch.m_pDataBuffer,
-                    submitBatch.m_DataCopyCommandBuffer );
+                    submitBatch.m_CopyCommandBuffer );
 
                 for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
                 {
@@ -1506,7 +1517,7 @@ namespace Profiler
                 }
 
                 result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
-                    submitBatch.m_DataCopyCommandBuffer );
+                    submitBatch.m_CopyCommandBuffer );
             }
 
             if( result != VK_SUCCESS )
@@ -1515,14 +1526,14 @@ namespace Profiler
                 submitBatch.m_pDataBuffer->FallbackToCpuAllocation();
 
                 // And don't execute the GPU copy command buffer.
-                if( submitBatch.m_DataCopyCommandBuffer != VK_NULL_HANDLE )
+                if( submitBatch.m_CopyCommandBuffer != VK_NULL_HANDLE )
                 {
                     m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
                         m_pProfiler->m_pDevice->Handle,
                         submitBatch.m_pInternalCommandPool->GetHandle(),
-                        1, &submitBatch.m_DataCopyCommandBuffer );
+                        1, &submitBatch.m_CopyCommandBuffer );
 
-                    submitBatch.m_DataCopyCommandBuffer = VK_NULL_HANDLE;
+                    submitBatch.m_CopyCommandBuffer = VK_NULL_HANDLE;
                 }
             }
         }

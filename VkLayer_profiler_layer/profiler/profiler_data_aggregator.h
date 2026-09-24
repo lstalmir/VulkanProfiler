@@ -58,9 +58,9 @@ namespace Profiler
         DeviceProfilerQueryDataBuffer*                  m_pDataBuffer = nullptr;
 
         DeviceProfilerInternalCommandPool*              m_pInternalCommandPool = nullptr;
-        VkCommandBuffer                                 m_QueryResetCommandBuffer  = VK_NULL_HANDLE;
-        VkCommandBuffer                                 m_DataCopyCommandBuffer = VK_NULL_HANDLE;
-        std::shared_ptr<VkFence_T>                      m_DataCopyFence = nullptr;
+        VkCommandBuffer                                 m_ResetCommandBuffer  = VK_NULL_HANDLE;
+        VkCommandBuffer                                 m_CopyCommandBuffer = VK_NULL_HANDLE;
+        std::shared_ptr<VkFence_T>                      m_Fence = nullptr;
     };
 
     struct DeviceProfilerSubmitBatchList
