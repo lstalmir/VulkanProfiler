@@ -61,11 +61,8 @@ namespace Profiler
             scratchData.GetSubmitInfos(),
             fence );
 
-        // Signal fence to wait for query results.
-        if( scratchData.m_Fence.use_count() > 1 )
-        {
-            dd.Device.Callbacks.QueueSubmit( queue, 0, nullptr, scratchData.m_Fence.get() );
-        }
+        // Finalize the submission.
+        dd.Profiler.FinishQueueSubmit( scratchData, result );
 
         // Wait for the command buffers to finish executing to ensure the queues are not executing in parallel.
         if( dd.Profiler.m_Config.m_SynchronizeQueues )
@@ -73,9 +70,6 @@ namespace Profiler
             dd.Device.Callbacks.QueueWaitIdle( queue );
             queueLock.unlock();
         }
-
-        // Finalize the submission.
-        dd.Profiler.FinishQueueSubmit( scratchData, result );
 
         // Consume the collected data
         if( dd.pOutput )
@@ -125,11 +119,8 @@ namespace Profiler
             scratchData.GetSubmitInfos(),
             fence );
 
-        // Signal fence to wait for query results.
-        if( scratchData.m_Fence.use_count() > 1 )
-        {
-            dd.Device.Callbacks.QueueSubmit( queue, 0, nullptr, scratchData.m_Fence.get() );
-        }
+        // Finalize the submission.
+        dd.Profiler.FinishQueueSubmit( scratchData, result );
 
         // Wait for the command buffers to finish executing to ensure the queues are not executing in parallel.
         if( dd.Profiler.m_Config.m_SynchronizeQueues )
@@ -137,9 +128,6 @@ namespace Profiler
             dd.Device.Callbacks.QueueWaitIdle( queue );
             queueLock.unlock();
         }
-
-        // Finalize the submission.
-        dd.Profiler.FinishQueueSubmit( scratchData, result );
 
         // Consume the collected data
         if( dd.pOutput )
