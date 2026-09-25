@@ -1026,11 +1026,19 @@ namespace Profiler
     \***********************************************************************************/
     uint64_t ProfilerCommandBuffer::GetRequiredQueryDataBufferSize() const
     {
+        uint64_t queryDataBufferSize = 0;
+
         if( m_ProfilingEnabled )
         {
-            return m_pQueryPool->GetRequiredBufferSize();
+            queryDataBufferSize = m_pQueryPool->GetRequiredBufferSize();
+
+            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
+            {
+                queryDataBufferSize += pSecondaryCommandBuffer->GetRequiredQueryDataBufferSize();
+            }
         }
-        return 0;
+
+        return queryDataBufferSize;
     }
 
     /***********************************************************************************\
