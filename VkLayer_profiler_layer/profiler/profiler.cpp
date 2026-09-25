@@ -1442,9 +1442,12 @@ namespace Profiler
         VkFence fence = VK_NULL_HANDLE;
         VkFenceCreateInfo fenceCreateInfo = {};
         fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        m_pDevice->Callbacks.CreateFence( m_pDevice->Handle, &fenceCreateInfo, nullptr, &fence );
 
-        scratchData.m_Fence.reset( fence, FenceDeleter( m_pDevice ) );
+        VkResult result = m_pDevice->Callbacks.CreateFence( m_pDevice->Handle, &fenceCreateInfo, nullptr, &fence );
+        if( result == VK_SUCCESS )
+        {
+            scratchData.m_Fence.reset( fence, FenceDeleter( m_pDevice ) );
+        }
 
         // Synchronize read access to m_pCommandBuffers
         std::shared_lock lk( m_pCommandBuffers );
@@ -1577,37 +1580,49 @@ namespace Profiler
 
         if( submitResult == VK_SUCCESS )
         {
-            VkResult fenceSubmitResult = VK_ERROR_UNKNOWN;
-
-            // Signal the fence to indicate that the data copy command buffers have completed execution.
-            if( scratchData.m_Fence.use_count() > 1 )
+            // Check if the batch list needs synchronization.
+            bool needsSynchronization = false;
+            for( const DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
             {
-                fenceSubmitResult = m_pDevice->Callbacks.QueueSubmit(
-                    scratchData.m_Queue,
-                    0, nullptr,
-                    scratchData.m_Fence.get() );
-            }
-            else
-            {
-                fenceSubmitResult = VK_SUCCESS;
-            }
-
-            // Fallback to queue wait idle if the fence submission failed.
-            if( fenceSubmitResult != VK_SUCCESS )
-            {
-                fenceSubmitResult = m_pDevice->Callbacks.QueueWaitIdle(
-                    scratchData.m_Queue );
-
-                for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+                if( submitBatch.m_pDataBuffer != nullptr )
                 {
-                    submitBatch.m_Fence.reset();
+                    needsSynchronization = true;
+                    break;
                 }
             }
 
-            if( fenceSubmitResult == VK_ERROR_DEVICE_LOST )
+            if( needsSynchronization )
             {
-                // Unrecoverable error.
-                submitResult = VK_ERROR_DEVICE_LOST;
+                VkResult fenceSubmitResult = VK_ERROR_UNKNOWN;
+
+                // Signal the fence to indicate that the data copy command buffers have completed execution.
+                if( scratchData.m_Fence )
+                {
+                    // At least one more reference to the fence should exist to keep it alive until the queue submission is complete.
+                    assert( scratchData.m_Fence.use_count() > 1 );
+                    fenceSubmitResult = m_pDevice->Callbacks.QueueSubmit(
+                        scratchData.m_Queue,
+                        0, nullptr,
+                        scratchData.m_Fence.get() );
+                }
+
+                // Fallback to queue wait idle if the fence submission failed.
+                if( fenceSubmitResult != VK_SUCCESS )
+                {
+                    fenceSubmitResult = m_pDevice->Callbacks.QueueWaitIdle(
+                        scratchData.m_Queue );
+
+                    for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+                    {
+                        submitBatch.m_Fence.reset();
+                    }
+                }
+
+                if( fenceSubmitResult == VK_ERROR_DEVICE_LOST )
+                {
+                    // Unrecoverable error.
+                    submitResult = VK_ERROR_DEVICE_LOST;
+                }
             }
         }
 
