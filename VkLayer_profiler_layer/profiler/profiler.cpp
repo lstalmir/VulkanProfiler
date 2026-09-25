@@ -95,7 +95,10 @@ namespace
     template<>
     struct SubmitInfoTraits<VkSubmitInfo>
     {
-        using CommandBufferSubmitInfo = VkCommandBuffer;
+        using CommandBufferSubmitInfoT = VkCommandBuffer;
+        using SemaphoreSubmitInfoT = VkSemaphore;
+
+        inline static constexpr VkStructureType sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
         PROFILER_FORCE_INLINE static uint32_t CommandBufferCount( const VkSubmitInfo& info ) { return info.commandBufferCount; }
         PROFILER_FORCE_INLINE static uint32_t SignalSemaphoreCount( const VkSubmitInfo& info ) { return info.signalSemaphoreCount; }
@@ -104,30 +107,25 @@ namespace
         PROFILER_FORCE_INLINE static VkSemaphore SignalSemaphore( const VkSubmitInfo& info, uint32_t i ) { return info.pSignalSemaphores[ i ]; }
         PROFILER_FORCE_INLINE static VkSemaphore WaitSemaphore( const VkSubmitInfo& info, uint32_t i ) { return info.pWaitSemaphores[ i ]; }
 
-        PROFILER_FORCE_INLINE static auto* GetCommandBufferSubmitInfos( const VkSubmitInfo& info )
-        {
-            return info.pCommandBuffers;
-        }
-
-        PROFILER_FORCE_INLINE static void SetCommandBufferSubmitInfos( VkSubmitInfo& info, uint32_t count, VkCommandBuffer* pCommandBuffers )
+        PROFILER_FORCE_INLINE static void SetCommandBufferSubmitInfos( VkSubmitInfo& info, uint32_t count, CommandBufferSubmitInfoT* pCommandBuffers )
         {
             info.pCommandBuffers = pCommandBuffers;
             info.commandBufferCount = count;
         }
 
-        PROFILER_FORCE_INLINE static auto MakeCommandBufferSubmitInfo( VkCommandBuffer commandBuffer )
+        PROFILER_FORCE_INLINE static void MakeCommandBufferSubmitInfo( CommandBufferSubmitInfoT& commandBufferSubmitInfo, VkCommandBuffer commandBuffer )
         {
-            return commandBuffer;
+            commandBufferSubmitInfo = commandBuffer;
         }
-
-        constexpr static uint32_t GetCommandBufferDeviceMask( const CommandBufferSubmitInfo& ) { return 0; }
-        constexpr static void SetCommandBufferDeviceMask( CommandBufferSubmitInfo&, uint32_t ) {}
     };
 
     template<>
     struct SubmitInfoTraits<VkSubmitInfo2>
     {
-        using CommandBufferSubmitInfo = VkCommandBufferSubmitInfo;
+        using CommandBufferSubmitInfoT = VkCommandBufferSubmitInfo;
+        using SemaphoreSubmitInfoT = VkSemaphoreSubmitInfo;
+
+        inline static constexpr VkStructureType sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
 
         PROFILER_FORCE_INLINE static uint32_t CommandBufferCount( const VkSubmitInfo2& info ) { return info.commandBufferInfoCount; }
         PROFILER_FORCE_INLINE static uint32_t SignalSemaphoreCount( const VkSubmitInfo2& info ) { return info.signalSemaphoreInfoCount; }
@@ -136,27 +134,18 @@ namespace
         PROFILER_FORCE_INLINE static VkSemaphore SignalSemaphore( const VkSubmitInfo2& info, uint32_t i ) { return info.pSignalSemaphoreInfos[ i ].semaphore; }
         PROFILER_FORCE_INLINE static VkSemaphore WaitSemaphore( const VkSubmitInfo2& info, uint32_t i ) { return info.pWaitSemaphoreInfos[ i ].semaphore; }
 
-        PROFILER_FORCE_INLINE static auto* GetCommandBufferSubmitInfos( const VkSubmitInfo2& info )
-        {
-            return info.pCommandBufferInfos;
-        }
-
-        PROFILER_FORCE_INLINE static void SetCommandBufferSubmitInfos( VkSubmitInfo2& info, uint32_t count, VkCommandBufferSubmitInfo* pCommandBuffers )
+        PROFILER_FORCE_INLINE static void SetCommandBufferSubmitInfos( VkSubmitInfo2& info, uint32_t count, CommandBufferSubmitInfoT* pCommandBuffers )
         {
             info.pCommandBufferInfos = pCommandBuffers;
             info.commandBufferInfoCount = count;
         }
 
-        PROFILER_FORCE_INLINE static auto MakeCommandBufferSubmitInfo( VkCommandBuffer commandBuffer )
+        PROFILER_FORCE_INLINE static void MakeCommandBufferSubmitInfo( CommandBufferSubmitInfoT& commandBufferSubmitInfo, VkCommandBuffer commandBuffer )
         {
-            VkCommandBufferSubmitInfo submitInfo = {};
-            submitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
-            submitInfo.commandBuffer = commandBuffer;
-            return submitInfo;
+            commandBufferSubmitInfo = {};
+            commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+            commandBufferSubmitInfo.commandBuffer = commandBuffer;
         }
-
-        PROFILER_FORCE_INLINE static uint32_t GetCommandBufferDeviceMask( const CommandBufferSubmitInfo& info ) { return info.deviceMask; }
-        PROFILER_FORCE_INLINE static void SetCommandBufferDeviceMask( CommandBufferSubmitInfo& info, uint32_t deviceMask ) { info.deviceMask = deviceMask; }
     };
 
     struct FenceDeleter
@@ -1460,8 +1449,13 @@ namespace Profiler
         // Synchronize read access to m_pCommandBuffers
         std::shared_lock lk( m_pCommandBuffers );
 
-        for( SubmitInfoT& submitInfo : scratchData.m_SubmitInfos )
+        for( auto submitInfoIter = scratchData.m_SubmitInfos.begin();
+             submitInfoIter != scratchData.m_SubmitInfos.end();
+             ++submitInfoIter )
         {
+            const SubmitInfoT& submitInfo = *submitInfoIter;
+
+            // Prepare submit info for data collection
             DeviceProfilerSubmitBatch& submitBatch = scratchData.m_Batches.emplace_back();
             submitBatch.m_Handle = scratchData.m_Queue;
             submitBatch.m_Fence = scratchData.m_Fence;
@@ -1527,46 +1521,37 @@ namespace Profiler
             m_DataAggregator.PrepareSubmit( submitBatch );
 
             // Append additional command buffers with query resets and data collection commands.
-            const uint32_t additionalCommandBufferCount =
-                ( submitBatch.m_ResetCommandBuffer != VK_NULL_HANDLE ? 1 : 0 ) +
-                ( submitBatch.m_CopyCommandBuffer != VK_NULL_HANDLE ? 1 : 0 );
-
-            if( additionalCommandBufferCount > 0 )
+            auto* pCommandBuffers = scratchData.m_Allocator.template Allocate<typename T::CommandBufferSubmitInfoT>( 2 );
+            if( pCommandBuffers )
             {
-                auto* pCommandBuffers = scratchData.m_Allocator.template Allocate<typename T::CommandBufferSubmitInfo>(
-                    commandBufferCount +
-                    additionalCommandBufferCount );
-
-                if( pCommandBuffers )
+                if( submitBatch.m_ResetCommandBuffer )
                 {
-                    uint32_t deviceMask = 0;
+                    // Append reset query pool command buffer before the submitted command buffers.
+                    auto resetSubmitInfoIter = scratchData.m_SubmitInfos.insert( submitInfoIter, { T::sType } );
+                    auto& resetCommandBufferSubmitInfo = *( pCommandBuffers++ );
+                    T::MakeCommandBufferSubmitInfo( resetCommandBufferSubmitInfo, submitBatch.m_ResetCommandBuffer );
+                    T::SetCommandBufferSubmitInfos( *resetSubmitInfoIter, 1, &resetCommandBufferSubmitInfo );
 
-                    // Reset queries.
-                    pCommandBuffers[0] = T::MakeCommandBufferSubmitInfo( submitBatch.m_ResetCommandBuffer );
-
-                    // Execute application command buffers.
-                    auto* pApplicationCommandBuffers = T::GetCommandBufferSubmitInfos( submitInfo );
-                    for( uint32_t commandBufferIdx = 0; commandBufferIdx < commandBufferCount; ++commandBufferIdx )
-                    {
-                        pCommandBuffers[commandBufferIdx + 1] = pApplicationCommandBuffers[commandBufferIdx];
-                        deviceMask |= T::GetCommandBufferDeviceMask( pApplicationCommandBuffers[commandBufferIdx] );
-                    }
-
-                    // Collect query data.
-                    pCommandBuffers[commandBufferCount + 1] = T::MakeCommandBufferSubmitInfo( submitBatch.m_CopyCommandBuffer );
-
-                    T::SetCommandBufferDeviceMask( pCommandBuffers[0], deviceMask );
-                    T::SetCommandBufferDeviceMask( pCommandBuffers[commandBufferCount + 1], deviceMask );
-
-                    // Update the submit info with the new command buffers.
-                    T::SetCommandBufferSubmitInfos( submitInfo, commandBufferCount + 2, pCommandBuffers );
+                    // Insertion invalidates the iterator.
+                    submitInfoIter = std::next( resetSubmitInfoIter );
                 }
-                else
+
+                if( submitBatch.m_CopyCommandBuffer )
                 {
-                    // Failed to allocate memory for the additional command buffers.
-                    // TODO: Try to take a CPU fallback path? But we're out of memory anyway.
-                    m_DataAggregator.DiscardSubmitData( submitBatch );
+                    // Append copy query pool command buffer after the submitted command buffers.
+                    auto copySubmitInfoIter = scratchData.m_SubmitInfos.insert( std::next( submitInfoIter ), { T::sType } );
+                    auto& copyCommandBufferSubmitInfo = *( pCommandBuffers++ );
+                    T::MakeCommandBufferSubmitInfo( copyCommandBufferSubmitInfo, submitBatch.m_CopyCommandBuffer );
+                    T::SetCommandBufferSubmitInfos( *copySubmitInfoIter, 1, &copyCommandBufferSubmitInfo );
+
+                    // Insertion invalidates the iterator.
+                    submitInfoIter = copySubmitInfoIter;
                 }
+            }
+            else
+            {
+                // Failed to allocate memory for additional command buffer submit infos.
+                m_DataAggregator.DiscardSubmitData( submitBatch );
             }
         }
 
