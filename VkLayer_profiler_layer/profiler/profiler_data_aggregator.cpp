@@ -355,6 +355,10 @@ namespace Profiler
             DiscardSubmitData( submitBatch );
             return;
         }
+
+        // If any of the submitted command buffers is simultaneously used in another submit,
+        // get the semaphore to synchronize the data collection.
+        SynchronizeSubmitBatch( submitBatch );
     }
 
     /***********************************************************************************\
@@ -1572,5 +1576,59 @@ namespace Profiler
         }
 
         return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SynchronizeSubmitBatch
+
+    Description:
+        Set semaphores to ensure correct collection of simultaneous command buffers.
+        This doesn't handle the cases where command buffers are submitted multiple times
+        in the same batch.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::SynchronizeSubmitBatch( DeviceProfilerSubmitBatch& submitBatch )
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        // Synchronize with other threads to avoid grabbing the same semaphore multiple times.
+        std::scoped_lock lock( m_Mutex );
+
+        auto FindLastCommandBufferSemaphore =
+            [this]( ProfilerCommandBuffer* pCommandBuffer ) -> std::shared_ptr<VkSemaphore_T>
+        {
+            for( auto frameIter = m_pPendingFrames.rbegin(); frameIter != m_pPendingFrames.rend(); ++frameIter )
+            {
+                auto* pFrame = frameIter->get();
+                // Check only the pending submits since the complete submits have already been synchronized.
+                for( auto submitBatchIter = pFrame->m_PendingSubmits.rbegin();
+                     submitBatchIter != pFrame->m_PendingSubmits.rend();
+                     submitBatchIter++ )
+                {
+                    if( submitBatchIter->m_pSubmittedCommandBuffers.count( pCommandBuffer ) )
+                    {
+                        // Reset the semaphore in the batch to avoid waiting on the same semaphore multiple times.
+                        return std::exchange( submitBatchIter->m_SignalSemaphore, nullptr );
+                    }
+                }
+            }
+
+            return nullptr;
+        };
+
+        // Find all semaphores required to synchronize simultaneous command buffers in the batch.
+        for( ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+        {
+            if( pCommandBuffer->GetUsageFlags() & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT )
+            {
+                auto pSemaphore = FindLastCommandBufferSemaphore( pCommandBuffer );
+                if( pSemaphore )
+                {
+                    submitBatch.m_WaitSemaphores.push_back( pSemaphore );
+                }
+            }
+        }
     }
 }

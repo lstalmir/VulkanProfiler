@@ -44,6 +44,7 @@ namespace Profiler
         , m_CommandPool( commandPool )
         , m_CommandBuffer( commandBuffer )
         , m_Level( level )
+        , m_UsageFlags( 0 )
         , m_ProfilingEnabled( true )
         , m_pSecondaryCommandBuffers()
         , m_pQueryPool( nullptr )
@@ -124,6 +125,20 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetUsageFlags
+
+    Description:
+        Returns command buffer usage flags.
+
+    \***********************************************************************************/
+    VkCommandBufferUsageFlags ProfilerCommandBuffer::GetUsageFlags() const
+    {
+        return m_UsageFlags;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         Submit
 
     Description:
@@ -164,6 +179,8 @@ namespace Profiler
         {
             // Restore initial state
             Reset( 0 /*flags*/ );
+
+            m_UsageFlags = pBeginInfo->flags;
 
             // Reset query pools.
             m_pQueryPool->Reset( m_CommandBuffer );
@@ -277,6 +294,8 @@ namespace Profiler
             m_Stats = {};
             m_Data.m_RenderPasses.clear();
             m_pSecondaryCommandBuffers.clear();
+
+            m_UsageFlags = 0;
 
             m_CurrentSubpassIndex = DeviceProfilerSubpassData::ImplicitSubpassIndex;
             m_pCurrentRenderPass = nullptr;

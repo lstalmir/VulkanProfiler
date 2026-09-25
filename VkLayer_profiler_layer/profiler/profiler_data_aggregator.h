@@ -60,6 +60,8 @@ namespace Profiler
         DeviceProfilerInternalCommandPool*              m_pInternalCommandPool = nullptr;
         VkCommandBuffer                                 m_ResetCommandBuffer  = VK_NULL_HANDLE;
         VkCommandBuffer                                 m_CopyCommandBuffer = VK_NULL_HANDLE;
+        std::vector<std::shared_ptr<VkSemaphore_T>>     m_WaitSemaphores = {};
+        std::shared_ptr<VkSemaphore_T>                  m_SignalSemaphore = nullptr;
         std::shared_ptr<VkFence_T>                      m_Fence = nullptr;
     };
 
@@ -177,5 +179,6 @@ namespace Profiler
         bool ResetQueryPools( DeviceProfilerSubmitBatch& );
         bool WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& );
         bool WriteQueryDataToCpuBuffer( DeviceProfilerSubmitBatch& );
+        void SynchronizeSubmitBatch( DeviceProfilerSubmitBatch& );
     };
 }

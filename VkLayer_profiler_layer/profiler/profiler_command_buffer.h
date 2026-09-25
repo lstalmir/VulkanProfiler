@@ -53,6 +53,7 @@ namespace Profiler
 
         DeviceProfilerCommandPool& GetCommandPool() const;
         VkCommandBuffer GetHandle() const;
+        VkCommandBufferUsageFlags GetUsageFlags() const;
 
         void Submit();
 
@@ -99,6 +100,7 @@ namespace Profiler
 
         const VkCommandBuffer               m_CommandBuffer;
         const VkCommandBufferLevel          m_Level;
+        VkCommandBufferUsageFlags           m_UsageFlags;
 
         bool                                m_ProfilingEnabled;
 

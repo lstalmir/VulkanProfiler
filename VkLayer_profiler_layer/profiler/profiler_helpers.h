@@ -998,11 +998,17 @@ namespace Profiler
 
         void* Allocate( size_t size )
         {
+            if( size == 0 )
+            {
+                return nullptr;
+            }
+
             void* pMemory = malloc( size );
             if( pMemory )
             {
                 m_pAllocations.insert( pMemory );
             }
+
             return pMemory;
         }
 
