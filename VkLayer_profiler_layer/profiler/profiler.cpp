@@ -117,6 +117,23 @@ namespace
         {
             commandBufferSubmitInfo = commandBuffer;
         }
+
+        PROFILER_FORCE_INLINE static void SetSignalSemaphoreSubmitInfos( VkSubmitInfo& info, uint32_t count, SemaphoreSubmitInfoT* pSemaphores )
+        {
+            info.pSignalSemaphores = pSemaphores;
+            info.signalSemaphoreCount = count;
+        }
+
+        PROFILER_FORCE_INLINE static void SetWaitSemaphoreSubmitInfos( VkSubmitInfo& info, uint32_t count, SemaphoreSubmitInfoT* pSemaphores )
+        {
+            info.pWaitSemaphores = pSemaphores;
+            info.waitSemaphoreCount = count;
+        }
+
+        PROFILER_FORCE_INLINE static void MakeSemaphoreSubmitInfo( SemaphoreSubmitInfoT& semaphoreSubmitInfo, VkSemaphore semaphore )
+        {
+            semaphoreSubmitInfo = semaphore;
+        }
     };
 
     template<>
@@ -146,6 +163,25 @@ namespace
             commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
             commandBufferSubmitInfo.commandBuffer = commandBuffer;
         }
+
+        PROFILER_FORCE_INLINE static void SetSignalSemaphoreSubmitInfos( VkSubmitInfo2& info, uint32_t count, SemaphoreSubmitInfoT* pSemaphores )
+        {
+            info.pSignalSemaphoreInfos = pSemaphores;
+            info.signalSemaphoreInfoCount = count;
+        }
+
+        PROFILER_FORCE_INLINE static void SetWaitSemaphoreSubmitInfos( VkSubmitInfo2& info, uint32_t count, SemaphoreSubmitInfoT* pSemaphores )
+        {
+            info.pWaitSemaphoreInfos = pSemaphores;
+            info.waitSemaphoreInfoCount = count;
+        }
+
+        PROFILER_FORCE_INLINE static void MakeSemaphoreSubmitInfo( SemaphoreSubmitInfoT& semaphoreSubmitInfo, VkSemaphore semaphore )
+        {
+            semaphoreSubmitInfo = {};
+            semaphoreSubmitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+            semaphoreSubmitInfo.semaphore = semaphore;
+        }
     };
 
     struct FenceDeleter
@@ -162,6 +198,24 @@ namespace
             if( fence != VK_NULL_HANDLE )
             {
                 m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, fence, nullptr );
+            }
+        }
+    };
+
+    struct SemaphoreDeleter
+    {
+        Profiler::VkDevice_Object* m_pDevice = nullptr;
+
+        explicit SemaphoreDeleter( Profiler::VkDevice_Object* pDevice )
+            : m_pDevice( pDevice )
+        {
+        }
+
+        void operator()( VkSemaphore semaphore ) const
+        {
+            if( semaphore != VK_NULL_HANDLE )
+            {
+                m_pDevice->Callbacks.DestroySemaphore( m_pDevice->Handle, semaphore, nullptr );
             }
         }
     };
@@ -1533,40 +1587,107 @@ namespace Profiler
                     ResolveObjectHandle<VkSemaphoreHandle>( T::WaitSemaphore( submitInfo, semaphoreIdx ) ) );
             }
 
+            // Check if there are any simultaneous command buffers submitted in this batch.
+            bool hasSimultaneousCommandBuffers = false;
+            for( const ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+            {
+                if( pCommandBuffer->GetUsageFlags() & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT )
+                {
+                    hasSimultaneousCommandBuffers = true;
+                    break;
+                }
+            }
+
+            if( hasSimultaneousCommandBuffers )
+            {
+                // Create synchronization semaphore to synchronize simultaneous command buffers.
+                VkSemaphore semaphore = VK_NULL_HANDLE;
+                VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+                semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+                VkResult result = m_pDevice->Callbacks.CreateSemaphore( m_pDevice->Handle, &semaphoreCreateInfo, nullptr, &semaphore );
+                if( result == VK_SUCCESS )
+                {
+                    submitBatch.m_SignalSemaphore.reset( semaphore, SemaphoreDeleter( m_pDevice ) );
+                }
+            }
+
             // Prepare the submit batch for submission
             m_DataAggregator.PrepareSubmit( submitBatch );
 
-            // Append additional command buffers with query resets and data collection commands.
-            auto* pCommandBuffers = scratchData.m_Allocator.template Allocate<typename T::CommandBufferSubmitInfoT>( 2 );
-            if( pCommandBuffers )
+            // Append additional command buffers with query resets and data collection commands, and semaphores for synchronization.
+            const uint32_t requiredCommandBufferCount =
+                ( submitBatch.m_ResetCommandBuffer ? 1 : 0 ) +
+                ( submitBatch.m_CopyCommandBuffer ? 1 : 0 );
+
+            const uint32_t requiredSemaphoreCount =
+                ( static_cast<uint32_t>( submitBatch.m_WaitSemaphores.size() ) ) +
+                ( submitBatch.m_SignalSemaphore ? 1 : 0 );
+
+            auto* pCommandBuffers = scratchData.m_Allocator.template Allocate<typename T::CommandBufferSubmitInfoT>( requiredCommandBufferCount );
+            auto* pSemaphores = scratchData.m_Allocator.template Allocate<typename T::SemaphoreSubmitInfoT>( requiredSemaphoreCount );
+
+            if( ( pCommandBuffers || !requiredCommandBufferCount ) &&
+                ( pSemaphores || !requiredSemaphoreCount ) )
             {
-                if( submitBatch.m_ResetCommandBuffer )
+                if( submitBatch.m_ResetCommandBuffer || !submitBatch.m_WaitSemaphores.empty() )
                 {
+                    auto preSubmitInfoIter = scratchData.m_SubmitInfos.insert( submitInfoIter, { T::sType } );
+
                     // Append reset query pool command buffer before the submitted command buffers.
-                    auto resetSubmitInfoIter = scratchData.m_SubmitInfos.insert( submitInfoIter, { T::sType } );
-                    auto& resetCommandBufferSubmitInfo = *( pCommandBuffers++ );
-                    T::MakeCommandBufferSubmitInfo( resetCommandBufferSubmitInfo, submitBatch.m_ResetCommandBuffer );
-                    T::SetCommandBufferSubmitInfos( *resetSubmitInfoIter, 1, &resetCommandBufferSubmitInfo );
+                    if( submitBatch.m_ResetCommandBuffer )
+                    {
+                        assert( pCommandBuffers != nullptr );
+                        auto& resetCommandBufferSubmitInfo = *( pCommandBuffers++ );
+                        T::MakeCommandBufferSubmitInfo( resetCommandBufferSubmitInfo, submitBatch.m_ResetCommandBuffer );
+                        T::SetCommandBufferSubmitInfos( *preSubmitInfoIter, 1, &resetCommandBufferSubmitInfo );
+                    }
+
+                    // Append the wait semaphores to synchronize simultaneous command buffers.
+                    if( !submitBatch.m_WaitSemaphores.empty() )
+                    {
+                        assert( pSemaphores != nullptr );
+                        auto* pWaitSemaphoreSubmitInfos = std::exchange( pSemaphores, pSemaphores + submitBatch.m_WaitSemaphores.size() );
+                        for( size_t i = 0; i < submitBatch.m_WaitSemaphores.size(); ++i )
+                        {
+                            T::MakeSemaphoreSubmitInfo( pWaitSemaphoreSubmitInfos[i], submitBatch.m_WaitSemaphores[i].get() );
+                        }
+                        T::SetWaitSemaphoreSubmitInfos( *preSubmitInfoIter, submitBatch.m_WaitSemaphores.size(), pWaitSemaphoreSubmitInfos );
+                    }
 
                     // Insertion invalidates the iterator.
-                    submitInfoIter = std::next( resetSubmitInfoIter );
+                    submitInfoIter = std::next( preSubmitInfoIter );
                 }
 
-                if( submitBatch.m_CopyCommandBuffer )
+                if( submitBatch.m_CopyCommandBuffer || submitBatch.m_SignalSemaphore )
                 {
+                    auto postSubmitInfoIter = scratchData.m_SubmitInfos.insert( std::next( submitInfoIter ), { T::sType } );
+
                     // Append copy query pool command buffer after the submitted command buffers.
-                    auto copySubmitInfoIter = scratchData.m_SubmitInfos.insert( std::next( submitInfoIter ), { T::sType } );
-                    auto& copyCommandBufferSubmitInfo = *( pCommandBuffers++ );
-                    T::MakeCommandBufferSubmitInfo( copyCommandBufferSubmitInfo, submitBatch.m_CopyCommandBuffer );
-                    T::SetCommandBufferSubmitInfos( *copySubmitInfoIter, 1, &copyCommandBufferSubmitInfo );
+                    if( submitBatch.m_CopyCommandBuffer )
+                    {
+                        assert( pCommandBuffers != nullptr );
+                        auto& copyCommandBufferSubmitInfo = *( pCommandBuffers++ );
+                        T::MakeCommandBufferSubmitInfo( copyCommandBufferSubmitInfo, submitBatch.m_CopyCommandBuffer );
+                        T::SetCommandBufferSubmitInfos( *postSubmitInfoIter, 1, &copyCommandBufferSubmitInfo );
+                    }
+
+                    // Append the signal semaphore to synchronize simultaneous command buffers.
+                    if( submitBatch.m_SignalSemaphore )
+                    {
+                        assert( pSemaphores != nullptr );
+                        auto& signalSemaphoreSubmitInfo = *( pSemaphores++ );
+                        T::MakeSemaphoreSubmitInfo( signalSemaphoreSubmitInfo, submitBatch.m_SignalSemaphore.get() );
+                        T::SetSignalSemaphoreSubmitInfos( *postSubmitInfoIter, 1, &signalSemaphoreSubmitInfo );
+                    }
 
                     // Insertion invalidates the iterator.
-                    submitInfoIter = copySubmitInfoIter;
+                    submitInfoIter = postSubmitInfoIter;
                 }
             }
             else
             {
-                // Failed to allocate memory for additional command buffer submit infos.
+                // Failed to allocate memory for additional command buffer or semaphore submit infos.
                 m_DataAggregator.DiscardSubmitData( submitBatch );
             }
         }
