@@ -95,23 +95,75 @@ namespace
     template<>
     struct SubmitInfoTraits<VkSubmitInfo>
     {
+        using CommandBufferSubmitInfoT = VkCommandBuffer;
+        using SemaphoreSubmitInfoT = VkSemaphore;
+
+        inline static constexpr VkStructureType sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
         PROFILER_FORCE_INLINE static uint32_t CommandBufferCount( const VkSubmitInfo& info ) { return info.commandBufferCount; }
         PROFILER_FORCE_INLINE static uint32_t SignalSemaphoreCount( const VkSubmitInfo& info ) { return info.signalSemaphoreCount; }
         PROFILER_FORCE_INLINE static uint32_t WaitSemaphoreCount( const VkSubmitInfo& info ) { return info.waitSemaphoreCount; }
         PROFILER_FORCE_INLINE static VkCommandBuffer CommandBuffer( const VkSubmitInfo& info, uint32_t i ) { return info.pCommandBuffers[ i ]; }
         PROFILER_FORCE_INLINE static VkSemaphore SignalSemaphore( const VkSubmitInfo& info, uint32_t i ) { return info.pSignalSemaphores[ i ]; }
         PROFILER_FORCE_INLINE static VkSemaphore WaitSemaphore( const VkSubmitInfo& info, uint32_t i ) { return info.pWaitSemaphores[ i ]; }
+
+        PROFILER_FORCE_INLINE static void SetCommandBufferSubmitInfos( VkSubmitInfo& info, uint32_t count, CommandBufferSubmitInfoT* pCommandBuffers )
+        {
+            info.pCommandBuffers = pCommandBuffers;
+            info.commandBufferCount = count;
+        }
+
+        PROFILER_FORCE_INLINE static void MakeCommandBufferSubmitInfo( CommandBufferSubmitInfoT& commandBufferSubmitInfo, VkCommandBuffer commandBuffer )
+        {
+            commandBufferSubmitInfo = commandBuffer;
+        }
     };
 
     template<>
     struct SubmitInfoTraits<VkSubmitInfo2>
     {
+        using CommandBufferSubmitInfoT = VkCommandBufferSubmitInfo;
+        using SemaphoreSubmitInfoT = VkSemaphoreSubmitInfo;
+
+        inline static constexpr VkStructureType sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+
         PROFILER_FORCE_INLINE static uint32_t CommandBufferCount( const VkSubmitInfo2& info ) { return info.commandBufferInfoCount; }
         PROFILER_FORCE_INLINE static uint32_t SignalSemaphoreCount( const VkSubmitInfo2& info ) { return info.signalSemaphoreInfoCount; }
         PROFILER_FORCE_INLINE static uint32_t WaitSemaphoreCount( const VkSubmitInfo2& info ) { return info.waitSemaphoreInfoCount; }
         PROFILER_FORCE_INLINE static VkCommandBuffer CommandBuffer( const VkSubmitInfo2& info, uint32_t i ) { return info.pCommandBufferInfos[ i ].commandBuffer; }
         PROFILER_FORCE_INLINE static VkSemaphore SignalSemaphore( const VkSubmitInfo2& info, uint32_t i ) { return info.pSignalSemaphoreInfos[ i ].semaphore; }
         PROFILER_FORCE_INLINE static VkSemaphore WaitSemaphore( const VkSubmitInfo2& info, uint32_t i ) { return info.pWaitSemaphoreInfos[ i ].semaphore; }
+
+        PROFILER_FORCE_INLINE static void SetCommandBufferSubmitInfos( VkSubmitInfo2& info, uint32_t count, CommandBufferSubmitInfoT* pCommandBuffers )
+        {
+            info.pCommandBufferInfos = pCommandBuffers;
+            info.commandBufferInfoCount = count;
+        }
+
+        PROFILER_FORCE_INLINE static void MakeCommandBufferSubmitInfo( CommandBufferSubmitInfoT& commandBufferSubmitInfo, VkCommandBuffer commandBuffer )
+        {
+            commandBufferSubmitInfo = {};
+            commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+            commandBufferSubmitInfo.commandBuffer = commandBuffer;
+        }
+    };
+
+    struct FenceDeleter
+    {
+        Profiler::VkDevice_Object* m_pDevice = nullptr;
+
+        explicit FenceDeleter( Profiler::VkDevice_Object* pDevice )
+            : m_pDevice( pDevice )
+        {
+        }
+
+        void operator()( VkFence fence ) const
+        {
+            if( fence != VK_NULL_HANDLE )
+            {
+                m_pDevice->Callbacks.DestroyFence( m_pDevice->Handle, fence, nullptr );
+            }
+        }
     };
 }
 
@@ -1349,85 +1401,83 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PreSubmitCommandBuffers
+        PrepareQueueSubmit
 
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::PreSubmitCommandBuffers( VkQueue queue )
+    void DeviceProfiler::PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<VkSubmitInfo>& scratchData )
     {
-        // Synchronize access to the queue if requested.
-        if( m_Config.m_SynchronizeQueues )
-        {
-            m_SubmitMutex.lock();
-        }
-
-        // Configure the queue for performance counters collection, if needed.
-        if( m_pPerformanceCounters )
-        {
-            m_pPerformanceCounters->SetQueuePerformanceConfiguration( queue );
-        }
+        PrepareQueueSubmit<VkSubmitInfo>( scratchData );
     }
 
     /***********************************************************************************\
 
     Function:
-        PostSubmitCommandBuffers
+        PrepareQueueSubmit
 
     Description:
 
     \***********************************************************************************/
-    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo* pSubmitInfo )
+    void DeviceProfiler::PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<VkSubmitInfo2>& scratchData )
     {
-        PostSubmitCommandBuffersImpl<VkSubmitInfo>( queue, count, pSubmitInfo );
+        PrepareQueueSubmit<VkSubmitInfo2>( scratchData );
     }
 
     /***********************************************************************************\
 
     Function:
-        PostSubmitCommandBuffers
-
-    Description:
-
-    \***********************************************************************************/
-    void DeviceProfiler::PostSubmitCommandBuffers( VkQueue queue, uint32_t count, const VkSubmitInfo2* pSubmitInfo )
-    {
-        PostSubmitCommandBuffersImpl<VkSubmitInfo2>( queue, count, pSubmitInfo );
-    }
-
-    /***********************************************************************************\
-
-    Function:
-        PostSubmitCommandBuffers
+        PrepareQueueSubmit
 
     Description:
 
     \***********************************************************************************/
     template<typename SubmitInfoT>
-    void DeviceProfiler::PostSubmitCommandBuffersImpl( VkQueue queue, uint32_t submitCount, const SubmitInfoT* pSubmits )
+    void DeviceProfiler::PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<SubmitInfoT>& scratchData )
     {
         using T = SubmitInfoTraits<SubmitInfoT>;
 
-        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
+        TipGuard tip( m_pDevice->TIP, __func__ );
 
-        // Applications can issue submissions belonging to different frames in a single call.
-        // Split those submissions into separate batches.
-        std::unordered_map<uint32_t, DeviceProfilerSubmitBatch> submitBatches;
-        // List of frames that ended during this submission.
-        std::vector<uint32_t> frameBoundaryExtEndedFrames;
+        scratchData.m_Queue = ResolveObjectHandle( scratchData.m_Queue );
 
+        // Record the submitted command buffers and semaphores.
         const uint64_t timestamp = m_CpuTimestampCounter.GetCurrentValue();
         const uint32_t threadId = ProfilerPlatformFunctions::GetCurrentThreadId();
+
+        uint32_t frameIndex = m_FrameIndex.load();
+        if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
+        {
+            frameIndex = m_FrameIndex.fetch_add( 1 );
+        }
+
+        // Create a fence to signal when the data copy command buffers have completed execution.
+        VkFence fence = VK_NULL_HANDLE;
+        VkFenceCreateInfo fenceCreateInfo = {};
+        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+
+        VkResult result = m_pDevice->Callbacks.CreateFence( m_pDevice->Handle, &fenceCreateInfo, nullptr, &fence );
+        if( result == VK_SUCCESS )
+        {
+            scratchData.m_Fence.reset( fence, FenceDeleter( m_pDevice ) );
+        }
 
         // Synchronize read access to m_pCommandBuffers
         std::shared_lock lk( m_pCommandBuffers );
 
-        for( uint32_t submitIdx = 0; submitIdx < submitCount; ++submitIdx )
+        for( auto submitInfoIter = scratchData.m_SubmitInfos.begin();
+             submitInfoIter != scratchData.m_SubmitInfos.end();
+             ++submitInfoIter )
         {
-            const SubmitInfoT& submitInfo = pSubmits[submitIdx];
+            const SubmitInfoT& submitInfo = *submitInfoIter;
 
-            // Resolve index of the frame this submission belongs to.
-            uint32_t submitFrameIndex = m_FrameIndex;
+            // Prepare submit info for data collection
+            DeviceProfilerSubmitBatch& submitBatch = scratchData.m_Batches.emplace_back();
+            submitBatch.m_Handle = scratchData.m_Queue;
+            submitBatch.m_Fence = scratchData.m_Fence;
+            submitBatch.m_Timestamp = timestamp;
+            submitBatch.m_ThreadId = threadId;
+            submitBatch.m_FrameIndex = frameIndex;
 
             if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
             {
@@ -1437,26 +1487,10 @@ namespace Profiler
 
                 if( pFrameBoundary != nullptr )
                 {
-                    submitFrameIndex = static_cast<uint32_t>( pFrameBoundary->frameID );
-
-                    if( pFrameBoundary->flags & VK_FRAME_BOUNDARY_FRAME_END_BIT_EXT )
-                    {
-                        frameBoundaryExtEndedFrames.push_back( submitFrameIndex );
-                    }
+                    submitBatch.m_FrameIndex = static_cast<uint32_t>( pFrameBoundary->frameID );
+                    submitBatch.m_FrameBoundary = ( pFrameBoundary->flags & VK_FRAME_BOUNDARY_FRAME_END_BIT_EXT );
                 }
             }
-
-            // Get submit batch associated with the frame index of the submission.
-            auto it = submitBatches.find( submitFrameIndex );
-            if( it == submitBatches.end() )
-            {
-                it = submitBatches.emplace( submitFrameIndex, DeviceProfilerSubmitBatch{} ).first;
-                it->second.m_Handle = ResolveObjectHandle<VkQueueHandle>( queue );
-                it->second.m_Timestamp = timestamp;
-                it->second.m_ThreadId = threadId;
-            }
-
-            DeviceProfilerSubmitBatch& submitBatch = it->second;
 
             // Wrap submit info into our structure
             DeviceProfilerSubmit& submit = submitBatch.m_Submits.emplace_back();
@@ -1464,7 +1498,8 @@ namespace Profiler
             submit.m_SignalSemaphores.reserve( T::SignalSemaphoreCount( submitInfo ) );
             submit.m_WaitSemaphores.reserve( T::WaitSemaphoreCount( submitInfo ) );
 
-            for( uint32_t commandBufferIdx = 0; commandBufferIdx < T::CommandBufferCount( submitInfo ); ++commandBufferIdx )
+            const uint32_t commandBufferCount = T::CommandBufferCount( submitInfo );
+            for( uint32_t commandBufferIdx = 0; commandBufferIdx < commandBufferCount; ++commandBufferIdx )
             {
                 // Get command buffer handle
                 VkCommandBuffer commandBuffer = T::CommandBuffer( submitInfo, commandBufferIdx );
@@ -1474,6 +1509,15 @@ namespace Profiler
                 pProfilerCommandBuffer->Submit();
 
                 submit.m_pCommandBuffers.push_back( pProfilerCommandBuffer );
+
+                // Save the command buffer, and its secondary command buffer pointers in the global set
+                const std::unordered_set<ProfilerCommandBuffer*>& pSecondaryCommandBuffers =
+                    pProfilerCommandBuffer->GetSecondaryCommandBuffers();
+
+                submitBatch.m_pSubmittedCommandBuffers.insert( pProfilerCommandBuffer );
+                submitBatch.m_pSubmittedCommandBuffers.insert(
+                    pSecondaryCommandBuffers.begin(),
+                    pSecondaryCommandBuffers.end() );
             }
 
             // Copy semaphores
@@ -1488,43 +1532,152 @@ namespace Profiler
                 submit.m_WaitSemaphores.push_back(
                     ResolveObjectHandle<VkSemaphoreHandle>( T::WaitSemaphore( submitInfo, semaphoreIdx ) ) );
             }
-        }
 
-        // Append the submit batches for aggregation.
-        for( const auto& [frameIndex, submitBatch] : submitBatches )
-        {
-            m_DataAggregator.AppendSubmit( frameIndex, submitBatch );
-        }
+            // Prepare the submit batch for submission
+            m_DataAggregator.PrepareSubmit( submitBatch );
 
-        // Delimit frames if needed.
-        if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
-        {
-            m_DataAggregator.EndFrame( m_FrameIndex );
-            m_FrameIndex++;
-        }
-
-        if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
-        {
-            for( uint32_t frameIndex : frameBoundaryExtEndedFrames )
+            // Append additional command buffers with query resets and data collection commands.
+            auto* pCommandBuffers = scratchData.m_Allocator.template Allocate<typename T::CommandBufferSubmitInfoT>( 2 );
+            if( pCommandBuffers )
             {
-                m_DataAggregator.EndFrame( frameIndex );
+                if( submitBatch.m_ResetCommandBuffer )
+                {
+                    // Append reset query pool command buffer before the submitted command buffers.
+                    auto resetSubmitInfoIter = scratchData.m_SubmitInfos.insert( submitInfoIter, { T::sType } );
+                    auto& resetCommandBufferSubmitInfo = *( pCommandBuffers++ );
+                    T::MakeCommandBufferSubmitInfo( resetCommandBufferSubmitInfo, submitBatch.m_ResetCommandBuffer );
+                    T::SetCommandBufferSubmitInfos( *resetSubmitInfoIter, 1, &resetCommandBufferSubmitInfo );
+
+                    // Insertion invalidates the iterator.
+                    submitInfoIter = std::next( resetSubmitInfoIter );
+                }
+
+                if( submitBatch.m_CopyCommandBuffer )
+                {
+                    // Append copy query pool command buffer after the submitted command buffers.
+                    auto copySubmitInfoIter = scratchData.m_SubmitInfos.insert( std::next( submitInfoIter ), { T::sType } );
+                    auto& copyCommandBufferSubmitInfo = *( pCommandBuffers++ );
+                    T::MakeCommandBufferSubmitInfo( copyCommandBufferSubmitInfo, submitBatch.m_CopyCommandBuffer );
+                    T::SetCommandBufferSubmitInfos( *copySubmitInfoIter, 1, &copyCommandBufferSubmitInfo );
+
+                    // Insertion invalidates the iterator.
+                    submitInfoIter = copySubmitInfoIter;
+                }
+            }
+            else
+            {
+                // Failed to allocate memory for additional command buffer submit infos.
+                m_DataAggregator.DiscardSubmitData( submitBatch );
             }
         }
 
-        // If synchronization between queues is enabled, wait with the mutex locked to ensure it is completed before the next submission.
-        if( m_Config.m_SynchronizeQueues )
+        // Configure the queue for performance counters collection, if needed.
+        if( m_pPerformanceCounters )
         {
-            m_pDevice->Callbacks.QueueWaitIdle( queue );
+            m_pPerformanceCounters->SetQueuePerformanceConfiguration( scratchData.m_Queue );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        FinishQueueSubmit
+
+    Description:
+        Finalizes the submission of a batch of command buffers to the queue.
+
+    \***********************************************************************************/
+    void DeviceProfiler::FinishQueueSubmit( DeviceProfilerSubmitBatchList& scratchData, VkResult submitResult )
+    {
+        TipRangeId tip = m_pDevice->TIP.BeginFunction( __func__ );
+
+        if( submitResult == VK_SUCCESS )
+        {
+            // Check if the batch list needs synchronization.
+            bool needsSynchronization = false;
+            for( const DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+            {
+                if( submitBatch.m_pDataBuffer != nullptr )
+                {
+                    needsSynchronization = true;
+                    break;
+                }
+            }
+
+            if( needsSynchronization )
+            {
+                VkResult fenceSubmitResult = VK_ERROR_UNKNOWN;
+
+                // Signal the fence to indicate that the data copy command buffers have completed execution.
+                if( scratchData.m_Fence )
+                {
+                    // At least one more reference to the fence should exist to keep it alive until the queue submission is complete.
+                    assert( scratchData.m_Fence.use_count() > 1 );
+                    fenceSubmitResult = m_pDevice->Callbacks.QueueSubmit(
+                        scratchData.m_Queue,
+                        0, nullptr,
+                        scratchData.m_Fence.get() );
+                }
+
+                // Fallback to queue wait idle if the fence submission failed.
+                if( fenceSubmitResult != VK_SUCCESS )
+                {
+                    fenceSubmitResult = m_pDevice->Callbacks.QueueWaitIdle(
+                        scratchData.m_Queue );
+
+                    for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+                    {
+                        submitBatch.m_Fence.reset();
+                    }
+                }
+
+                if( fenceSubmitResult == VK_ERROR_DEVICE_LOST )
+                {
+                    // Unrecoverable error.
+                    submitResult = VK_ERROR_DEVICE_LOST;
+                }
+            }
+        }
+
+        if( submitResult != VK_SUCCESS )
+        {
+            // Discard the data collection for the command buffers if any error occurred during submission.
+            for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+            {
+                m_DataAggregator.DiscardSubmitData( submitBatch );
+            }
+        }
+
+        if( submitResult == VK_SUCCESS )
+        {
+            // Pass the submitted command buffers to the data aggregator for processing.
+            for( DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+            {
+                m_DataAggregator.AppendSubmit( submitBatch.m_FrameIndex, submitBatch );
+            }
+
+            // Delimit frames if needed.
+            if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )
+            {
+                for( const DeviceProfilerSubmitBatch& submitBatch : scratchData.m_Batches )
+                {
+                    if( submitBatch.m_FrameBoundary )
+                    {
+                        m_DataAggregator.EndFrame( submitBatch.m_FrameIndex );
+                    }
+                }
+            }
+            else if( m_Config.m_FrameDelimiter == frame_delimiter_t::submit )
+            {
+                if( !scratchData.m_Batches.empty() )
+                {
+                    m_DataAggregator.EndFrame( scratchData.m_Batches[0].m_FrameIndex );
+                }
+            }
         }
 
         // Get data captured during the last frame
         ResolveFrameData( tip );
-
-        // Release the lock acquired in PreSubmitCommandBuffers.
-        if( m_Config.m_SynchronizeQueues )
-        {
-            m_SubmitMutex.unlock();
-        }
     }
 
     /***********************************************************************************\
@@ -1544,8 +1697,7 @@ namespace Profiler
         m_CpuFpsCounter.Update();
 
         // Start new frame
-        m_DataAggregator.EndFrame( m_FrameIndex );
-        m_FrameIndex++;
+        m_DataAggregator.EndFrame( m_FrameIndex.fetch_add( 1 ) );
 
         // Get data captured during the last frame
         ResolveFrameData( tip );
@@ -1569,8 +1721,7 @@ namespace Profiler
         // Delimit frames if needed.
         if( m_Config.m_FrameDelimiter == frame_delimiter_t::present )
         {
-            m_DataAggregator.EndFrame( m_FrameIndex );
-            m_FrameIndex++;
+            m_DataAggregator.EndFrame( m_FrameIndex.fetch_add( 1 ) );
         }
 
         if( m_Config.m_FrameDelimiter == frame_delimiter_t::frame_boundary_ext )

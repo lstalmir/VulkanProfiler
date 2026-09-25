@@ -62,6 +62,7 @@ namespace Profiler
 
         void FallbackToCpuAllocation();
 
+        bool IsValid() const;
         bool UsesGpuAllocation() const;
         VkBuffer GetGpuBuffer() const;
         uint8_t* GetCpuBuffer() const;

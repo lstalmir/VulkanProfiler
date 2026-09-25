@@ -1026,11 +1026,19 @@ namespace Profiler
     \***********************************************************************************/
     uint64_t ProfilerCommandBuffer::GetRequiredQueryDataBufferSize() const
     {
+        uint64_t queryDataBufferSize = 0;
+
         if( m_ProfilingEnabled )
         {
-            return m_pQueryPool->GetRequiredBufferSize();
+            queryDataBufferSize = m_pQueryPool->GetRequiredBufferSize();
+
+            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
+            {
+                queryDataBufferSize += pSecondaryCommandBuffer->GetRequiredQueryDataBufferSize();
+            }
         }
-        return 0;
+
+        return queryDataBufferSize;
     }
 
     /***********************************************************************************\
@@ -1052,6 +1060,28 @@ namespace Profiler
             for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
             {
                 pSecondaryCommandBuffer->WriteQueryData( writer );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetQueryPools
+
+    Description:
+        Reset all query pools before the next profiling run using the provided command buffer.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::ResetQueryPools( VkCommandBuffer commandBuffer ) const
+    {
+        if( m_ProfilingEnabled )
+        {
+            m_pQueryPool->ResetQueryPools( commandBuffer );
+
+            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
+            {
+                pSecondaryCommandBuffer->ResetQueryPools( commandBuffer );
             }
         }
     }

@@ -35,6 +35,6 @@ namespace Profiler
         // vkCmdPipelineBarrier2KHR
         static VKAPI_ATTR void VKAPI_CALL CmdPipelineBarrier2KHR(
             VkCommandBuffer commandBuffer,
-            const VkDependencyInfo* pDependencyInfo );
+            const VkDependencyInfoKHR* pDependencyInfo );
     };
 }

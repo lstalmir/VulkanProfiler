@@ -38,6 +38,7 @@
 #include <sstream>
 #include <string>
 #include <functional>
+#include <atomic>
 
 #include "lockable_unordered_map.h"
 
@@ -122,9 +123,9 @@ namespace Profiler
         void CreateRenderPass( VkRenderPass, const VkRenderPassCreateInfo2* );
         void DestroyRenderPass( VkRenderPass );
 
-        void PreSubmitCommandBuffers( VkQueue );
-        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo* );
-        void PostSubmitCommandBuffers( VkQueue, uint32_t, const VkSubmitInfo2* );
+        void PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<VkSubmitInfo>& );
+        void PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<VkSubmitInfo2>& );
+        void FinishQueueSubmit( DeviceProfilerSubmitBatchList&, VkResult );
 
         void FinishFrame();
         void FinishFrame( const VkPresentInfoKHR* );
@@ -171,7 +172,7 @@ namespace Profiler
         DeviceProfilerMemoryManager m_MemoryManager;
         ProfilerDataAggregator  m_DataAggregator;
 
-        uint32_t                m_FrameIndex;
+        std::atomic_uint32_t    m_FrameIndex;
         uint32_t                m_DataBufferSize;
         uint32_t                m_MinDataBufferSize;
         uint64_t                m_LastFrameBeginTimestamp;
@@ -220,7 +221,7 @@ namespace Profiler
         decltype(m_pCommandBuffers)::iterator FreeCommandBuffer( decltype(m_pCommandBuffers)::iterator );
 
         template<typename SubmitInfoT>
-        void PostSubmitCommandBuffersImpl( VkQueue, uint32_t, const SubmitInfoT* );
+        void PrepareQueueSubmit( DeviceProfilerSubmitCommandScratchData<SubmitInfoT>& );
 
         void ResolveFrameData( TipRangeId& tip );
 

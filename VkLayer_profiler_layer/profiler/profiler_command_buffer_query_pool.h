@@ -64,6 +64,7 @@ namespace Profiler
         void EndPerformanceQuery( VkCommandBuffer commandBuffer );
 
         void WriteQueryData( DeviceProfilerQueryDataBufferWriter& writer ) const;
+        void ResetQueryPools( VkCommandBuffer commandBuffer ) const;
 
         uint64_t WriteTimestamp( VkCommandBuffer commandBuffer, VkPipelineStageFlagBits stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
 

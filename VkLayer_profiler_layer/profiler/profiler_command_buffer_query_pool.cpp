@@ -161,24 +161,6 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        // Reset the full query pools.
-        for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
-        {
-            m_Device.Callbacks.CmdResetQueryPool(
-                commandBuffer,
-                m_QueryPools[ queryPoolIndex ],
-                0, m_QueryPoolSize );
-        }
-
-        // Reset the last query pool.
-        if( m_CurrentQueryIndex != UINT32_MAX )
-        {
-            m_Device.Callbacks.CmdResetQueryPool(
-                commandBuffer,
-                m_QueryPools[ m_CurrentQueryPoolIndex ],
-                0, (m_CurrentQueryIndex + 1) );
-        }
-
         m_AbsQueryIndex = UINT64_MAX;
         m_CurrentQueryIndex = UINT32_MAX;
         m_CurrentQueryPoolIndex = 0;
@@ -293,6 +275,36 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ResetQueryPools
+
+    Description:
+        Resets the query pools.
+
+    \***********************************************************************************/
+    void CommandBufferQueryPool::ResetQueryPools( VkCommandBuffer commandBuffer ) const
+    {
+        // Reset the full query pools.
+        for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
+        {
+            m_Device.Callbacks.CmdResetQueryPool(
+                commandBuffer,
+                m_QueryPools[queryPoolIndex],
+                0, m_QueryPoolSize );
+        }
+
+        // Reset the last query pool.
+        if( m_CurrentQueryIndex != UINT32_MAX )
+        {
+            m_Device.Callbacks.CmdResetQueryPool(
+                commandBuffer,
+                m_QueryPools[m_CurrentQueryPoolIndex],
+                0, ( m_CurrentQueryIndex + 1 ) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         WriteTimestamp
 
     Description:
@@ -358,9 +370,6 @@ namespace Profiler
         {
             assert( queryPool != VK_NULL_HANDLE );
             m_QueryPools.push_back( queryPool );
-
-            // Pools must be reset before first use
-            m_Device.Callbacks.CmdResetQueryPool( commandBuffer, queryPool, 0, m_QueryPoolSize );
         }
     }
 
