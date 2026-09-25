@@ -335,22 +335,25 @@ namespace Profiler
         // Get the command pool associated with the queue.
         submitBatch.m_pInternalCommandPool = &m_CopyCommandPools.at( submitBatch.m_Handle );
 
-        if( !submitBatch.m_pSubmittedCommandBuffers.empty() )
+        if( submitBatch.m_pSubmittedCommandBuffers.empty() )
         {
-            // Reset all query pools used in this submit batch.
-            if( !ResetQueryPools( submitBatch ) )
-            {
-                DiscardSubmitData( submitBatch );
-                return;
-            }
+            DiscardSubmitData( submitBatch );
+            return;
+        }
 
-            // Try to copy the data using GPU.
-            // It may fallback to CPU allocation if the function fails to allocate the command buffer.
-            if( !WriteQueryDataToGpuBuffer( submitBatch ) )
-            {
-                DiscardSubmitData( submitBatch );
-                return;
-            }
+        // Reset all query pools used in this submit batch.
+        if( !ResetQueryPools( submitBatch ) )
+        {
+            DiscardSubmitData( submitBatch );
+            return;
+        }
+
+        // Try to copy the data using GPU.
+        // It may fallback to CPU allocation if the function fails to allocate the command buffer.
+        if( !WriteQueryDataToGpuBuffer( submitBatch ) )
+        {
+            DiscardSubmitData( submitBatch );
+            return;
         }
     }
 
