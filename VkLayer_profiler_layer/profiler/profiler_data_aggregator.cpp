@@ -699,10 +699,11 @@ namespace Profiler
             submitData.m_BeginTimestamp.m_Value = std::numeric_limits<uint64_t>::max();
             submitData.m_EndTimestamp.m_Value = 0;
 
-            for( const auto& pCommandBuffer : submit.m_pCommandBuffers )
+            for( const DeviceProfilerSubmitCommandBuffer& commandBufferInfo : submit.m_CommandBuffers )
             {
                 // Collect command buffer data
-                const DeviceProfilerCommandBufferData& commandBufferData = pCommandBuffer->GetData( reader );
+                const DeviceProfilerCommandBufferData& commandBufferData =
+                    commandBufferInfo.m_pCommandBuffer->GetData( reader, commandBufferInfo.m_DataContextHandle );
 
                 // Skip if instrumentation was disabled for this command buffer
                 if( commandBufferData.m_DataValid )
@@ -1409,9 +1410,9 @@ namespace Profiler
             // Reset all query pools on the GPU.
             for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
             {
-                for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+                for( const DeviceProfilerSubmitCommandBuffer& commandBufferInfo : submit.m_CommandBuffers )
                 {
-                    pCommandBuffer->ResetQueryPools( submitBatch.m_ResetCommandBuffer );
+                    commandBufferInfo.m_pCommandBuffer->ResetQueryPools( submitBatch.m_ResetCommandBuffer );
                 }
             }
 
@@ -1455,9 +1456,9 @@ namespace Profiler
 
         for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
         {
-            for( const ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+            for( const DeviceProfilerSubmitCommandBuffer& commandBufferInfo : submit.m_CommandBuffers )
             {
-                bufferSize += pCommandBuffer->GetRequiredQueryDataBufferSize();
+                bufferSize += commandBufferInfo.m_pCommandBuffer->GetRequiredQueryDataBufferSize();
             }
         }
 
@@ -1515,11 +1516,11 @@ namespace Profiler
                     *submitBatch.m_pDataBuffer,
                     submitBatch.m_CopyCommandBuffer );
 
-                for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
+                for( DeviceProfilerSubmit& submit : submitBatch.m_Submits )
                 {
-                    for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+                    for( DeviceProfilerSubmitCommandBuffer& commandBufferInfo : submit.m_CommandBuffers )
                     {
-                        pCommandBuffer->WriteQueryData( writer );
+                        commandBufferInfo.m_DataContextHandle = commandBufferInfo.m_pCommandBuffer->WriteQueryData( writer );
                     }
                 }
 

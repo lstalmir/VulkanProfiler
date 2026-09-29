@@ -31,6 +31,7 @@ namespace Profiler
 {
     class DeviceProfiler;
     class DeviceProfilerCommandPool;
+    class DeviceProfilerQueryDataBuffer;
     class DeviceProfilerQueryDataBufferWriter;
     class DeviceProfilerQueryDataBufferReader;
 
@@ -79,7 +80,7 @@ namespace Profiler
 
         void PreCommand( const DeviceProfilerDrawcall& );
         void PostCommand( const DeviceProfilerDrawcall& );
-        void ExecuteCommands( uint32_t, const VkCommandBuffer* );
+        void ExecuteCommands( std::vector<VkCommandBuffer>& );
         void PipelineBarrier(
             uint32_t, const VkMemoryBarrier*,
             uint32_t, const VkBufferMemoryBarrier*,
@@ -87,12 +88,12 @@ namespace Profiler
         void PipelineBarrier( const VkDependencyInfo* );
 
         uint64_t GetRequiredQueryDataBufferSize() const;
-        void WriteQueryData( DeviceProfilerQueryDataBufferWriter& ) const;
+        uint64_t WriteQueryData( DeviceProfilerQueryDataBufferWriter& ) const;
         void ResetQueryPools( VkCommandBuffer ) const;
 
         const std::unordered_set<ProfilerCommandBuffer*>& GetSecondaryCommandBuffers() const;
 
-        const DeviceProfilerCommandBufferData& GetData( DeviceProfilerQueryDataBufferReader& );
+        const DeviceProfilerCommandBufferData& GetData( DeviceProfilerQueryDataBufferReader&, uint64_t );
 
     protected:
         DeviceProfiler&                     m_Profiler;
@@ -105,6 +106,8 @@ namespace Profiler
         bool                                m_ProfilingEnabled;
 
         std::unordered_set<ProfilerCommandBuffer*> m_pSecondaryCommandBuffers;
+        std::vector<VkCommandBuffer>        m_InternalCommandBuffers;
+        std::vector<DeviceProfilerQueryDataBuffer*> m_pCachedQueryDataBuffers;
 
         CommandBufferQueryPool*             m_pQueryPool;
 
@@ -161,5 +164,8 @@ namespace Profiler
         void ReadIndirectArgumentBuffers( std::vector<uint8_t>& dst );
 
         IndirectArgumentBuffer& AcquireIndirectArgumentBuffer( size_t size );
+
+        VkResult BeginInternalCommandBuffer( VkCommandBuffer* pCommandBuffer );
+        VkResult EndInternalCommandBuffer( VkCommandBuffer commandBuffer );
     };
 }

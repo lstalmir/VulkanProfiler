@@ -1477,6 +1477,7 @@ namespace Profiler
         DeviceProfilerTimestamp                             m_BeginTimestamp;
         DeviceProfilerTimestamp                             m_EndTimestamp;
 
+        uint64_t                                            m_DataContextHandle = 0;
         bool                                                m_DataValid = false;
 
         ContainerType<struct DeviceProfilerRenderPassData>  m_RenderPasses = {};

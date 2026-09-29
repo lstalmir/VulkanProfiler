@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025 Lukasz Stalmirski
+# Copyright (c) 2019-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -40,6 +40,7 @@ set (headers
     "profiler_performance_counters_intel.h"
     "profiler_performance_counters_nvidia.h"
     "profiler_query_pool.h"
+    "profiler_random.h"
     "profiler_resources.h"
     "profiler_shader.h"
     "profiler_stat_comparators.h"

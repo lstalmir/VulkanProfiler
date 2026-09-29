@@ -295,6 +295,17 @@ namespace Profiler
             m_Data.m_RenderPasses.clear();
             m_pSecondaryCommandBuffers.clear();
 
+            if( !m_InternalCommandBuffers.empty() )
+            {
+                m_Profiler.m_pDevice->Callbacks.FreeCommandBuffers(
+                    m_Profiler.m_pDevice->Handle,
+                    m_CommandPool.GetHandle(),
+                    static_cast<uint32_t>( m_InternalCommandBuffers.size() ),
+                    m_InternalCommandBuffers.data() );
+
+                m_InternalCommandBuffers.clear();
+            }
+
             m_UsageFlags = 0;
 
             m_CurrentSubpassIndex = DeviceProfilerSubpassData::ImplicitSubpassIndex;
@@ -936,7 +947,7 @@ namespace Profiler
         Record secondary command buffers.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::ExecuteCommands( uint32_t count, const VkCommandBuffer* pCommandBuffers )
+    void ProfilerCommandBuffer::ExecuteCommands( std::vector<VkCommandBuffer>& commandBuffers )
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
@@ -948,15 +959,14 @@ namespace Profiler
             auto& currentRenderPass = m_Data.m_RenderPasses.back();
             auto& currentSubpass = currentRenderPass.m_Subpasses.back();
 
-            for( uint32_t i = 0; i < count; ++i )
-            {
-                currentSubpass.m_Data.push_back( DeviceProfilerCommandBufferData{
-                    m_Profiler.ResolveObjectHandle<VkCommandBufferHandle>( pCommandBuffers[i] ),
-                    VK_COMMAND_BUFFER_LEVEL_SECONDARY
-                    } );
+            // Get command buffer objects.
+            std::vector<ProfilerCommandBuffer*> pCommandBuffers;
+            pCommandBuffers.reserve( commandBuffers.size() );
 
+            for( VkCommandBuffer commandBuffer : commandBuffers )
+            {
                 // Add command buffer reference
-                ProfilerCommandBuffer* pSecondaryCommandBuffer = &m_Profiler.GetCommandBuffer( pCommandBuffers[i] );
+                ProfilerCommandBuffer* pSecondaryCommandBuffer = &m_Profiler.GetCommandBuffer( commandBuffer );
                 m_pSecondaryCommandBuffers.insert( pSecondaryCommandBuffer );
 
                 // Keep track of nested secondary command buffers
@@ -969,7 +979,102 @@ namespace Profiler
                         pNestedCommandBuffers.begin(),
                         pNestedCommandBuffers.end() );
                 }
+
+                pCommandBuffers.push_back( pSecondaryCommandBuffer );
             }
+
+            // Allocate a query data buffer for the secondary command buffers.
+            uint64_t requiredQueryDataBufferSize = 0;
+            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : pCommandBuffers )
+            {
+                requiredQueryDataBufferSize += pSecondaryCommandBuffer->GetRequiredQueryDataBufferSize();
+            }
+
+            DeviceProfilerQueryDataBuffer* pQueryDataBuffer =
+                new DeviceProfilerQueryDataBuffer( m_Profiler, requiredQueryDataBufferSize );
+
+            DeviceProfilerQueryDataBufferWriter writer( m_Profiler, *pQueryDataBuffer );
+
+            // Insert internal command buffers to reset and copy queries for all secondary command buffers.
+            std::vector<VkCommandBuffer> patchedCommandBuffers;
+            patchedCommandBuffers.reserve( commandBuffers.size() * 2 + 1 );
+
+            VkResult result = VK_SUCCESS;
+            VkCommandBuffer internalCommandBuffer = VK_NULL_HANDLE;
+
+            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : pCommandBuffers )
+            {
+                DeviceProfilerCommandBufferData secondaryCommandBufferData = {};
+                secondaryCommandBufferData.m_Handle = m_Profiler.ResolveObjectHandle<VkCommandBufferHandle>( pSecondaryCommandBuffer->GetHandle() );
+                secondaryCommandBufferData.m_Level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+
+                const uint64_t requiredQueryDataBufferSize = pSecondaryCommandBuffer->GetRequiredQueryDataBufferSize();
+
+                // Reset query pools used by the secondary command buffer before executing it.
+                if( requiredQueryDataBufferSize > 0 )
+                {
+                    if( !internalCommandBuffer )
+                    {
+                        result = BeginInternalCommandBuffer( &internalCommandBuffer );
+                    }
+                    if( result == VK_SUCCESS )
+                    {
+                        pSecondaryCommandBuffer->ResetQueryPools( internalCommandBuffer );
+                    }
+                }
+                if( internalCommandBuffer )
+                {
+                    if( result == VK_SUCCESS )
+                    {
+                        result = EndInternalCommandBuffer( internalCommandBuffer );
+                    }
+                    if( result == VK_SUCCESS )
+                    {
+                        patchedCommandBuffers.push_back( internalCommandBuffer );
+                    }
+
+                    internalCommandBuffer = VK_NULL_HANDLE;
+                }
+
+                patchedCommandBuffers.push_back( pSecondaryCommandBuffer->GetHandle() );
+
+                // Copy timestamp data from the secondary command buffer to a staging buffer.
+                if( requiredQueryDataBufferSize > 0 )
+                {
+                    if( result == VK_SUCCESS )
+                    {
+                        result = BeginInternalCommandBuffer( &internalCommandBuffer );
+                    }
+                    if( result == VK_SUCCESS )
+                    {
+                        DeviceProfilerQueryDataBuffer* pStagingQueryDataBuffer =
+                            new DeviceProfilerQueryDataBuffer( m_Profiler, requiredQueryDataBufferSize );
+                        m_pCachedQueryDataBuffers.push_back( pStagingQueryDataBuffer );
+
+                        DeviceProfilerQueryDataBufferWriter writer( m_Profiler, *pStagingQueryDataBuffer, internalCommandBuffer );
+                        secondaryCommandBufferData.m_DataContextHandle = pSecondaryCommandBuffer->WriteQueryData( writer );
+                    }
+                }
+
+                currentSubpass.m_Data.push_back( std::move( secondaryCommandBufferData ) );
+            }
+
+            if( internalCommandBuffer )
+            {
+                if( result == VK_SUCCESS )
+                {
+                    result = EndInternalCommandBuffer( internalCommandBuffer );
+                }
+                if( result == VK_SUCCESS )
+                {
+                    patchedCommandBuffers.push_back( internalCommandBuffer );
+                }
+            }
+
+            m_pCachedQueryDataBuffers.push_back( pQueryDataBuffer );
+
+            // Execute the secondary command buffers with the internal command buffers for query resets and copies.
+            commandBuffers = std::move( patchedCommandBuffers );
         }
     }
 
@@ -1069,18 +1174,22 @@ namespace Profiler
         Writes all timestamps to the data buffer.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::WriteQueryData( DeviceProfilerQueryDataBufferWriter& writer ) const
+    uint64_t ProfilerCommandBuffer::WriteQueryData( DeviceProfilerQueryDataBufferWriter& writer ) const
     {
+        uint64_t dataContextHandle = 0;
+
         if( m_ProfilingEnabled )
         {
-            writer.SetContext( this );
+            dataContextHandle = writer.NextContext();
             m_pQueryPool->WriteQueryData( writer );
 
-            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
+            for( DeviceProfilerQueryDataBuffer* pCachedQueryData : m_pCachedQueryDataBuffers )
             {
-                pSecondaryCommandBuffer->WriteQueryData( writer );
+                writer.WriteCachedQueryResults( *pCachedQueryData );
             }
         }
+
+        return dataContextHandle;
     }
 
     /***********************************************************************************\
@@ -1097,11 +1206,6 @@ namespace Profiler
         if( m_ProfilingEnabled )
         {
             m_pQueryPool->ResetQueryPools( commandBuffer );
-
-            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
-            {
-                pSecondaryCommandBuffer->ResetQueryPools( commandBuffer );
-            }
         }
     }
 
@@ -1129,13 +1233,13 @@ namespace Profiler
         Returns structure containing ordered list of timestamps and statistics.
 
     \***********************************************************************************/
-    const DeviceProfilerCommandBufferData& ProfilerCommandBuffer::GetData( DeviceProfilerQueryDataBufferReader& reader )
+    const DeviceProfilerCommandBufferData& ProfilerCommandBuffer::GetData( DeviceProfilerQueryDataBufferReader& reader, uint64_t dataContextHandle )
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
         if( m_ProfilingEnabled )
         {
-            reader.SetContext( this );
+            reader.SetContext( dataContextHandle );
 
             // Reset accumulated stats if buffer is being reused
             m_Data.m_Stats = m_Stats;
@@ -1304,7 +1408,7 @@ namespace Profiler
                     ProfilerCommandBuffer& secondaryCommandBuffer =
                         *m_Profiler.m_pCommandBuffers.unsafe_at( commandBufferData.m_Handle );
 
-                    commandBufferData = secondaryCommandBuffer.GetData( reader );
+                    commandBufferData = secondaryCommandBuffer.GetData( reader, commandBufferData.m_DataContextHandle );
                 };
 
                 for( auto& renderPass : m_Data.m_RenderPasses )
@@ -1440,7 +1544,7 @@ namespace Profiler
         ProfilerCommandBuffer& profilerCommandBuffer = *m_Profiler.m_pCommandBuffers.unsafe_at( handle );
 
         // Collect secondary command buffer data
-        commandBuffer = profilerCommandBuffer.GetData( reader );
+        commandBuffer = profilerCommandBuffer.GetData( reader, commandBuffer.m_DataContextHandle );
         assert( commandBuffer.m_Handle == handle );
 
         // Propagate timestamps from command buffer to subpass
@@ -1986,5 +2090,94 @@ namespace Profiler
         buffer.m_Offset = 0;
 
         return buffer;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        BeginInternalCommandBuffer
+
+    Description:
+        Allocate a secondary command buffer for internal use by the profiler.
+
+    \***********************************************************************************/
+    VkResult ProfilerCommandBuffer::BeginInternalCommandBuffer( VkCommandBuffer* pCommandBuffer )
+    {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
+        VkCommandBufferAllocateInfo allocateInfo = {};
+        allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocateInfo.commandPool = m_CommandPool.GetHandle();
+        allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+        allocateInfo.commandBufferCount = 1;
+
+        VkResult result = m_Profiler.m_pDevice->Callbacks.AllocateCommandBuffers(
+            m_Profiler.m_pDevice->Handle,
+            &allocateInfo,
+            pCommandBuffer );
+
+        bool valid = false;
+        if( result == VK_SUCCESS )
+        {
+            result = m_Profiler.m_pDevice->SetDeviceLoaderData(
+                m_Profiler.m_pDevice->Handle,
+                *pCommandBuffer );
+
+            valid = ( result == VK_SUCCESS );
+        }
+
+        if( result == VK_SUCCESS )
+        {
+            VkCommandBufferInheritanceInfo commandBufferInheritanceInfo = {};
+            commandBufferInheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+
+            if( ( m_pCurrentRenderPass != nullptr ) &&
+                ( m_CurrentSubpassIndex != DeviceProfilerSubpassData::ImplicitSubpassIndex ) )
+            {
+                commandBufferInheritanceInfo.renderPass = m_pCurrentRenderPass->m_Handle;
+                commandBufferInheritanceInfo.subpass = m_CurrentSubpassIndex;
+            }
+
+            VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+            commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            commandBufferBeginInfo.flags = m_UsageFlags & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+            commandBufferBeginInfo.pInheritanceInfo = &commandBufferInheritanceInfo;
+
+            result = m_Profiler.m_pDevice->Callbacks.BeginCommandBuffer(
+                *pCommandBuffer,
+                &commandBufferBeginInfo );
+        }
+
+        if( result == VK_SUCCESS )
+        {
+            m_InternalCommandBuffers.push_back( *pCommandBuffer );
+        }
+
+        if( result != VK_SUCCESS && valid )
+        {
+            m_Profiler.m_pDevice->Callbacks.FreeCommandBuffers(
+                m_Profiler.m_pDevice->Handle,
+                m_CommandPool.GetHandle(),
+                1, pCommandBuffer );
+        }
+
+        return result;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EndInternalCommandBuffer
+
+    Description:
+        Finish secondary command buffer.
+
+    \***********************************************************************************/
+    VkResult ProfilerCommandBuffer::EndInternalCommandBuffer( VkCommandBuffer commandBuffer )
+    {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
+        return m_Profiler.m_pDevice->Callbacks.EndCommandBuffer(
+            commandBuffer );
     }
 }

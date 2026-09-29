@@ -36,9 +36,15 @@ namespace Profiler
     class DeviceProfiler;
     class DeviceProfilerQueryDataBuffer;
 
+    struct DeviceProfilerSubmitCommandBuffer
+    {
+        ProfilerCommandBuffer*                          m_pCommandBuffer = nullptr;
+        uint64_t                                        m_DataContextHandle = 0;
+    };
+
     struct DeviceProfilerSubmit
     {
-        std::vector<ProfilerCommandBuffer*>             m_pCommandBuffers = {};
+        std::vector<DeviceProfilerSubmitCommandBuffer>  m_CommandBuffers = {};
         std::vector<VkSemaphoreHandle>                  m_SignalSemaphores = {};
         std::vector<VkSemaphoreHandle>                  m_WaitSemaphores = {};
     };

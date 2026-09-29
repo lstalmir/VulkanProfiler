@@ -1548,7 +1548,7 @@ namespace Profiler
 
             // Wrap submit info into our structure
             DeviceProfilerSubmit& submit = submitBatch.m_Submits.emplace_back();
-            submit.m_pCommandBuffers.reserve( T::CommandBufferCount( submitInfo ) );
+            submit.m_CommandBuffers.reserve( T::CommandBufferCount( submitInfo ) );
             submit.m_SignalSemaphores.reserve( T::SignalSemaphoreCount( submitInfo ) );
             submit.m_WaitSemaphores.reserve( T::WaitSemaphoreCount( submitInfo ) );
 
@@ -1562,7 +1562,8 @@ namespace Profiler
                 // Dirty command buffer profiling data
                 pProfilerCommandBuffer->Submit();
 
-                submit.m_pCommandBuffers.push_back( pProfilerCommandBuffer );
+                DeviceProfilerSubmitCommandBuffer& commandBufferInfo = submit.m_CommandBuffers.emplace_back();
+                commandBufferInfo.m_pCommandBuffer = pProfilerCommandBuffer;
 
                 // Save the command buffer, and its secondary command buffer pointers in the global set
                 const std::unordered_set<ProfilerCommandBuffer*>& pSecondaryCommandBuffers =

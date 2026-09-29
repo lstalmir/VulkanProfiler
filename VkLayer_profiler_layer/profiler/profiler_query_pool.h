@@ -51,6 +51,8 @@ namespace Profiler
     class DeviceProfilerQueryDataBuffer
     {
     public:
+        typedef std::map<uint64_t, DeviceProfilerQueryDataContext> ContextMap;
+
         DeviceProfilerQueryDataBuffer( DeviceProfiler& profiler, uint64_t size );
         ~DeviceProfilerQueryDataBuffer();
 
@@ -67,9 +69,10 @@ namespace Profiler
         VkBuffer GetGpuBuffer() const;
         uint8_t* GetCpuBuffer() const;
         const uint8_t* GetMappedData() const;
+        const ContextMap& GetContexts() const;
 
-        DeviceProfilerQueryDataContext* CreateContext( const void* handle );
-        const DeviceProfilerQueryDataContext* GetContext( const void* handle ) const;
+        DeviceProfilerQueryDataContext* CreateContext( uint64_t handle );
+        const DeviceProfilerQueryDataContext* GetContext( uint64_t handle ) const;
 
     private:
         DeviceProfiler&   m_Profiler;
@@ -77,7 +80,7 @@ namespace Profiler
         VmaAllocation     m_Allocation;
         VmaAllocationInfo m_AllocationInfo;
         void*             m_pCpuAllocation;
-        std::map<const void*, DeviceProfilerQueryDataContext> m_Contexts;
+        ContextMap        m_Contexts;
     };
 
     /***********************************************************************************\
@@ -97,19 +100,19 @@ namespace Profiler
             DeviceProfilerQueryDataBuffer& dataBuffer,
             VkCommandBuffer copyCommandBuffer = VK_NULL_HANDLE );
 
-        void SetContext( const void* handle );
+        uint64_t NextContext();
+        void SetCopyCommandBuffer( VkCommandBuffer commandBuffer );
         void WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryCount );
         void WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex, uint32_t queueFamilyIndex );
+        void WriteCachedQueryResults( const DeviceProfilerQueryDataBuffer& buffer );
 
     private:
         DeviceProfiler*                 m_pProfiler;
         DeviceProfilerQueryDataBuffer*  m_pData;
         DeviceProfilerQueryDataContext* m_pContext;
         VkCommandBuffer                 m_CommandBuffer;
-        union {
-            VkBuffer                    m_GpuBuffer;
-            uint8_t*                    m_CpuBuffer;
-        };
+        VkBuffer                        m_GpuBuffer;
+        uint8_t*                        m_CpuBuffer;
         uint32_t                        m_DataOffset;
     };
 
@@ -129,7 +132,7 @@ namespace Profiler
             const DeviceProfiler& profiler,
             const DeviceProfilerQueryDataBuffer& dataBuffer );
 
-        void SetContext( const void* handle );
+        void SetContext( uint64_t handle );
         uint64_t ReadTimestampQueryResult( uint64_t index ) const;
         uint32_t GetPerformanceQueryMetricsSetIndex() const;
         uint32_t GetPerformanceQueryResultSize() const;
