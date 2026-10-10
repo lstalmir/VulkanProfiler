@@ -96,10 +96,10 @@ Such applications may run in console with no GUI implementation, so in order to 
 <span class="k">set</span> <span class="nv">VKPROF_frame_count</span><span class="p">=</span>0
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-TGludXg=" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-TGludXg=" name="TGludXg=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">VK_LOADER_LAYERS_ENABLE</span><span class="o">=</span><span class="s2">&quot;*profiler_unified&quot;</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_output</span><span class="o">=</span><span class="s2">&quot;trace&quot;</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_enable_threading</span><span class="o">=</span><span class="s2">&quot;false&quot;</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_frame_delimiter</span><span class="o">=</span><span class="s2">&quot;submit&quot;</span>
+</div><div aria-labelledby="tab-0-TGludXg=" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-0-TGludXg=" name="TGludXg=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">VK_LOADER_LAYERS_ENABLE</span><span class="o">=</span><span class="s2">"*profiler_unified"</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_output</span><span class="o">=</span><span class="s2">"trace"</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_enable_threading</span><span class="o">=</span><span class="s2">"false"</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_frame_delimiter</span><span class="o">=</span><span class="s2">"submit"</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">VKPROF_frame_count</span><span class="o">=</span><span class="m">0</span>
 </pre></div>
 </div>
@@ -122,7 +122,7 @@ It can also be set to a different, greater than zero, value to limit the size of
 <p>However, because the metrics are collected system-wide, Intel kernel module enables the paranoid performance collection mode on boot.
 To use the extension, this mode must be disabled using elevated privileges. <a class="reference external" href="https://www.intel.com/content/dam/develop/external/us/en/documents/vulkan-metrics-ubuntu-813770.pdf">[1]</a></p>
 <p>First, determine which kernel driver is used for the installed GPU.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>lspci<span class="w"> </span>-nn<span class="w"> </span>-k<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-Ei<span class="w"> </span><span class="s1">&#39;VGA|DISPLAY&#39;</span><span class="w"> </span>-A2
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>lspci<span class="w"> </span>-nn<span class="w"> </span>-k<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-Ei<span class="w"> </span><span class="s1">'VGA|DISPLAY'</span><span class="w"> </span>-A2
 </pre></div>
 </div>
 <p>Then, depending on the returned module, disable the paranoid mode.</p>
