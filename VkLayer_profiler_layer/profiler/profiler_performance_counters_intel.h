@@ -119,6 +119,15 @@ namespace Profiler
             std::vector<Counter>              m_Counters;
         };
 
+        struct Configuration
+        {
+            VkPerformanceConfigurationINTEL   m_Handle;
+            VkDevice_Object&                  m_Device;
+
+            Configuration( VkDevice_Object& device );
+            ~Configuration();
+        };
+
         void*                                 m_MDLibraryHandle;
 
         struct VkDevice_Object*               m_pVulkanDevice;
@@ -147,7 +156,8 @@ namespace Profiler
         uint32_t                              m_ActiveMetricsSetIndex;
 
         bool                                  m_PerformanceApiInitialized;
-        VkPerformanceConfigurationINTEL       m_PerformanceApiConfiguration;
+        std::shared_ptr<Configuration>        m_pPerformanceApiConfiguration;
+        std::unordered_map<VkQueue, std::shared_ptr<Configuration>> m_pPerformanceApiQueueConfigurations;
 
         std::thread                           m_MetricsStreamCollectionThread;
         std::mutex                            m_MetricsStreamCollectionMutex;
