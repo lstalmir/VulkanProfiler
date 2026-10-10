@@ -540,7 +540,7 @@ namespace Profiler
             ( m_pPerformanceApiConfiguration != nullptr ) &&
             ( m_pPerformanceApiConfiguration != queueConfigurationIt->second ) )
         {
-            assert( m_PerformanceApiConfiguration->m_Handle != VK_NULL_HANDLE );
+            assert( m_pPerformanceApiConfiguration->m_Handle != VK_NULL_HANDLE );
             assert( m_pVulkanDevice->Callbacks.QueueSetPerformanceConfigurationINTEL );
 
             result = m_pVulkanDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
