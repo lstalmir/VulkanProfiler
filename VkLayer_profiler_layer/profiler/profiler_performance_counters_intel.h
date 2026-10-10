@@ -19,6 +19,8 @@
 // SOFTWARE.
 
 #pragma once
+#ifdef PROFILER_WITH_INTEL_METRICS
+
 #include "profiler_performance_counters.h"
 #include "profiler_counters.h"
 #include <metrics_discovery_api.h>
@@ -191,3 +193,5 @@ namespace Profiler
         static bool TranslateUnit( const char* pUnit, double& factor, VkProfilerPerformanceCounterUnitEXT& unit );
     };
 }
+
+#endif // PROFILER_WITH_INTEL_METRICS

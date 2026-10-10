@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#ifdef PROFILER_WITH_NV_METRICS
+
 #include "profiler_performance_counters_nvidia.h"
 #include "profiler_helpers.h"
 #include "profiler_config.h"
@@ -1314,3 +1316,5 @@ namespace Profiler
         memcpy( properties.uuid, counter.m_UUID, VK_UUID_SIZE );
     }
 }
+
+#endif // PROFILER_WITH_NV_METRICS

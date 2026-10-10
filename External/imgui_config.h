@@ -23,3 +23,7 @@
 
 // Vulkan handles are always 64-bit.
 #define ImTextureID uint64_t
+
+// ImGui undefs Status macro which breaks Xlib and XCB headers.
+#pragma push_macro( "Status" )
+#undef Status

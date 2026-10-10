@@ -63,6 +63,30 @@ namespace Profiler
     \***********************************************************************************/
     using DispatchableHandle = void*;
 
+    struct DispatchableHandleHash
+    {
+        inline size_t operator()( DispatchableHandle a ) const
+        {
+            return reinterpret_cast<size_t>( *(const void**)( a ) );
+        }
+    };
+
+    struct DispatchableHandleEqual
+    {
+        inline bool operator()( DispatchableHandle a, DispatchableHandle b ) const
+        {
+            return *(const void**)( a ) == *(const void**)( b );
+        }
+    };
+
+    struct DispatchableHandleLess
+    {
+        inline bool operator()( DispatchableHandle a, DispatchableHandle b ) const
+        {
+            return *(const void**)( a ) < *(const void**)( b );
+        }
+    };
+
     /***********************************************************************************\
 
     Class:
@@ -151,39 +175,8 @@ namespace Profiler
         }
 
     private:
-        std::map<DispatchableHandle, ValueType*> m_Dispatch;
+        std::map<DispatchableHandle, ValueType*, DispatchableHandleLess> m_Dispatch;
 
         mutable std::mutex m_DispatchMutex;
     };
 }
-
-// Specialize stl structures for unordered_map
-
-template<>
-struct std::hash<Profiler::DispatchableHandle>
-{
-    inline size_t operator()( Profiler::DispatchableHandle a ) const
-    {
-        return reinterpret_cast<size_t>(*(const void**)(a));
-    }
-};
-
-template<>
-struct std::equal_to<Profiler::DispatchableHandle>
-{
-    inline bool operator()( Profiler::DispatchableHandle a, Profiler::DispatchableHandle b ) const
-    {
-        return *(const void**)(a) == *(const void**)(b);
-    }
-};
-
-// Specialize stl structures for map
-
-template<>
-struct std::less<Profiler::DispatchableHandle>
-{
-    inline bool operator()( Profiler::DispatchableHandle a, Profiler::DispatchableHandle b ) const
-    {
-        return *(const void**)(a) < *(const void**)(b);
-    }
-};

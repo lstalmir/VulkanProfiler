@@ -970,6 +970,54 @@ namespace Profiler
 
     /***********************************************************************************\
 
+    Class:
+        ScopedAllocator
+
+    Description:
+        Allocator that automatically frees memory when it goes out of scope.
+
+    \***********************************************************************************/
+    class ScopedAllocator
+    {
+    public:
+        ScopedAllocator() = default;
+
+        ScopedAllocator( const ScopedAllocator& ) = delete;
+        ScopedAllocator& operator=( const ScopedAllocator& ) = delete;
+
+        ScopedAllocator( ScopedAllocator&& ) = delete;
+        ScopedAllocator& operator=( ScopedAllocator&& ) = delete;
+
+        ~ScopedAllocator()
+        {
+            for( void* pMemory : m_pAllocations )
+            {
+                free( pMemory );
+            }
+        }
+
+        void* Allocate( size_t size )
+        {
+            void* pMemory = malloc( size );
+            if( pMemory )
+            {
+                m_pAllocations.insert( pMemory );
+            }
+            return pMemory;
+        }
+
+        template<typename T>
+        T* Allocate( size_t count )
+        {
+            return reinterpret_cast<T*>( Allocate( count * sizeof( T ) ) );
+        }
+
+    private:
+        std::unordered_set<void*> m_pAllocations;
+    };
+
+    /***********************************************************************************\
+
     Function:
         CopyElements
 

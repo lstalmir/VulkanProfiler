@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2025 Lukasz Stalmirski
+// Copyright (c) 2023-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -42,20 +42,39 @@ namespace Profiler
         // Synchronize host access to the queue object in case the overlay tries to use it.
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        dd.Profiler.PreSubmitCommandBuffers( queue );
+        // Prepare the command buffers for profiling.
+        // This may insert additional command buffers to each VkSubmitInfo to reset queries and copy data to buffers.
+        DeviceProfilerSubmitCommandScratchData scratchData( queue, submitCount, pSubmits );
+        dd.Profiler.PrepareQueueSubmit( scratchData );
+
+        // Additionally, synchronize all queues if requested by the user.
+        std::unique_lock queueLock( dd.Profiler.m_SubmitMutex, std::defer_lock );
+        if( dd.Profiler.m_Config.m_SynchronizeQueues )
+        {
+            queueLock.lock();
+        }
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit2KHR( queue, submitCount, pSubmits, fence );
+        VkResult result = dd.Device.Callbacks.QueueSubmit2KHR(
+            queue,
+            scratchData.GetSubmitInfoCount(),
+            scratchData.GetSubmitInfos(),
+            fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( queue, submitCount, pSubmits );
+        // Finalize the submission.
+        dd.Profiler.FinishQueueSubmit( scratchData, result );
+
+        // Wait for the command buffers to finish executing to ensure the queues are not executing in parallel.
+        if( dd.Profiler.m_Config.m_SynchronizeQueues )
+        {
+            dd.Device.Callbacks.QueueWaitIdle( queue );
+            queueLock.unlock();
+        }
 
         // Consume the collected data
-        if( dd.Profiler.m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        if( dd.pOutput )
         {
-            if( dd.pOutput )
-            {
-                dd.pOutput->Update();
-            }
+            dd.pOutput->Update();
         }
 
         return result;

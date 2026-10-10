@@ -28,3 +28,14 @@ add_definitions (-DVK_USE_PLATFORM_WIN32_KHR)
 
 # Disable macros that would collide with stl.
 add_definitions (-DNOMINMAX)
+
+# Determine target architecture.
+if (CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
+    set (PROFILER_ARCH_X86 1)
+    set (PROFILER_ARCH_X86_64 1)
+elseif (CMAKE_SYSTEM_PROCESSOR STREQUAL "X64")
+    set (PROFILER_ARCH_X86 1)
+elseif (CMAKE_SYSTEM_PROCESSOR STREQUAL "ARM64")
+    set (PROFILER_ARCH_ARM 1)
+    set (PROFILER_ARCH_ARM64 1)
+endif ()

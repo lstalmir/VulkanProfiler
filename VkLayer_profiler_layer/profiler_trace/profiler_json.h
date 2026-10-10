@@ -22,6 +22,9 @@
 #include "profiler_helpers/profiler_json_builder.h"
 #include <vulkan/vulkan.h>
 
+#include <unordered_set>
+#include <string>
+
 namespace Profiler
 {
     /*************************************************************************\
@@ -37,6 +40,10 @@ namespace Profiler
     {
     public:
         DeviceProfilerJsonSerializer( const class DeviceProfilerStringSerializer* );
+
+        void WriteApplicationInfo( DeviceProfilerJsonValueBuilder&, const VkApplicationInfo& ) const;
+        void WritePhysicalDeviceProperties( DeviceProfilerJsonValueBuilder&, const VkPhysicalDeviceProperties& ) const;
+        void WriteEnabledExtensions( DeviceProfilerJsonValueBuilder&, const std::unordered_set<std::string>& ) const;
 
         void WriteCommandArgs( DeviceProfilerJsonValueBuilder&, const struct DeviceProfilerDrawcall& ) const;
         void WritePipelineArgs( DeviceProfilerJsonValueBuilder&, const struct DeviceProfilerPipeline& ) const;

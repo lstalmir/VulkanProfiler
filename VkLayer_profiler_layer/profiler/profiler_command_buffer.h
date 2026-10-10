@@ -87,6 +87,7 @@ namespace Profiler
 
         uint64_t GetRequiredQueryDataBufferSize() const;
         void WriteQueryData( DeviceProfilerQueryDataBufferWriter& ) const;
+        void ResetQueryPools( VkCommandBuffer ) const;
 
         const std::unordered_set<ProfilerCommandBuffer*>& GetSecondaryCommandBuffers() const;
 

@@ -19,6 +19,8 @@
 // SOFTWARE.
 
 #pragma once
+#ifdef PROFILER_WITH_NV_METRICS
+
 #include "profiler_performance_counters.h"
 #include "profiler_counters.h"
 #include "utils/lockable_unordered_map.h"
@@ -148,3 +150,5 @@ namespace Profiler
         static void FillPerformanceCounterProperties( const Counter& counter, VkProfilerPerformanceCounterProperties2EXT& properties );
     };
 }
+
+#endif // PROFILER_WITH_NV_METRICS

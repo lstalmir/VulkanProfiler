@@ -217,7 +217,7 @@ namespace ImGuiX
         ImGuiContext& g = *GImGui;
         ImGuiWindow* window = ImGui::GetCurrentWindow();
 
-        ImGuiNextWindowDataFlags backup_next_window_data_flags = g.NextWindowData.Flags;
+        ImGuiNextWindowDataFlags backup_next_window_data_flags = g.NextWindowData.HasFlags;
         g.NextWindowData.ClearFlags(); // We behave like Begin() and need to consume those values
         if( window->SkipItems )
             return false;
@@ -303,7 +303,7 @@ namespace ImGuiX
         if( !popup_open )
             return false;
 
-        g.NextWindowData.Flags = backup_next_window_data_flags;
+        g.NextWindowData.HasFlags = backup_next_window_data_flags;
         return ImGui::BeginComboPopup( popup_id, bb, flags );
     }
 
@@ -423,7 +423,23 @@ namespace ImGuiX
             table->RowPosY2 += bottom;
         }
 
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + bottom );
+        Space( bottom );
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Space
+
+    Description:
+        Unpadded space.
+
+    \*************************************************************************/
+    void Space( float height )
+    {
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 0 ) );
+        ImGui::Dummy( ImVec2( 0, height ) );
+        ImGui::PopStyleVar();
     }
 
     /*************************************************************************\
