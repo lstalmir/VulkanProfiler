@@ -252,6 +252,15 @@ namespace Profiler
             m_PerformanceApiInitialized = ( result == VK_SUCCESS );
         }
 
+        // Reserve configuration map for each queue
+        if( result == VK_SUCCESS )
+        {
+            for( const auto& [queue, queueObj] : m_pVulkanDevice->Queues )
+            {
+                m_pPerformanceApiQueueConfigurations[queue] = nullptr;
+            }
+        }
+
         // Iterate over all concurrent groups to find OA
         if( result == VK_SUCCESS )
         {
@@ -438,13 +447,8 @@ namespace Profiler
             m_MetricsStreamCollectionThread.join();
         }
 
-        if( m_PerformanceApiConfiguration )
-        {
-            assert( m_pVulkanDevice && m_pVulkanDevice->Callbacks.ReleasePerformanceConfigurationINTEL );
-            m_pVulkanDevice->Callbacks.ReleasePerformanceConfigurationINTEL(
-                m_pVulkanDevice->Handle,
-                m_PerformanceApiConfiguration );
-        }
+        m_pPerformanceApiConfiguration.reset();
+        m_pPerformanceApiQueueConfigurations.clear();
 
         if( m_PerformanceApiInitialized )
         {
@@ -494,7 +498,8 @@ namespace Profiler
         m_ActiveMetricsSetIndex = UINT32_MAX;
 
         m_PerformanceApiInitialized = false;
-        m_PerformanceApiConfiguration = VK_NULL_HANDLE;
+        m_pPerformanceApiConfiguration.reset();
+        m_pPerformanceApiQueueConfigurations.clear();
 
         m_MetricsStreamCollectionThread = std::thread();
         m_MetricsStreamCollectionThreadExit = false;
@@ -522,16 +527,30 @@ namespace Profiler
 
         VkResult result = VK_SUCCESS;
 
-        // Configure the queue only if query mode is used and a metrics set is active.
-        if( ( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT ) &&
-            ( m_ActiveMetricsSetIndex != UINT32_MAX ) )
+        // Queue should be inserted into the map during initialization.
+        auto queueConfigurationIt = m_pPerformanceApiQueueConfigurations.find( queue );
+        if( queueConfigurationIt == m_pPerformanceApiQueueConfigurations.end() )
         {
-            assert( m_PerformanceApiConfiguration != VK_NULL_HANDLE );
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
+
+        // Configure the queue only if query mode is used, a metrics set is active,
+        // and it has changed since the last submission to this queue.
+        if( ( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT ) &&
+            ( m_pPerformanceApiConfiguration != nullptr ) &&
+            ( m_pPerformanceApiConfiguration != queueConfigurationIt->second ) )
+        {
+            assert( m_pPerformanceApiConfiguration->m_Handle != VK_NULL_HANDLE );
             assert( m_pVulkanDevice->Callbacks.QueueSetPerformanceConfigurationINTEL );
 
             result = m_pVulkanDevice->Callbacks.QueueSetPerformanceConfigurationINTEL(
                 queue,
-                m_PerformanceApiConfiguration );
+                m_pPerformanceApiConfiguration->m_Handle );
+
+            if( result == VK_SUCCESS )
+            {
+                queueConfigurationIt->second = m_pPerformanceApiConfiguration;
+            }
         }
 
         return result;
@@ -623,13 +642,9 @@ namespace Profiler
         if( m_SamplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT )
         {
             // Release the current performance configuration.
-            if( m_PerformanceApiConfiguration )
+            if( m_pPerformanceApiConfiguration )
             {
-                m_pVulkanDevice->Callbacks.ReleasePerformanceConfigurationINTEL(
-                    m_pVulkanDevice->Handle,
-                    m_PerformanceApiConfiguration );
-
-                m_PerformanceApiConfiguration = VK_NULL_HANDLE;
+                m_pPerformanceApiConfiguration = nullptr;
                 m_ActiveMetricsSetIndex = UINT32_MAX;
             }
 
@@ -645,17 +660,24 @@ namespace Profiler
             acquireInfo.sType = VK_STRUCTURE_TYPE_PERFORMANCE_CONFIGURATION_ACQUIRE_INFO_INTEL;
             acquireInfo.type = VK_PERFORMANCE_CONFIGURATION_TYPE_COMMAND_QUEUE_METRICS_DISCOVERY_ACTIVATED_INTEL;
 
+            std::shared_ptr<Configuration> pConfiguration = std::make_shared<Configuration>(
+                *m_pVulkanDevice );
+
             VkResult result = m_pVulkanDevice->Callbacks.AcquirePerformanceConfigurationINTEL(
                 m_pVulkanDevice->Handle,
                 &acquireInfo,
-                &m_PerformanceApiConfiguration );
+                &pConfiguration->m_Handle );
+
+            if( result == VK_SUCCESS )
+            {
+                m_pPerformanceApiConfiguration = std::move( pConfiguration );
+            }
 
             // Set can be deactivated once the performance configuration is acquired.
             metricsSet.m_pMetricSet->Deactivate();
 
             if( result != VK_SUCCESS )
             {
-                m_PerformanceApiConfiguration = VK_NULL_HANDLE;
                 assert( false );
                 return result;
             }
@@ -1671,6 +1693,42 @@ namespace Profiler
         unit = VK_PROFILER_PERFORMANCE_COUNTER_UNIT_GENERIC_EXT;
         factor = 1.0;
         return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Configuration
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
+    DeviceProfilerPerformanceCountersINTEL::Configuration::Configuration(
+        VkDevice_Object& device )
+        : m_Handle( VK_NULL_HANDLE )
+        , m_Device( device )
+    {
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ~Configuration
+
+    Description:
+        Destructor.
+
+    \***********************************************************************************/
+    DeviceProfilerPerformanceCountersINTEL::Configuration::~Configuration()
+    {
+        if( m_Handle != VK_NULL_HANDLE )
+        {
+            assert( m_Device.Callbacks.ReleasePerformanceConfigurationINTEL != nullptr );
+            m_Device.Callbacks.ReleasePerformanceConfigurationINTEL(
+                m_Device.Handle,
+                m_Handle );
+        }
     }
 }
 

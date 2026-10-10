@@ -80,7 +80,7 @@ target_link_libraries (profiler
 
 if (TARGET metrics-discovery)
     # Intel metrics-discovery may not be available on all platforms.
-    target_link_libraries (profiler PUBLIC metrics-discovery)
+    target_link_libraries (profiler PUBLIC metrics-discovery metrics-library)
     target_compile_definitions (profiler
         PUBLIC PROFILER_WITH_INTEL_METRICS=1)
 endif ()
