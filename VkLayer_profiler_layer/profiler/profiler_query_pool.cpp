@@ -208,13 +208,27 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetContexts
+
+    Description:
+        Returns all contexts stored in the buffer.
+
+    \***********************************************************************************/
+    const DeviceProfilerQueryDataBuffer::ContextMap& DeviceProfilerQueryDataBuffer::GetContexts() const
+    {
+        return m_Contexts;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CreateContext
 
     Description:
         Creates a query data context and associates it with the provided handle.
 
     \***********************************************************************************/
-    DeviceProfilerQueryDataContext* DeviceProfilerQueryDataBuffer::CreateContext( const void* handle )
+    DeviceProfilerQueryDataContext* DeviceProfilerQueryDataBuffer::CreateContext( uint64_t handle )
     {
         return &m_Contexts.emplace( handle, DeviceProfilerQueryDataContext() ).first->second;
     }
@@ -229,7 +243,7 @@ namespace Profiler
         if none was found.
 
     \***********************************************************************************/
-    const DeviceProfilerQueryDataContext* DeviceProfilerQueryDataBuffer::GetContext( const void* handle ) const
+    const DeviceProfilerQueryDataContext* DeviceProfilerQueryDataBuffer::GetContext( uint64_t handle ) const
     {
         auto contextIt = m_Contexts.find( handle );
         if( contextIt != m_Contexts.cend() )
@@ -256,16 +270,10 @@ namespace Profiler
         , m_pData( &dataBuffer )
         , m_pContext( nullptr )
         , m_CommandBuffer( copyCommandBuffer )
+        , m_GpuBuffer( m_pData->GetGpuBuffer() )
+        , m_CpuBuffer( m_pData->GetCpuBuffer() )
         , m_DataOffset( 0 )
     {
-        if( m_CommandBuffer != VK_NULL_HANDLE )
-        {
-            m_GpuBuffer = m_pData->GetGpuBuffer();
-        }
-        else
-        {
-            m_CpuBuffer = m_pData->GetCpuBuffer();
-        }
     }
 
     /***********************************************************************************\
@@ -277,10 +285,27 @@ namespace Profiler
         Sets the command buffer context for the subsequent write operations.
 
     \***********************************************************************************/
-    void DeviceProfilerQueryDataBufferWriter::SetContext( const void* handle )
+    uint64_t DeviceProfilerQueryDataBufferWriter::NextContext()
     {
-        m_pContext = m_pData->CreateContext( handle );
+        uint64_t contextHandle = m_pProfiler->m_RandomGenerator.GetInteger();
+        m_pContext = m_pData->CreateContext( contextHandle );
         m_pContext->m_TimestampDataOffset = m_DataOffset;
+        return contextHandle;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SetCopyCommandBuffer
+
+    Description:
+        Sets the command buffer to be used for copying the query pool results to the
+        data buffer.
+
+    \***********************************************************************************/
+    void DeviceProfilerQueryDataBufferWriter::SetCopyCommandBuffer( VkCommandBuffer commandBuffer )
+    {
+        m_CommandBuffer = commandBuffer;
     }
 
     /***********************************************************************************\
@@ -350,6 +375,60 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        WriteCachedQueryResults
+
+    Description:
+        Copy cached query results from another data buffer into the current context.
+
+        This allows to avoid overwriting the query results in the data buffer when the
+        same secondary command buffer is executed multiple times in the same parent
+        command buffer.
+
+    \***********************************************************************************/
+    void DeviceProfilerQueryDataBufferWriter::WriteCachedQueryResults( const DeviceProfilerQueryDataBuffer& buffer )
+    {
+        std::vector<VkBufferCopy> bufferCopyRegions;
+
+        for( const auto& [contextHandle, contextData] : buffer.GetContexts() )
+        {
+            // Append cached timestamp query results at the end of the current context's timestamp data.
+            if( m_CommandBuffer != VK_NULL_HANDLE )
+            {
+                VkBufferCopy& bufferCopyRegion = bufferCopyRegions.emplace_back();
+                bufferCopyRegion.size = contextData.m_TimestampDataSize;
+                bufferCopyRegion.srcOffset = contextData.m_TimestampDataOffset;
+                bufferCopyRegion.dstOffset = m_DataOffset;
+            }
+            else
+            {
+                // ... CPU path?
+            }
+
+            // Save the updated context info in the current data buffer.
+            DeviceProfilerQueryDataContext* pNewContext = m_pData->CreateContext( contextHandle );
+            pNewContext->m_TimestampDataOffset = m_DataOffset;
+            pNewContext->m_TimestampDataSize = contextData.m_TimestampDataSize;
+            pNewContext->m_PerformanceDataSize = contextData.m_PerformanceDataSize;
+            pNewContext->m_PerformanceDataMetricsSetIndex = contextData.m_PerformanceDataMetricsSetIndex;
+            pNewContext->m_PerformanceQueryPool = contextData.m_PerformanceQueryPool;
+
+            m_DataOffset += contextData.m_TimestampDataSize;
+        }
+
+        if( !bufferCopyRegions.empty() )
+        {
+            m_pProfiler->m_pDevice->Callbacks.CmdCopyBuffer(
+                m_CommandBuffer,
+                buffer.GetGpuBuffer(),
+                m_GpuBuffer,
+                static_cast<uint32_t>( bufferCopyRegions.size() ),
+                bufferCopyRegions.data() );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         DeviceProfilerQueryDataBufferReader
 
     Description:
@@ -374,7 +453,7 @@ namespace Profiler
         Sets the command buffer context for the subsequent read operations.
 
     \***********************************************************************************/
-    void DeviceProfilerQueryDataBufferReader::SetContext( const void* handle )
+    void DeviceProfilerQueryDataBufferReader::SetContext( uint64_t handle )
     {
         m_pContext = m_pData->GetContext( handle );
         m_pMappedTimestampQueryData = reinterpret_cast<const uint64_t*>(m_pMappedData + m_pContext->m_TimestampDataOffset);

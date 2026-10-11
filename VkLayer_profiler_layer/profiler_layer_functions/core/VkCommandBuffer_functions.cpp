@@ -334,10 +334,18 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( commandBuffer );
         TipGuard tip( dd.Device.TIP, __func__ );
 
-        auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
-
         // Record secondary command buffers
-        profiledCommandBuffer.ExecuteCommands( commandBufferCount, pCommandBuffers );
+        std::vector<VkCommandBuffer> secondaryCommandBuffers;
+        if( commandBufferCount && pCommandBuffers )
+        {
+            secondaryCommandBuffers.assign( pCommandBuffers, pCommandBuffers + commandBufferCount );
+
+            auto& profiledCommandBuffer = dd.Profiler.GetCommandBuffer( commandBuffer );
+            profiledCommandBuffer.ExecuteCommands( secondaryCommandBuffers );
+
+            commandBufferCount = static_cast<uint32_t>( secondaryCommandBuffers.size() );
+            pCommandBuffers = secondaryCommandBuffers.data();
+        }
 
         // Execute commands
         dd.Device.Callbacks.CmdExecuteCommands( commandBuffer, commandBufferCount, pCommandBuffers );

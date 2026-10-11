@@ -36,9 +36,15 @@ namespace Profiler
     class DeviceProfiler;
     class DeviceProfilerQueryDataBuffer;
 
+    struct DeviceProfilerSubmitCommandBuffer
+    {
+        ProfilerCommandBuffer*                          m_pCommandBuffer = nullptr;
+        uint64_t                                        m_DataContextHandle = 0;
+    };
+
     struct DeviceProfilerSubmit
     {
-        std::vector<ProfilerCommandBuffer*>             m_pCommandBuffers = {};
+        std::vector<DeviceProfilerSubmitCommandBuffer>  m_CommandBuffers = {};
         std::vector<VkSemaphoreHandle>                  m_SignalSemaphores = {};
         std::vector<VkSemaphoreHandle>                  m_WaitSemaphores = {};
     };
@@ -60,6 +66,8 @@ namespace Profiler
         DeviceProfilerInternalCommandPool*              m_pInternalCommandPool = nullptr;
         VkCommandBuffer                                 m_ResetCommandBuffer  = VK_NULL_HANDLE;
         VkCommandBuffer                                 m_CopyCommandBuffer = VK_NULL_HANDLE;
+        std::vector<std::shared_ptr<VkSemaphore_T>>     m_WaitSemaphores = {};
+        std::shared_ptr<VkSemaphore_T>                  m_SignalSemaphore = nullptr;
         std::shared_ptr<VkFence_T>                      m_Fence = nullptr;
     };
 
@@ -177,5 +185,6 @@ namespace Profiler
         bool ResetQueryPools( DeviceProfilerSubmitBatch& );
         bool WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& );
         bool WriteQueryDataToCpuBuffer( DeviceProfilerSubmitBatch& );
+        void SynchronizeSubmitBatch( DeviceProfilerSubmitBatch& );
     };
 }

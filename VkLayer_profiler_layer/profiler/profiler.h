@@ -26,6 +26,7 @@
 #include "profiler_helpers.h"
 #include "profiler_memory_manager.h"
 #include "profiler_memory_tracker.h"
+#include "profiler_random.h"
 #include "profiler_data.h"
 #include "profiler_sync.h"
 #include "profiler_performance_counters.h"
@@ -211,6 +212,9 @@ namespace Profiler
         bool                    m_ShaderModuleIdentifierEnabled;
 
         void*                   m_pStablePowerStateHandle;
+
+        // Random number generator.
+        DeviceProfilerRandom    m_RandomGenerator;
 
 
         void CreateInternalPipeline( DeviceProfilerPipelineType, const char* );
