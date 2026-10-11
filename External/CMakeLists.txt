@@ -242,8 +242,8 @@ target_include_directories (imgui
     PUBLIC imgui/misc/cpp)
 
 target_compile_definitions (imgui
-    PUBLIC IMGUI_USER_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/imgui_config.h"
-    PUBLIC IMGUI_USER_H_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/imgui_user.h"
+    PUBLIC IMGUI_USER_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/imgui/imgui_config.h"
+    PUBLIC IMGUI_USER_H_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/config/imgui/imgui_user.h"
     PUBLIC IMGUI_INCLUDE_IMGUI_USER_H=1
     PRIVATE VK_NO_PROTOTYPES=1)
 

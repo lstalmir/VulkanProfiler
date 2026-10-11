@@ -191,7 +191,7 @@ add_custom_command (
         --license "Vulkan(R) Profiling Layer" "${CMAKE_SOURCE_DIR}/LICENSE.md"
         --externaldir "${CMAKE_SOURCE_DIR}/External"
         --output "${PROFILER_LICENSES_FILE}"
-        --skip ${PROFILER_CODEGEN_SKIP_LICENSES}
+        --skip config ${PROFILER_CODEGEN_SKIP_LICENSES}
     VERBATIM
     DEPENDS ${PROFILER_CODEGEN_GENERATED_LICENSES}
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_licenses.py")
