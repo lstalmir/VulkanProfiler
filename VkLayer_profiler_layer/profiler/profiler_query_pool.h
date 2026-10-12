@@ -102,7 +102,7 @@ namespace Profiler
 
         uint64_t NextContext();
         void SetCopyCommandBuffer( VkCommandBuffer commandBuffer );
-        void WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryCount );
+        void WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryOffset, uint32_t queryCount );
         void WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex, uint32_t queueFamilyIndex );
         void WriteCachedQueryResults( const DeviceProfilerQueryDataBuffer& buffer );
 

@@ -319,7 +319,7 @@ namespace Profiler
         immediatelly to the CPU allocation of the data buffer.
 
     \***********************************************************************************/
-    void DeviceProfilerQueryDataBufferWriter::WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryCount )
+    void DeviceProfilerQueryDataBufferWriter::WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryOffset, uint32_t queryCount )
     {
         uint32_t dataSize = (queryCount * sizeof( uint64_t ));
 
@@ -328,7 +328,8 @@ namespace Profiler
             m_pProfiler->m_pDevice->Callbacks.CmdCopyQueryPoolResults(
                 m_CommandBuffer,
                 queryPool,
-                0, queryCount,
+                queryOffset,
+                queryCount,
                 m_GpuBuffer,
                 m_DataOffset,
                 sizeof( uint64_t ),
@@ -339,7 +340,8 @@ namespace Profiler
             m_pProfiler->m_pDevice->Callbacks.GetQueryPoolResults(
                 m_pProfiler->m_pDevice->Handle,
                 queryPool,
-                0, queryCount,
+                queryOffset,
+                queryCount,
                 dataSize,
                 m_CpuBuffer + m_DataOffset,
                 sizeof( uint64_t ),
