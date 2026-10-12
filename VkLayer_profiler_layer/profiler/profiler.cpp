@@ -192,6 +192,7 @@ namespace Profiler
         , m_CpuTimestampCounter()
         , m_CpuFpsCounter()
         , m_MemoryTracker()
+        , m_TimestampQueryAllocator()
         , m_pCommandBuffers()
         , m_pCommandPools()
         , m_pPerformanceCounters( nullptr )
@@ -461,6 +462,9 @@ namespace Profiler
 
         // Prepare for memory usage tracking
         m_MemoryTracker.Initialize( m_pDevice );
+
+        // Initialize query allocators
+        m_TimestampQueryAllocator.Initialize( *this, VK_QUERY_TYPE_TIMESTAMP );
 
         // Enable performance counters if available
 #ifdef PROFILER_WITH_INTEL_METRICS
