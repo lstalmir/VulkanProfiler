@@ -611,6 +611,8 @@ namespace Profiler
         m_pCommandBuffers.clear();
         m_pCommandPools.clear();
 
+        m_TimestampQueryAllocator.Destroy();
+
         m_MemoryTracker.Destroy();
 
         m_Synchronization.Destroy();

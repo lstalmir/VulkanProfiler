@@ -119,9 +119,7 @@ namespace Profiler
         uint64_t GetTimestampQueryCount() const;
         uint64_t GetRequiredBufferSize() const;
 
-        void PreallocateQueries( VkCommandBuffer commandBuffer );
-
-        void Reset( VkCommandBuffer commandBuffer );
+        void Reset();
 
         void BeginPerformanceQuery( VkCommandBuffer commandBuffer );
         void EndPerformanceQuery( VkCommandBuffer commandBuffer );
@@ -149,7 +147,7 @@ namespace Profiler
         VkQueryPool                      m_PerformanceQueryPool;
         uint32_t                         m_PerformanceQueryMetricsSetIndex;
 
-        void AllocateQueryPool( VkCommandBuffer commandBuffer );
+        bool EnsureTimestampQueryPoolSpace();
         void AllocatePerformanceQueryPool();
     };
 }
