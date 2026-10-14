@@ -165,11 +165,8 @@ namespace Profiler
             // Restore initial state
             Reset( 0 /*flags*/ );
 
-            // Reset query pools.
-            m_pQueryPool->Reset( m_CommandBuffer );
-
-            // Make sure there is at least one query pool available.
-            m_pQueryPool->PreallocateQueries( m_CommandBuffer );
+            // Free queries back to the pool.
+            m_pQueryPool->Reset();
 
             // Begin collection of vendor metrics.
             m_pQueryPool->BeginPerformanceQuery( m_CommandBuffer );
@@ -1491,10 +1488,6 @@ namespace Profiler
         // Begin render pass instrumentation.
         if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
         {
-            // Ensure there are free queries that can be used in the render pass.
-            // The spec forbids resetting the pools inside the render pass scope, so they have to be allocated now.
-            m_pQueryPool->PreallocateQueries( m_CommandBuffer );
-
             m_pCurrentRenderPassData->m_BeginTimestamp.m_Index =
                 m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
         }
