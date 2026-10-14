@@ -395,6 +395,11 @@ namespace Profiler
     \***********************************************************************************/
     uint64_t DeviceProfilerQueryDataBufferReader::ReadTimestampQueryResult( uint64_t queryIndex ) const
     {
+        if( queryIndex == UINT64_MAX )
+        {
+            return 0;
+        }
+
         return m_pMappedTimestampQueryData[ queryIndex ];
     }
 

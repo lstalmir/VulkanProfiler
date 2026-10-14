@@ -132,17 +132,18 @@ namespace Profiler
             m_pDevice->Handle,
             &queryPoolCreateInfo,
             nullptr,
-            &queryPoolHandle ); 
+            &queryPoolHandle );
 
         if( result == VK_SUCCESS )
         {
             try
             {
-                QueryPool& queryPool = m_QueryPools.emplace_back();
+                QueryPool queryPool = {};
                 queryPool.m_Handle = queryPoolHandle;
                 queryPool.m_Allocations.resize( m_QueryPoolSize / m_QueryAllocationSize, false );
+                m_QueryPools.push_back( std::move( queryPool ) );
 
-                ReserveQueryPool( queryPool, 0 );
+                ReserveQueryPool( m_QueryPools.back(), 0 );
                 return true;
             }
             catch( const std::bad_alloc& )
