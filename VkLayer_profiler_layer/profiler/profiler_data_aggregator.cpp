@@ -24,6 +24,7 @@
 #include "profiler_helpers.h"
 #include "profiler_layer_objects/VkDevice_object.h"
 #include "profiler_performance_counters.h"
+#include "profiler_stat_comparators.h"
 #include <assert.h>
 #include <algorithm>
 #include <unordered_set>
@@ -705,11 +706,22 @@ namespace Profiler
                 {
                     submitData.m_CommandBuffers.push_back( commandBufferData );
 
-                    submitData.m_BeginTimestamp.m_Value = std::min(
-                        submitData.m_BeginTimestamp.m_Value, commandBufferData.m_BeginTimestamp.m_Value );
-                    submitData.m_EndTimestamp.m_Value = std::max(
-                        submitData.m_EndTimestamp.m_Value, commandBufferData.m_EndTimestamp.m_Value );
+                    if( CheckDurationTimestamps( commandBufferData ) )
+                    {
+                        submitData.m_BeginTimestamp.m_Value = std::min(
+                            submitData.m_BeginTimestamp.m_Value, commandBufferData.m_BeginTimestamp.m_Value );
+                        submitData.m_EndTimestamp.m_Value = std::max(
+                            submitData.m_EndTimestamp.m_Value, commandBufferData.m_EndTimestamp.m_Value );
+                    }
                 }
+            }
+
+            if( ( submitData.m_BeginTimestamp.m_Value != std::numeric_limits<uint64_t>::max() ) &&
+                ( submitData.m_EndTimestamp.m_Value != 0 ) )
+            {
+                // Mark the timestamps as valid if at least one command buffer has valid timestamps.
+                submitData.m_BeginTimestamp.m_Index = 0;
+                submitData.m_EndTimestamp.m_Index = 0;
             }
         }
     }
@@ -743,9 +755,13 @@ namespace Profiler
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
                     frameData.m_Stats += commandBuffer.m_Stats;
-                    frameData.m_Ticks += ( commandBuffer.m_EndTimestamp.m_Value - commandBuffer.m_BeginTimestamp.m_Value );
-                    frameData.m_BeginTimestamp = std::min( frameData.m_BeginTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
-                    frameData.m_EndTimestamp = std::max( frameData.m_EndTimestamp, commandBuffer.m_EndTimestamp.m_Value );
+
+                    if( CheckDurationTimestamps( commandBuffer ) )
+                    {
+                        frameData.m_Ticks += ( commandBuffer.m_EndTimestamp.m_Value - commandBuffer.m_BeginTimestamp.m_Value );
+                        frameData.m_BeginTimestamp = std::min( frameData.m_BeginTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
+                        frameData.m_EndTimestamp = std::max( frameData.m_EndTimestamp, commandBuffer.m_EndTimestamp.m_Value );
+                    }
                 }
             }
         }
@@ -1030,7 +1046,7 @@ namespace Profiler
                     }
 
                     // Use command buffer duration as weight of the metric value in the frame
-                    const uint64_t valueWeight = ( commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value );
+                    const uint64_t valueWeight = GetDuration( commandBufferData );
                     const auto* pValues = commandBufferData.m_PerformanceCounters.m_Results.data();
 
                     for( uint32_t i = 0; i < metricCount; ++i )
@@ -1161,7 +1177,7 @@ namespace Profiler
         std::sort( pipelines.begin(), pipelines.end(),
             []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
             {
-                return ( a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value ) > ( b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value );
+                return GetDuration( a ) > GetDuration( b );
             } );
 
         return pipelines;
@@ -1194,8 +1210,8 @@ namespace Profiler
         for( const auto& renderPass : commandBuffer.m_RenderPasses )
         {
             // Aggregate begin/end render pass time
-            beginRenderPassPipeline.m_EndTimestamp.m_Value += ( renderPass.m_Begin.m_EndTimestamp.m_Value - renderPass.m_Begin.m_BeginTimestamp.m_Value );
-            endRenderPassPipeline.m_EndTimestamp.m_Value += ( renderPass.m_End.m_EndTimestamp.m_Value - renderPass.m_End.m_BeginTimestamp.m_Value );
+            beginRenderPassPipeline.m_EndTimestamp.m_Value += GetDuration( renderPass.m_Begin );
+            endRenderPassPipeline.m_EndTimestamp.m_Value += GetDuration( renderPass.m_End );
 
             for( const auto& subpass : renderPass.m_Subpasses )
             {
@@ -1257,6 +1273,12 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
+        if( !CheckDurationTimestamps( pipeline ) )
+        {
+            // Skip the pipeline if timestamps are not available.
+            return;
+        }
+
         auto emplaced = aggregatedPipelines.try_emplace(
             pipeline.m_ShaderTuple.m_Hash,
             static_cast<const DeviceProfilerPipeline&>( pipeline ) );
@@ -1266,11 +1288,13 @@ namespace Profiler
         if( emplaced.second )
         {
             // Initialize aggregated pipeline data if new element was inserted into the map
+            aggregatedPipelineData.m_BeginTimestamp.m_Index = 0;
             aggregatedPipelineData.m_BeginTimestamp.m_Value = 0;
+            aggregatedPipelineData.m_EndTimestamp.m_Index = 0;
             aggregatedPipelineData.m_EndTimestamp.m_Value = 0;
         }
 
-        uint64_t pipelineSelfTime = pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value;
+        uint64_t pipelineSelfTime = GetDuration( pipeline );
 
         // Check if the current pipeline is a top-level pipeline (i.e. not executed within another pipeline)
         // by looking for the existing pipeline range that contains its execution time range.

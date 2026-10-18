@@ -1051,7 +1051,7 @@ namespace Profiler
     {
         if( m_ProfilingEnabled )
         {
-            writer.SetContext( this );
+            writer.SetContext( this, m_CommandPool.GetQueueTimestampValidBits() );
             m_pQueryPool->WriteQueryData( writer );
 
             for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )

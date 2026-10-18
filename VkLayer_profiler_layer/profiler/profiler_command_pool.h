@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -42,12 +42,13 @@ namespace Profiler
 
         VkCommandPool GetHandle() const;
         uint32_t GetQueueFamilyIndex() const;
+        uint32_t GetQueueTimestampValidBits() const;
         bool SupportsTimestampQuery() const;
 
     private:
         VkCommandPool m_CommandPool;
         uint32_t m_QueueFamilyIndex;
-        bool m_SupportsTimestampQuery;
+        uint32_t m_TimestampValidBits;
     };
 
     /***********************************************************************************\

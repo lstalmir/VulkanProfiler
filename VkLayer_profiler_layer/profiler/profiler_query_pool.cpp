@@ -20,6 +20,7 @@
 
 #include "profiler_query_pool.h"
 #include "profiler_memory_manager.h"
+#include "profiler_data.h"
 #include "profiler.h"
 
 namespace Profiler
@@ -277,10 +278,11 @@ namespace Profiler
         Sets the command buffer context for the subsequent write operations.
 
     \***********************************************************************************/
-    void DeviceProfilerQueryDataBufferWriter::SetContext( const void* handle )
+    void DeviceProfilerQueryDataBufferWriter::SetContext( const void* handle, uint32_t timestampValidBits )
     {
         m_pContext = m_pData->CreateContext( handle );
         m_pContext->m_TimestampDataOffset = m_DataOffset;
+        m_pContext->m_TimestampValidMask = ( 1ULL << timestampValidBits ) - 1;
     }
 
     /***********************************************************************************\
@@ -291,7 +293,7 @@ namespace Profiler
     Description:
         If a command buffer is available, the function copies the query pool results
         using vkCmdCopyQueryPoolResults command. Otherwise, copies the query results
-        immediatelly to the CPU allocation of the data buffer.
+        immediately to the CPU allocation of the data buffer.
 
     \***********************************************************************************/
     void DeviceProfilerQueryDataBufferWriter::WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryOffset, uint32_t queryCount )
@@ -400,7 +402,7 @@ namespace Profiler
             return 0;
         }
 
-        return m_pMappedTimestampQueryData[ queryIndex ];
+        return m_pMappedTimestampQueryData[queryIndex] & m_pContext->m_TimestampValidMask;
     }
 
     /***********************************************************************************\
