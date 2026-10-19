@@ -20,6 +20,7 @@
 
 #include "profiler_query_pool.h"
 #include "profiler_memory_manager.h"
+#include "profiler_data.h"
 #include "profiler.h"
 
 namespace Profiler
@@ -277,10 +278,11 @@ namespace Profiler
         Sets the command buffer context for the subsequent write operations.
 
     \***********************************************************************************/
-    void DeviceProfilerQueryDataBufferWriter::SetContext( const void* handle )
+    void DeviceProfilerQueryDataBufferWriter::SetContext( const void* handle, uint32_t timestampValidBits )
     {
         m_pContext = m_pData->CreateContext( handle );
         m_pContext->m_TimestampDataOffset = m_DataOffset;
+        m_pContext->m_TimestampValidMask = ( timestampValidBits < 64 ) ? ( 1ULL << timestampValidBits ) - 1 : UINT64_MAX;
     }
 
     /***********************************************************************************\
@@ -291,10 +293,10 @@ namespace Profiler
     Description:
         If a command buffer is available, the function copies the query pool results
         using vkCmdCopyQueryPoolResults command. Otherwise, copies the query results
-        immediatelly to the CPU allocation of the data buffer.
+        immediately to the CPU allocation of the data buffer.
 
     \***********************************************************************************/
-    void DeviceProfilerQueryDataBufferWriter::WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryCount )
+    void DeviceProfilerQueryDataBufferWriter::WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryOffset, uint32_t queryCount )
     {
         uint32_t dataSize = (queryCount * sizeof( uint64_t ));
 
@@ -303,7 +305,8 @@ namespace Profiler
             m_pProfiler->m_pDevice->Callbacks.CmdCopyQueryPoolResults(
                 m_CommandBuffer,
                 queryPool,
-                0, queryCount,
+                queryOffset,
+                queryCount,
                 m_GpuBuffer,
                 m_DataOffset,
                 sizeof( uint64_t ),
@@ -314,7 +317,8 @@ namespace Profiler
             m_pProfiler->m_pDevice->Callbacks.GetQueryPoolResults(
                 m_pProfiler->m_pDevice->Handle,
                 queryPool,
-                0, queryCount,
+                queryOffset,
+                queryCount,
                 dataSize,
                 m_CpuBuffer + m_DataOffset,
                 sizeof( uint64_t ),
@@ -393,7 +397,12 @@ namespace Profiler
     \***********************************************************************************/
     uint64_t DeviceProfilerQueryDataBufferReader::ReadTimestampQueryResult( uint64_t queryIndex ) const
     {
-        return m_pMappedTimestampQueryData[ queryIndex ];
+        if( queryIndex == UINT64_MAX )
+        {
+            return 0;
+        }
+
+        return m_pMappedTimestampQueryData[queryIndex] & m_pContext->m_TimestampValidMask;
     }
 
     /***********************************************************************************\

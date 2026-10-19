@@ -2182,7 +2182,8 @@ namespace Profiler
                 {
                     if( (performanceQueryResultsFiltered == false) &&
                         (commandBuffer.m_Handle != VK_NULL_HANDLE) &&
-                        (commandBuffer.m_Handle == m_PerformanceQueryCommandBufferFilter) )
+                        (commandBuffer.m_Handle == m_PerformanceQueryCommandBufferFilter) &&
+                        CheckDurationTimestamps( commandBuffer ) )
                     {
                         // Use the data from this command buffer.
                         rangeData.m_pPerformanceCountersData = &commandBuffer.m_PerformanceCounters;
@@ -6661,7 +6662,7 @@ namespace Profiler
 
                     for( const auto& commandBuffer : submit.m_CommandBuffers )
                     {
-                        if( !commandBuffer.m_DataValid )
+                        if( !commandBuffer.m_DataValid || !CheckDurationTimestamps( commandBuffer ) )
                         {
                             // Take command buffers with no data into account.
                             index.back()++;
@@ -6874,8 +6875,7 @@ namespace Profiler
                         // Insert idle time since last command buffer
                         if( m_HistogramShowIdle &&
                             ( pLastQueueTimestamp != nullptr ) &&
-                            ( commandBuffer.m_BeginTimestamp.m_Index != UINT64_MAX ) &&
-                            ( commandBuffer.m_EndTimestamp.m_Index != UINT64_MAX ) )
+                            CheckDurationTimestamps( commandBuffer ) )
                         {
                             if( pLastQueueTimestamp->second != 0 )
                             {
@@ -8897,7 +8897,19 @@ namespace Profiler
     template <typename Data>
     void ProfilerOverlayOutput::PrintDuration( const Data& data )
     {
-        PrintDuration( data.m_BeginTimestamp.m_Value, data.m_EndTimestamp.m_Value );
+        DeviceProfilerTimestamp begin = data.GetBeginTimestamp();
+        DeviceProfilerTimestamp end = data.GetEndTimestamp();
+
+        if( CheckDurationTimestamps( begin, end ) )
+        {
+            PrintDuration( begin.m_Value, end.m_Value );
+        }
+        else
+        {
+            // No data collected
+            ImGuiX::TextAlignRight( "- %s",
+                m_pTimestampDisplayUnitStr );
+        }
     }
 
     /***********************************************************************************\

@@ -24,12 +24,75 @@
 #include <vulkan/vk_layer.h>
 
 #include <vector>
+#include <mutex>
 
 namespace Profiler
 {
     class DeviceProfiler;
     class DeviceProfilerQueryDataBufferWriter;
     struct VkDevice_Object;
+
+    /***********************************************************************************\
+
+    Structure:
+        CommandBufferQueryPoolAllocation
+
+    Description:
+
+    \***********************************************************************************/
+    struct CommandBufferQueryPoolAllocation
+    {
+        VkQueryPool m_QueryPool;
+        uint32_t    m_QueryOffset;
+        uint32_t    m_QueryCount;
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        CommandBufferQueryAllocator
+
+    Description:
+
+    \***********************************************************************************/
+    class CommandBufferQueryPoolAllocator
+    {
+    public:
+        static constexpr uint32_t m_scDefaultQueryPoolSize = 32768;
+        static constexpr uint32_t m_scDefaultAllocationSize = 256;
+
+        CommandBufferQueryPoolAllocator();
+
+        VkResult Initialize(
+            DeviceProfiler& profiler,
+            VkQueryType queryType,
+            uint32_t queryPoolSize = m_scDefaultQueryPoolSize,
+            uint32_t queryAllocationSize = m_scDefaultAllocationSize );
+
+        void Destroy();
+
+        bool Allocate( CommandBufferQueryPoolAllocation& allocation );
+        void Free( const CommandBufferQueryPoolAllocation& allocation );
+
+    private:
+        DeviceProfiler*                  m_pProfiler;
+        VkDevice_Object*                 m_pDevice;
+        
+        VkQueryType                      m_QueryType;
+        uint32_t                         m_QueryPoolSize;
+        uint32_t                         m_QueryAllocationSize;
+
+        struct QueryPool
+        {
+            VkQueryPool                  m_Handle;
+            std::vector<bool>            m_Allocations;
+        };
+
+        std::mutex                       m_Mutex;
+        std::vector<QueryPool>           m_QueryPools;
+
+        void ResetMembers();
+    };
 
     /***********************************************************************************\
 
@@ -56,9 +119,7 @@ namespace Profiler
         uint64_t GetTimestampQueryCount() const;
         uint64_t GetRequiredBufferSize() const;
 
-        void PreallocateQueries( VkCommandBuffer commandBuffer );
-
-        void Reset( VkCommandBuffer commandBuffer );
+        void Reset();
 
         void BeginPerformanceQuery( VkCommandBuffer commandBuffer );
         void EndPerformanceQuery( VkCommandBuffer commandBuffer );
@@ -72,21 +133,21 @@ namespace Profiler
         DeviceProfiler&                  m_Profiler;
         VkDevice_Object&                 m_Device;
 
+        CommandBufferQueryPoolAllocator& m_TimestampAllocator;
+
         VkCommandBufferLevel             m_CommandBufferLevel;
         uint32_t                         m_QueueFamilyIndex;
 
         DeviceProfilerPerformanceCounters* m_pPerformanceCounters;
 
-        std::vector<VkQueryPool>         m_QueryPools;
-        uint32_t                         m_QueryPoolSize;
-        uint32_t                         m_CurrentQueryPoolIndex;
+        std::vector<CommandBufferQueryPoolAllocation> m_QueryPools;
         uint32_t                         m_CurrentQueryIndex;
         uint64_t                         m_AbsQueryIndex;
 
         VkQueryPool                      m_PerformanceQueryPool;
         uint32_t                         m_PerformanceQueryMetricsSetIndex;
 
-        void AllocateQueryPool( VkCommandBuffer commandBuffer );
+        bool EnsureTimestampQueryPoolSpace();
         void AllocatePerformanceQueryPool();
     };
 }

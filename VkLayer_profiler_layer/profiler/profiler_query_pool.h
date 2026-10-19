@@ -34,6 +34,7 @@ namespace Profiler
     {
         uint32_t m_TimestampDataOffset = 0;
         uint32_t m_TimestampDataSize = 0;
+        uint64_t m_TimestampValidMask = UINT64_MAX;
         uint32_t m_PerformanceDataSize = 0;
         uint32_t m_PerformanceDataMetricsSetIndex = 0;
         VkQueryPool m_PerformanceQueryPool = VK_NULL_HANDLE;
@@ -97,8 +98,8 @@ namespace Profiler
             DeviceProfilerQueryDataBuffer& dataBuffer,
             VkCommandBuffer copyCommandBuffer = VK_NULL_HANDLE );
 
-        void SetContext( const void* handle );
-        void WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryCount );
+        void SetContext( const void* handle, uint32_t timestampValidBits );
+        void WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryOffset, uint32_t queryCount );
         void WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex, uint32_t queueFamilyIndex );
 
     private:

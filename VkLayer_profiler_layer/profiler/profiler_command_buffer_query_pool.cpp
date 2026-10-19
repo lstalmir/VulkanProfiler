@@ -30,6 +30,184 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        CommandBufferQueryPoolAllocator
+
+    Description:
+        Constructor.
+
+    \***********************************************************************************/
+    CommandBufferQueryPoolAllocator::CommandBufferQueryPoolAllocator()
+    {
+        ResetMembers();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Initialize
+
+    Description:
+        Initializes the query allocator.
+
+    \***********************************************************************************/
+    VkResult CommandBufferQueryPoolAllocator::Initialize( DeviceProfiler& profiler, VkQueryType queryType, uint32_t queryPoolSize, uint32_t queryAllocationSize )
+    {
+        m_pProfiler = &profiler;
+        m_pDevice = profiler.m_pDevice;
+
+        m_QueryType = queryType;
+        m_QueryPoolSize = queryPoolSize;
+        m_QueryAllocationSize = queryAllocationSize;
+
+        return VK_SUCCESS;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+        Destroys the query allocator.
+
+    \***********************************************************************************/
+    void CommandBufferQueryPoolAllocator::Destroy()
+    {
+        std::scoped_lock lock( m_Mutex );
+
+        for( QueryPool& queryPool : m_QueryPools )
+        {
+            assert( m_pDevice != nullptr );
+            m_pDevice->Callbacks.DestroyQueryPool(
+                m_pDevice->Handle,
+                queryPool.m_Handle,
+                nullptr );
+        }
+
+        ResetMembers();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Allocate
+
+    Description:
+        Suballocates a range of queries from the query pool.
+
+    \***********************************************************************************/
+    bool CommandBufferQueryPoolAllocator::Allocate( CommandBufferQueryPoolAllocation& allocation )
+    {
+        std::scoped_lock lock( m_Mutex );
+
+        auto ReserveQueryPool = [&]( QueryPool& queryPool, uint32_t chunkIndex )
+        {
+            queryPool.m_Allocations[chunkIndex] = true;
+            allocation.m_QueryPool = queryPool.m_Handle;
+            allocation.m_QueryOffset = chunkIndex * m_QueryAllocationSize;
+            allocation.m_QueryCount = m_QueryAllocationSize;
+        };
+
+        // Try to suballocate from an existing query pool.
+        for( QueryPool& queryPool : m_QueryPools )
+        {
+            for( uint32_t i = 0; i < queryPool.m_Allocations.size(); ++i )
+            {
+                if( !queryPool.m_Allocations[i] )
+                {
+                    ReserveQueryPool( queryPool, i );
+                    return true;
+                }
+            }
+        }
+
+        // Create a new query pool if no existing pool has free space.
+        VkQueryPoolCreateInfo queryPoolCreateInfo = {};
+        queryPoolCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+        queryPoolCreateInfo.queryType = m_QueryType;
+        queryPoolCreateInfo.queryCount = m_QueryPoolSize;
+
+        VkQueryPool queryPoolHandle = VK_NULL_HANDLE;
+        VkResult result = m_pDevice->Callbacks.CreateQueryPool(
+            m_pDevice->Handle,
+            &queryPoolCreateInfo,
+            nullptr,
+            &queryPoolHandle );
+
+        if( result == VK_SUCCESS )
+        {
+            try
+            {
+                QueryPool queryPool = {};
+                queryPool.m_Handle = queryPoolHandle;
+                queryPool.m_Allocations.resize( m_QueryPoolSize / m_QueryAllocationSize, false );
+                m_QueryPools.push_back( std::move( queryPool ) );
+
+                ReserveQueryPool( m_QueryPools.back(), 0 );
+                return true;
+            }
+            catch( const std::bad_alloc& )
+            {
+                // Failed to allocate memory for the query pool state.
+                m_pDevice->Callbacks.DestroyQueryPool(
+                    m_pDevice->Handle,
+                    queryPoolHandle,
+                    nullptr );
+
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Free
+
+    Description:
+        Frees a previously allocated range of queries.
+
+    \***********************************************************************************/
+    void CommandBufferQueryPoolAllocator::Free( const CommandBufferQueryPoolAllocation& allocation )
+    {
+        std::scoped_lock lock( m_Mutex );
+
+        for( QueryPool& queryPool : m_QueryPools )
+        {
+            if( queryPool.m_Handle == allocation.m_QueryPool )
+            {
+                queryPool.m_Allocations[allocation.m_QueryOffset / m_QueryAllocationSize] = false;
+                return;
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetMembers
+
+    Description:
+        Resets the members to their default values.
+
+    \***********************************************************************************/
+    void CommandBufferQueryPoolAllocator::ResetMembers()
+    {
+        m_pProfiler = nullptr;
+        m_pDevice = nullptr;
+
+        m_QueryType = {};
+        m_QueryPoolSize = m_scDefaultQueryPoolSize;
+        m_QueryAllocationSize = m_scDefaultAllocationSize;
+
+        m_QueryPools.clear();
+    }
+
+    /***********************************************************************************\
+
+    Function:
         CommandBufferQueryPool
 
     Description:
@@ -39,12 +217,11 @@ namespace Profiler
     CommandBufferQueryPool::CommandBufferQueryPool( DeviceProfiler& profiler, uint32_t queueFamilyIndex, VkCommandBufferLevel level )
         : m_Profiler( profiler )
         , m_Device( *profiler.m_pDevice )
+        , m_TimestampAllocator( profiler.m_TimestampQueryAllocator )
         , m_CommandBufferLevel( level )
         , m_QueueFamilyIndex( queueFamilyIndex )
         , m_pPerformanceCounters( profiler.m_pPerformanceCounters.get() )
         , m_QueryPools( 0 )
-        , m_QueryPoolSize( 32768 )
-        , m_CurrentQueryPoolIndex( 0 )
         , m_CurrentQueryIndex( UINT32_MAX )
         , m_AbsQueryIndex( UINT64_MAX )
         , m_PerformanceQueryPool( VK_NULL_HANDLE )
@@ -63,12 +240,9 @@ namespace Profiler
     \***********************************************************************************/
     CommandBufferQueryPool::~CommandBufferQueryPool()
     {
-        for( VkQueryPool queryPool : m_QueryPools )
+        for( auto& allocation : m_QueryPools )
         {
-            m_Device.Callbacks.DestroyQueryPool(
-                m_Device.Handle,
-                queryPool,
-                nullptr );
+            m_TimestampAllocator.Free( allocation );
         }
 
         if( m_PerformanceQueryPool != VK_NULL_HANDLE )
@@ -128,42 +302,25 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        PreallocateQueries
-
-    Description:
-        Makes sure there is enough space in the timestamp query pools for the following
-        commands. A new pool is allocated when the current pool is used in >80%.
-
-    \***********************************************************************************/
-    void CommandBufferQueryPool::PreallocateQueries( VkCommandBuffer commandBuffer )
-    {
-        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
-
-        if( (m_QueryPools.empty()) ||
-            ((m_CurrentQueryPoolIndex == m_QueryPools.size()) &&
-                (m_CurrentQueryIndex != UINT32_MAX) &&
-                (m_CurrentQueryIndex >= (m_QueryPoolSize * 0.8f))) )
-        {
-            AllocateQueryPool( commandBuffer );
-        }
-    }
-
-    /***********************************************************************************\
-
-    Function:
         Reset
 
     Description:
         Resets the query pools and timestamp query allocator.
 
     \***********************************************************************************/
-    void CommandBufferQueryPool::Reset( VkCommandBuffer commandBuffer )
+    void CommandBufferQueryPool::Reset()
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
         m_AbsQueryIndex = UINT64_MAX;
         m_CurrentQueryIndex = UINT32_MAX;
-        m_CurrentQueryPoolIndex = 0;
+
+        for( CommandBufferQueryPoolAllocation& allocation : m_QueryPools )
+        {
+            m_TimestampAllocator.Free( allocation );
+        }
+
+        m_QueryPools.clear();
     }
 
     /***********************************************************************************\
@@ -241,15 +398,18 @@ namespace Profiler
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
         // Copy data from the full query pools.
-        for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
-        {
-            writer.WriteTimestampQueryResults( m_QueryPools[ queryPoolIndex ], m_QueryPoolSize );
-        }
+        const CommandBufferQueryPoolAllocation* pQueryPoolAllocation = m_QueryPools.data();
 
-        // Copy data from the last query pool.
-        if( m_CurrentQueryIndex != UINT32_MAX )
+        uint64_t queryCountLeft = m_AbsQueryIndex + 1;
+        while( queryCountLeft > 0 )
         {
-            writer.WriteTimestampQueryResults( m_QueryPools[ m_CurrentQueryPoolIndex ], m_CurrentQueryIndex + 1 );
+            uint32_t writeCount = static_cast<uint32_t>(
+                std::min<uint64_t>( queryCountLeft, pQueryPoolAllocation->m_QueryCount ) );
+
+            writer.WriteTimestampQueryResults( pQueryPoolAllocation->m_QueryPool, pQueryPoolAllocation->m_QueryOffset, writeCount );
+
+            queryCountLeft -= writeCount;
+            pQueryPoolAllocation++;
         }
 
         // Copy data from the performance query pool.
@@ -283,22 +443,22 @@ namespace Profiler
     \***********************************************************************************/
     void CommandBufferQueryPool::ResetQueryPools( VkCommandBuffer commandBuffer ) const
     {
-        // Reset the full query pools.
-        for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
-        {
-            m_Device.Callbacks.CmdResetQueryPool(
-                commandBuffer,
-                m_QueryPools[queryPoolIndex],
-                0, m_QueryPoolSize );
-        }
+        const CommandBufferQueryPoolAllocation* pQueryPoolAllocation = m_QueryPools.data();
 
-        // Reset the last query pool.
-        if( m_CurrentQueryIndex != UINT32_MAX )
+        uint64_t queryCountLeft = m_AbsQueryIndex + 1;
+        while( queryCountLeft > 0 )
         {
+            uint32_t resetCount = static_cast<uint32_t>(
+                std::min<uint64_t>( queryCountLeft, pQueryPoolAllocation->m_QueryCount ) );
+
             m_Device.Callbacks.CmdResetQueryPool(
                 commandBuffer,
-                m_QueryPools[m_CurrentQueryPoolIndex],
-                0, ( m_CurrentQueryIndex + 1 ) );
+                pQueryPoolAllocation->m_QueryPool,
+                pQueryPoolAllocation->m_QueryOffset,
+                resetCount );
+
+            queryCountLeft -= resetCount;
+            pQueryPoolAllocation++;
         }
     }
 
@@ -314,28 +474,20 @@ namespace Profiler
     \***********************************************************************************/
     uint64_t CommandBufferQueryPool::WriteTimestamp( VkCommandBuffer commandBuffer, VkPipelineStageFlagBits stage )
     {
-        // Allocate query from the pool
+        if( !EnsureTimestampQueryPoolSpace() )
+        {
+            return UINT64_MAX;
+        }
+
         m_AbsQueryIndex++;
         m_CurrentQueryIndex++;
-
-        if( m_CurrentQueryIndex == m_QueryPoolSize )
-        {
-            // Try to reuse next query pool
-            m_CurrentQueryIndex = 0;
-            m_CurrentQueryPoolIndex++;
-
-            if( m_CurrentQueryPoolIndex == m_QueryPools.size() )
-            {
-                AllocateQueryPool( commandBuffer );
-            }
-        }
 
         // Send the query
         m_Device.Callbacks.CmdWriteTimestamp(
             commandBuffer,
             stage,
-            m_QueryPools[ m_CurrentQueryPoolIndex ],
-            m_CurrentQueryIndex );
+            m_QueryPools.back().m_QueryPool,
+            m_QueryPools.back().m_QueryOffset + m_CurrentQueryIndex );
 
         // Return index to the allocated query.
         return m_AbsQueryIndex;
@@ -344,33 +496,42 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        AllocateQueryPool
+        EnsureQueryPoolSpace
 
     Description:
-        Allocates a new timestamp query pool.
+        Allocates a new timestamp query pool if needed.
 
     \***********************************************************************************/
-    void CommandBufferQueryPool::AllocateQueryPool( VkCommandBuffer commandBuffer )
+    bool CommandBufferQueryPool::EnsureTimestampQueryPoolSpace()
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        VkQueryPoolCreateInfo queryPoolCreateInfo = {};
-        queryPoolCreateInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-        queryPoolCreateInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
-        queryPoolCreateInfo.queryCount = m_QueryPoolSize;
-
-        VkQueryPool queryPool = VK_NULL_HANDLE;
-        VkResult result = m_Device.Callbacks.CreateQueryPool(
-            m_Device.Handle,
-            &queryPoolCreateInfo,
-            nullptr,
-            &queryPool );
-
-        if( result == VK_SUCCESS )
+        if( ( m_QueryPools.empty() ) ||
+            ( m_CurrentQueryIndex + 1 >= m_QueryPools.back().m_QueryCount ) )
         {
-            assert( queryPool != VK_NULL_HANDLE );
-            m_QueryPools.push_back( queryPool );
+            CommandBufferQueryPoolAllocation allocation;
+            if( !m_TimestampAllocator.Allocate( allocation ) )
+            {
+                // Allocation failed.
+                return false;
+            }
+
+            try
+            {
+                m_QueryPools.push_back( std::move( allocation ) );
+            }
+            catch( const std::bad_alloc& )
+            {
+                // push_back failed.
+                m_TimestampAllocator.Free( allocation );
+                return false;
+            }
+
+            // Start from the beginning of the new query pool.
+            m_CurrentQueryIndex = UINT32_MAX;
         }
+
+        return true;
     }
 
     /***********************************************************************************\

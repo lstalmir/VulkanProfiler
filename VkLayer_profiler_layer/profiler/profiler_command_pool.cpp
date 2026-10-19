@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,7 @@ namespace Profiler
     DeviceProfilerCommandPool::DeviceProfilerCommandPool( DeviceProfiler& profiler, VkCommandPool commandPool, const VkCommandPoolCreateInfo& createInfo )
         : m_CommandPool( commandPool )
         , m_QueueFamilyIndex( createInfo.queueFamilyIndex )
-        , m_SupportsTimestampQuery( false )
+        , m_TimestampValidBits( 0 )
     {
         // Get target command queue family properties
         const VkQueueFamilyProperties& queueFamilyProperties =
@@ -51,7 +51,7 @@ namespace Profiler
         // Profile only queues that support timestamp queries (VUID-vkCmdWriteTimestamp-timestampValidBits-00829)
         if( canResetQueryPool && queueFamilyProperties.timestampValidBits != 0 )
         {
-            m_SupportsTimestampQuery = true;
+            m_TimestampValidBits = queueFamilyProperties.timestampValidBits;
         }
     }
 
@@ -86,15 +86,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        GetCommandQueueFlags
+        GetQueueTimestampValidBits
 
     Description:
-        Get flags of target command queue.
+        Get number of valid bits in timestamp queries for the target queue family.
+
+    \***********************************************************************************/
+    uint32_t DeviceProfilerCommandPool::GetQueueTimestampValidBits() const
+    {
+        return m_TimestampValidBits;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        SupportsTimestampQuery
+
+    Description:
+        Check if the target queue family supports timestamp queries.
 
     \***********************************************************************************/
     bool DeviceProfilerCommandPool::SupportsTimestampQuery() const
     {
-        return m_SupportsTimestampQuery;
+        return m_TimestampValidBits != 0;
     }
 
     /***********************************************************************************\
