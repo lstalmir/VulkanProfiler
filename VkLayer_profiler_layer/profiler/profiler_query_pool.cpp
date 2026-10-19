@@ -282,7 +282,7 @@ namespace Profiler
     {
         m_pContext = m_pData->CreateContext( handle );
         m_pContext->m_TimestampDataOffset = m_DataOffset;
-        m_pContext->m_TimestampValidMask = ( 1ULL << timestampValidBits ) - 1;
+        m_pContext->m_TimestampValidMask = ( timestampValidBits < 64 ) ? ( 1ULL << timestampValidBits ) - 1 : UINT64_MAX;
     }
 
     /***********************************************************************************\
