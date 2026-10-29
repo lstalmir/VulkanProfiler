@@ -49,6 +49,15 @@
 [submodule "External/tabler-icons"]
 	path = External/tabler-icons
 	url = https://github.com/tabler/tabler-icons
+[submodule "External/simdjson"]
+	path = External/simdjson
+	url = https://github.com/simdjson/simdjson
+[submodule "External/rapidyaml"]
+	path = External/rapidyaml
+	url = https://github.com/biojppm/rapidyaml
+[submodule "External/metrics-library"]
+	path = External/metrics-library
+	url = https://github.com/intel/metrics-library
 [submodule "External/wayland-protocols"]
 	path = External/wayland-protocols
 	url = https://gitlab.freedesktop.org/wayland/wayland-protocols

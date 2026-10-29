@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -54,6 +54,8 @@ namespace Profiler
         xcb_window_t m_InputWindow;
         ImVector<xcb_rectangle_t> m_InputRects;
 
+        bool m_HasKeyboardGrab;
+
         xcb_atom_t m_ClipboardSelectionAtom;
         xcb_atom_t m_ClipboardPropertyAtom;
         char* m_pClipboardText;
@@ -67,6 +69,8 @@ namespace Profiler
 
         xcb_get_geometry_reply_t GetGeometry( xcb_drawable_t );
         xcb_atom_t InternAtom( const char* pName, bool onlyIfExists = false );
+
+        void SetKeyboardGrab( bool grab );
 
         void UpdateMousePos();
         void SetClipboardText( const char* pText );

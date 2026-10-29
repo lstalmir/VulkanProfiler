@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +45,7 @@ namespace Profiler
         , m_CommandBuffer( commandBuffer )
         , m_Level( level )
         , m_ProfilingEnabled( true )
-        , m_SecondaryCommandBuffers()
+        , m_pSecondaryCommandBuffers()
         , m_pQueryPool( nullptr )
         , m_Stats()
         , m_Data()
@@ -141,10 +141,9 @@ namespace Profiler
         }
 
         // Secondary command buffers will be executed as well
-        for( VkCommandBuffer commandBuffer : m_SecondaryCommandBuffers )
+        for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
         {
-            // Use direct access - m_CommandBuffers map is already locked
-            m_Profiler.m_pCommandBuffers.unsafe_at( commandBuffer )->Submit();
+            pSecondaryCommandBuffer->Submit();
         }
     }
 
@@ -237,6 +236,22 @@ namespace Profiler
 
             // Perform deferred indirect argument buffer copies.
             FlushIndirectArgumentCopyLists();
+
+            // Flush all memory writes to make timestamp queries available for reading
+            // in the next command buffer that copies the data to the readback buffer.
+            VkMemoryBarrier memoryBarrier = {};
+            memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+            memoryBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+            memoryBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
+            m_Profiler.m_pDevice->Callbacks.CmdPipelineBarrier(
+                m_CommandBuffer,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                0,
+                1, &memoryBarrier,
+                0, nullptr,
+                0, nullptr );
         }
     }
 
@@ -261,7 +276,7 @@ namespace Profiler
             // Reset data
             m_Stats = {};
             m_Data.m_RenderPasses.clear();
-            m_SecondaryCommandBuffers.clear();
+            m_pSecondaryCommandBuffers.clear();
 
             m_CurrentSubpassIndex = DeviceProfilerSubpassData::ImplicitSubpassIndex;
             m_pCurrentRenderPass = nullptr;
@@ -297,8 +312,7 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        if( (m_ProfilingEnabled) &&
-            (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
+        if( m_ProfilingEnabled )
         {
             PreBeginRenderPassCommonProlog();
 
@@ -338,15 +352,18 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        if( (m_ProfilingEnabled) &&
-            (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
+        if( m_ProfilingEnabled )
         {
-            if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
-                ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
+            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
             {
-                m_pCurrentRenderPassData->m_Begin.m_EndTimestamp.m_Index =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                if( m_pCurrentRenderPassData->HasBeginCommand() &&
+                    ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
+                      ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
+                        m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling)) )
+                {
+                    m_pCurrentRenderPassData->m_Begin.m_EndTimestamp.m_Index =
+                        m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                }
             }
 
             // Begin first subpass
@@ -367,19 +384,22 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        if( (m_ProfilingEnabled) &&
-            (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
+        if( m_ProfilingEnabled )
         {
             // End currently profiled subpass
             EndSubpass();
 
-            // Record final transitions and resolves
-            if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
-                ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
+            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
             {
-                m_pCurrentRenderPassData->m_End.m_BeginTimestamp.m_Index =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+                // Record final transitions and resolves
+                if( m_pCurrentRenderPassData->HasEndCommand() &&
+                    ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
+                      ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
+                        m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling)) )
+                {
+                    m_pCurrentRenderPassData->m_End.m_BeginTimestamp.m_Index =
+                        m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+                }
             }
         }
     }
@@ -397,23 +417,32 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        if( (m_ProfilingEnabled) &&
-            (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
+        if( m_ProfilingEnabled )
         {
-            if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
-                ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
+            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
             {
-                m_pCurrentRenderPassData->m_End.m_EndTimestamp.m_Index =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                if( m_pCurrentRenderPassData->HasEndCommand() &&
+                    ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
+                      ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
+                        m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling)) )
+                {
+                    m_pCurrentRenderPassData->m_End.m_EndTimestamp.m_Index =
+                        m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
 
-                // Use the end timestamp of the end command.
-                m_pCurrentRenderPassData->m_EndTimestamp = m_pCurrentRenderPassData->m_End.m_EndTimestamp;
+                    // Use the end timestamp of the end command.
+                    m_pCurrentRenderPassData->m_EndTimestamp = m_pCurrentRenderPassData->m_End.m_EndTimestamp;
+                }
+                else 
+                {
+                    // Use the end timestamp of the last subpass in this render pass.
+                    m_pCurrentRenderPassData->m_EndTimestamp = m_pCurrentRenderPassData->m_Subpasses.back().m_EndTimestamp;
+                }
             }
-            else
+
+            if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
-                // Use the end timestamp of the last subpass in this render pass.
-                m_pCurrentRenderPassData->m_EndTimestamp = m_pCurrentRenderPassData->m_Subpasses.back().m_EndTimestamp;
+                // Record pending indirect argument buffer copies after the render pass.
+                FlushIndirectArgumentCopyLists();
             }
 
             // No more subpasses in this render pass.
@@ -422,13 +451,6 @@ namespace Profiler
             m_pCurrentRenderPassData = nullptr;
             m_pCurrentSubpassData = nullptr;
             m_pCurrentPipelineData = nullptr;
-        }
-
-        if( (m_ProfilingEnabled) &&
-            (m_Profiler.m_Config.m_CaptureIndirectArguments) )
-        {
-            // Record pending indirect argument buffer copies after the render pass.
-            FlushIndirectArgumentCopyLists();
         }
     }
 
@@ -445,8 +467,7 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        if( (m_ProfilingEnabled) &&
-            (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
+        if( m_ProfilingEnabled )
         {
             PreBeginRenderPassCommonProlog();
 
@@ -525,9 +546,24 @@ namespace Profiler
         Marks beginning of next render pass (VK_KHR_dynamic_rendering).
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::PostBeginRendering( const VkRenderingInfo* )
+    void ProfilerCommandBuffer::PostBeginRendering( const VkRenderingInfo* pRenderingInfo )
     {
-        PostBeginRenderPass( nullptr, VK_SUBPASS_CONTENTS_INLINE );
+        VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE;
+
+        if( pRenderingInfo->flags & VK_RENDERING_CONTENTS_SECONDARY_COMMAND_BUFFERS_BIT )
+        {
+            // By default, only secondary command buffers are allowed.
+            contents = VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS;
+
+            // If inline flag is present or nestedCommandBuffer feature is enabled, inline commands are also allowed.
+            if( ( pRenderingInfo->flags & VK_RENDERING_CONTENTS_INLINE_BIT_KHR ) ||
+                ( m_Profiler.m_pDevice->EnabledFeatures.NestedCommandBuffer ) )
+            {
+                contents = VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_KHR;
+            }
+        }
+
+        PostBeginRenderPass( nullptr, contents );
     }
 
     /***********************************************************************************\
@@ -571,8 +607,7 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        if( (m_ProfilingEnabled) &&
-            (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) )
+        if( m_ProfilingEnabled )
         {
             // End currently profiled subpass before beginning new one.
             EndSubpass();
@@ -582,9 +617,12 @@ namespace Profiler
             m_pCurrentSubpassData->m_Index = ++m_CurrentSubpassIndex;
             m_pCurrentSubpassData->m_Contents = contents;
 
-            // Write begin timestamp of the subpass.
-            m_pCurrentSubpassData->m_BeginTimestamp.m_Index =
-                m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
+            {
+                // Write begin timestamp of the subpass.
+                m_pCurrentSubpassData->m_BeginTimestamp.m_Index =
+                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+            }
         }
     }
 
@@ -744,36 +782,28 @@ namespace Profiler
         {
             const DeviceProfilerPipelineType pipelineType = drawcall.GetPipelineType();
 
-            // Insert a timestamp in per-render pass mode if command is recorded outside of the render pass
-            // and the internal render pass has changed.
-            DeviceProfilerRenderPassData* pPreviousRenderPassData = m_pCurrentRenderPassData;
-            DeviceProfilerSubpassData* pPreviousSubpassData = m_pCurrentSubpassData;
-
-            // Pointer to the previous pipeline to update the end timestamp if needed.
-            DeviceProfilerPipelineData* pPreviousPipelineData = nullptr;
-
             // Setup pipeline
             switch( pipelineType )
             {
             case DeviceProfilerPipelineType::eNone:
             case DeviceProfilerPipelineType::eDebug:
-                SetupCommandBufferForStatCounting( { VK_NULL_HANDLE }, &pPreviousPipelineData );
+                SetupCommandBufferForStatCounting( { VK_NULL_HANDLE } );
                 break;
 
             case DeviceProfilerPipelineType::eGraphics:
-                SetupCommandBufferForStatCounting( m_GraphicsPipeline, &pPreviousPipelineData );
+                SetupCommandBufferForStatCounting( m_GraphicsPipeline );
                 break;
 
             case DeviceProfilerPipelineType::eCompute:
-                SetupCommandBufferForStatCounting( m_ComputePipeline, &pPreviousPipelineData );
+                SetupCommandBufferForStatCounting( m_ComputePipeline );
                 break;
 
             case DeviceProfilerPipelineType::eRayTracingKHR:
-                SetupCommandBufferForStatCounting( m_RayTracingPipeline, &pPreviousPipelineData );
+                SetupCommandBufferForStatCounting( m_RayTracingPipeline );
                 break;
 
             default: // Internal pipelines
-                SetupCommandBufferForStatCounting( m_Profiler.GetPipeline( (VkPipeline)pipelineType ), &pPreviousPipelineData );
+                SetupCommandBufferForStatCounting( m_Profiler.GetPipeline( (VkPipeline)pipelineType ) );
                 break;
             }
 
@@ -790,81 +820,52 @@ namespace Profiler
             // Increment drawcall stats
             m_Stats.AddCount( drawcall );
 
-            if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) ||
-                ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                    (m_pCurrentPipelineData != pPreviousPipelineData)) ||
-                ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    (pPreviousRenderPassData != m_pCurrentRenderPassData)) )
+            uint64_t timestampIndex = UINT64_MAX;
+
+            if( m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT )
             {
                 // Begin timestamp query
-                const uint64_t timestampIndex =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
-
-                // Update draw begin timestamp index.
-                if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT )
+                if( timestampIndex == UINT64_MAX )
                 {
-                    m_pCurrentDrawcallData->m_BeginTimestamp.m_Index = timestampIndex;
+                    timestampIndex = m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+                }
+
+                m_pCurrentDrawcallData->m_BeginTimestamp.m_Index = timestampIndex;
+            }
+
+            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
+            {
+                // Begin timestamp query
+                if( timestampIndex == UINT64_MAX )
+                {
+                    timestampIndex = m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
                 }
 
                 // Update pipeline begin timestamp index.
-                if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                    (m_pCurrentPipelineData->m_BeginTimestamp.m_Index == UINT64_MAX) )
+                if( m_pCurrentPipelineData->m_BeginTimestamp.m_Index == UINT64_MAX )
                 {
                     m_pCurrentPipelineData->m_BeginTimestamp.m_Index = timestampIndex;
-
-                    // Update end timestamp of the previous pipeline.
-                    if( pPreviousPipelineData != nullptr )
-                    {
-                        if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
-                            !pPreviousPipelineData->m_Drawcalls.empty() &&
-                            (pPreviousPipelineData->m_Drawcalls.back().m_EndTimestamp.m_Index != UINT64_MAX) )
-                        {
-                            pPreviousPipelineData->m_EndTimestamp =
-                                pPreviousPipelineData->m_Drawcalls.back().m_EndTimestamp;
-                        }
-                        else
-                        {
-                            pPreviousPipelineData->m_EndTimestamp.m_Index = timestampIndex;
-                        }
-                    }
                 }
+            }
 
-                // Update subpass begin timestamp index.
-                if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    (m_pCurrentSubpassData->m_BeginTimestamp.m_Index == UINT64_MAX) )
+            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
+            {
+                // Begin timestamp query
+                if( timestampIndex == UINT64_MAX )
                 {
-                    m_pCurrentSubpassData->m_BeginTimestamp.m_Index = timestampIndex;
-
-                    // Update end timestamp of the previous subpass.
-                    if( pPreviousSubpassData != nullptr )
-                    {
-                        if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                            (pPreviousSubpassData->m_Contents == VK_SUBPASS_CONTENTS_INLINE ||
-                                pPreviousSubpassData->m_Contents == VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT) &&
-                            !pPreviousSubpassData->m_Data.empty() &&
-                            (pPreviousSubpassData->m_Data.back().GetType() == DeviceProfilerSubpassDataType::ePipeline) )
-                        {
-                            auto& pipeline = std::get<DeviceProfilerPipelineData>( pPreviousSubpassData->m_Data.back() );
-                            pPreviousSubpassData->m_EndTimestamp = pipeline.m_EndTimestamp;
-                        }
-                        else
-                        {
-                            pPreviousSubpassData->m_EndTimestamp.m_Index = timestampIndex;
-                        }
-                    }
+                    timestampIndex = m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
                 }
 
                 // Update render pass begin timestamp index.
-                if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                    (m_pCurrentRenderPassData->m_BeginTimestamp.m_Index == UINT64_MAX) )
+                if( m_pCurrentRenderPassData->m_BeginTimestamp.m_Index == UINT64_MAX )
                 {
                     m_pCurrentRenderPassData->m_BeginTimestamp.m_Index = timestampIndex;
+                }
 
-                    // Update end timestamp of the previous render pass.
-                    if( pPreviousRenderPassData != nullptr )
-                    {
-                        pPreviousRenderPassData->m_EndTimestamp = pPreviousSubpassData->m_EndTimestamp;
-                    }
+                // Update subpass begin timestamp index.
+                if( m_pCurrentSubpassData->m_BeginTimestamp.m_Index == UINT64_MAX )
+                {
+                    m_pCurrentSubpassData->m_BeginTimestamp.m_Index = timestampIndex;
                 }
             }
         }
@@ -890,7 +891,7 @@ namespace Profiler
             {
                 assert( m_pCurrentDrawcallData );
 
-                if (drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug)
+                if( drawcall.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
                 {
                     // Send a timestamp query at the end of the command.
                     m_pCurrentDrawcallData->m_EndTimestamp.m_Index =
@@ -936,7 +937,19 @@ namespace Profiler
                     } );
 
                 // Add command buffer reference
-                m_SecondaryCommandBuffers.insert( pCommandBuffers[ i ] );
+                ProfilerCommandBuffer* pSecondaryCommandBuffer = &m_Profiler.GetCommandBuffer( pCommandBuffers[i] );
+                m_pSecondaryCommandBuffers.insert( pSecondaryCommandBuffer );
+
+                // Keep track of nested secondary command buffers
+                if( m_Profiler.m_pDevice->EnabledFeatures.NestedCommandBuffer )
+                {
+                    const std::unordered_set<ProfilerCommandBuffer*>& pNestedCommandBuffers =
+                        pSecondaryCommandBuffer->GetSecondaryCommandBuffers();
+
+                    m_pSecondaryCommandBuffers.insert(
+                        pNestedCommandBuffers.begin(),
+                        pNestedCommandBuffers.end() );
+                }
             }
         }
     }
@@ -1013,11 +1026,19 @@ namespace Profiler
     \***********************************************************************************/
     uint64_t ProfilerCommandBuffer::GetRequiredQueryDataBufferSize() const
     {
+        uint64_t queryDataBufferSize = 0;
+
         if( m_ProfilingEnabled )
         {
-            return m_pQueryPool->GetRequiredBufferSize();
+            queryDataBufferSize = m_pQueryPool->GetRequiredBufferSize();
+
+            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
+            {
+                queryDataBufferSize += pSecondaryCommandBuffer->GetRequiredQueryDataBufferSize();
+            }
         }
-        return 0;
+
+        return queryDataBufferSize;
     }
 
     /***********************************************************************************\
@@ -1036,11 +1057,47 @@ namespace Profiler
             writer.SetContext( this );
             m_pQueryPool->WriteQueryData( writer );
 
-            for( VkCommandBuffer secondaryCommandBuffer : m_SecondaryCommandBuffers )
+            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
             {
-                m_Profiler.GetCommandBuffer( secondaryCommandBuffer ).WriteQueryData( writer );
+                pSecondaryCommandBuffer->WriteQueryData( writer );
             }
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetQueryPools
+
+    Description:
+        Reset all query pools before the next profiling run using the provided command buffer.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::ResetQueryPools( VkCommandBuffer commandBuffer ) const
+    {
+        if( m_ProfilingEnabled )
+        {
+            m_pQueryPool->ResetQueryPools( commandBuffer );
+
+            for( ProfilerCommandBuffer* pSecondaryCommandBuffer : m_pSecondaryCommandBuffers )
+            {
+                pSecondaryCommandBuffer->ResetQueryPools( commandBuffer );
+            }
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetSecondaryCommandBuffers
+
+    Description:
+        Returns a set of secondary command buffers executed in this command buffer.
+
+    \***********************************************************************************/
+    const std::unordered_set<ProfilerCommandBuffer*>& ProfilerCommandBuffer::GetSecondaryCommandBuffers() const
+    {
+        return m_pSecondaryCommandBuffers;
     }
 
     /***********************************************************************************\
@@ -1057,7 +1114,7 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        if( m_ProfilingEnabled && !m_Data.m_DataValid )
+        if( m_ProfilingEnabled )
         {
             reader.SetContext( this );
 
@@ -1217,6 +1274,48 @@ namespace Profiler
                 }
             }
 
+            // Collect the data from the secondary command buffers only if the sampling mode is per-command buffer.
+            else if( !m_pSecondaryCommandBuffers.empty() )
+            {
+                auto ResolveSecondaryCommandBufferData = [&]( DeviceProfilerSubpassData::Data& data )
+                {
+                    assert( data.GetType() == DeviceProfilerSubpassDataType::eCommandBuffer );
+                    auto& commandBufferData = std::get<DeviceProfilerCommandBufferData>( data );
+
+                    ProfilerCommandBuffer& secondaryCommandBuffer =
+                        *m_Profiler.m_pCommandBuffers.unsafe_at( commandBufferData.m_Handle );
+
+                    commandBufferData = secondaryCommandBuffer.GetData( reader );
+                };
+
+                for( auto& renderPass : m_Data.m_RenderPasses )
+                {
+                    for( auto& subpass : renderPass.m_Subpasses )
+                    {
+                        // Treat data as secondary command buffers if subpass contents are secondary command buffers only.
+                        if( subpass.m_Contents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS )
+                        {
+                            for( auto& data : subpass.m_Data )
+                            {
+                                ResolveSecondaryCommandBufferData( data );
+                            }
+                        }
+
+                        // With VK_EXT_nested_command_buffer, it is possible to insert both command buffers and inline commands in the same subpass.
+                        else if( subpass.m_Contents == VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT )
+                        {
+                            for( auto& data : subpass.m_Data )
+                            {
+                                if( data.GetType() == DeviceProfilerSubpassDataType::eCommandBuffer )
+                                {
+                                    ResolveSecondaryCommandBufferData( data );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             m_Data.m_EndTimestamp.m_Value = reader.ReadTimestampQueryResult( m_Data.m_EndTimestamp.m_Index );
 
             // Read vendor-specific data
@@ -1245,7 +1344,6 @@ namespace Profiler
                 ReadIndirectArgumentBuffers( m_Data.m_IndirectPayload );
             }
 
-            // Subsequent calls to GetData will return the same results
             m_Data.m_DataValid = true;
         }
 
@@ -1356,25 +1454,19 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        // End the current render pass, if any.
-        if( m_pCurrentRenderPassData != nullptr )
+        if( m_ProfilingEnabled )
         {
-            // Insert a timestamp query at the render pass boundary.
-            const uint64_t timestampIndex =
-                m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+            // Finalize render pass instrumentation.
+            EndRenderPass();
 
-            // Update an ending timestamp for the previous render pass.
-            m_pCurrentRenderPassData->m_EndTimestamp.m_Index = timestampIndex;
-            m_pCurrentSubpassData->m_EndTimestamp.m_Index = timestampIndex;
-
-            // Update pipeline end timestamp index.
-            if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                (m_pCurrentPipelineData != nullptr) )
+            if( m_Profiler.m_Config.m_CaptureIndirectArguments )
             {
-                m_pCurrentPipelineData->m_EndTimestamp.m_Index = timestampIndex;
+                // Record pending indirect argument buffer copies after the last render pass.
+                FlushIndirectArgumentCopyLists();
             }
 
             // Clear renderpass-scoped pointers.
+            m_CurrentSubpassIndex = DeviceProfilerSubpassData::ImplicitSubpassIndex;
             m_pCurrentRenderPass = nullptr;
             m_pCurrentRenderPassData = nullptr;
             m_pCurrentSubpassData = nullptr;
@@ -1396,19 +1488,60 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        // Ensure there are free queries that can be used in the render pass.
-        // The spec forbids resetting the pools inside the render pass scope, so they have to be allocated now.
-        m_pQueryPool->PreallocateQueries( m_CommandBuffer );
+        // Begin render pass instrumentation.
+        if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
+        {
+            // Ensure there are free queries that can be used in the render pass.
+            // The spec forbids resetting the pools inside the render pass scope, so they have to be allocated now.
+            m_pQueryPool->PreallocateQueries( m_CommandBuffer );
 
-        m_pCurrentRenderPassData->m_BeginTimestamp.m_Index =
-            m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+            m_pCurrentRenderPassData->m_BeginTimestamp.m_Index =
+                m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT );
+        }
 
         // Record initial transitions and clears.
-        if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
-            ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
-                m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling) )
+        if( m_pCurrentRenderPassData->HasBeginCommand() &&
+            ((m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) ||
+              ((m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_RENDER_PASS_EXT) &&
+                m_Profiler.m_Config.m_EnableRenderPassBeginEndProfiling)) )
         {
             m_pCurrentRenderPassData->m_Begin.m_BeginTimestamp = m_pCurrentRenderPassData->m_BeginTimestamp;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EndPipeline
+
+    Description:
+        Marks end of the current pipeline.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::EndPipeline()
+    {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
+        if( m_pCurrentPipelineData )
+        {
+            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT )
+            {
+                // Reuse drawcall end timestamp if available.
+                auto lastDrawcallIt = m_pCurrentPipelineData->m_Drawcalls.rbegin();
+                if( lastDrawcallIt != m_pCurrentPipelineData->m_Drawcalls.rend() )
+                {
+                    m_pCurrentPipelineData->m_EndTimestamp = lastDrawcallIt->m_EndTimestamp;
+                }
+
+                if( m_pCurrentPipelineData->m_EndTimestamp.m_Index == UINT64_MAX )
+                {
+                    m_pCurrentPipelineData->m_EndTimestamp.m_Index =
+                        m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                }
+            }
+
+            // Clear pipeline-scoped pointer.
+            m_pCurrentPipelineData = nullptr;
         }
     }
 
@@ -1418,53 +1551,89 @@ namespace Profiler
         EndSubpass
 
     Description:
-        Marks end of current render pass subpass.
+        Marks end of the current render pass subpass.
 
     \***********************************************************************************/
     void ProfilerCommandBuffer::EndSubpass()
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        // Render pass must be already tracked
-        assert( !m_Data.m_RenderPasses.empty() );
-
-        if( m_CurrentSubpassIndex != DeviceProfilerSubpassData::ImplicitSubpassIndex )
+        if( m_pCurrentSubpassData )
         {
-            assert( m_pCurrentSubpassData );
+            EndPipeline();
 
             // Check if any attachments are resolved at the end of current subpass.
             // m_pCurrentRenderPass may be null in case of dynamic rendering.
-            if( m_pCurrentRenderPass )
+            if( ( m_pCurrentRenderPass != nullptr ) &&
+                ( m_CurrentSubpassIndex != DeviceProfilerSubpassData::ImplicitSubpassIndex ) )
             {
                 m_Stats.m_ResolveStats.m_Count +=
                     m_pCurrentRenderPass->m_Subpasses[m_CurrentSubpassIndex].m_ResolveCount;
             }
 
-            // Send timestamp query at the end of the subpass.
-            if( (m_Profiler.m_Config.m_SamplingMode == VK_PROFILER_MODE_PER_DRAWCALL_EXT) &&
-                (m_pCurrentPipelineData) &&
-                !(m_pCurrentPipelineData->m_Drawcalls.empty()) &&
-                (m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp.m_Index != UINT64_MAX) )
+            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
             {
-                m_pCurrentSubpassData->m_EndTimestamp =
-                    m_pCurrentPipelineData->m_Drawcalls.back().m_EndTimestamp;
-            }
-            else
-            {
-                m_pCurrentSubpassData->m_EndTimestamp.m_Index =
-                    m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
-            }
+                // Send timestamp query at the end of the subpass.
+                auto lastSubpassContentsIt = m_pCurrentSubpassData->m_Data.rbegin();
+                if( lastSubpassContentsIt != m_pCurrentSubpassData->m_Data.rend() )
+                {
+                    // If the last command in the subpass is a pipeline, reuse its end timestamp for the subpass end timestamp.
+                    if( lastSubpassContentsIt->GetType() == DeviceProfilerSubpassDataType::ePipeline )
+                    {
+                        m_pCurrentSubpassData->m_EndTimestamp =
+                            std::get<DeviceProfilerPipelineData>( *lastSubpassContentsIt ).m_EndTimestamp;
+                    }
+                }
 
-            // Update timestamp of the last pipeline in the subpass.
-            if( (m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_PIPELINE_EXT) &&
-                (m_pCurrentPipelineData) )
-            {
-                m_pCurrentPipelineData->m_EndTimestamp = m_pCurrentSubpassData->m_EndTimestamp;
+                if( m_pCurrentSubpassData->m_EndTimestamp.m_Index == UINT64_MAX )
+                {
+                    m_pCurrentSubpassData->m_EndTimestamp.m_Index =
+                        m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                }
             }
 
             // Clear per-subpass pointers.
             m_pCurrentSubpassData = nullptr;
-            m_pCurrentPipelineData = nullptr;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EndRenderPass
+
+    Description:
+        Marks end of the current render pass.
+
+    \***********************************************************************************/
+    void ProfilerCommandBuffer::EndRenderPass()
+    {
+        TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
+
+        if( m_pCurrentRenderPassData )
+        {
+            EndSubpass();
+
+            // Insert a timestamp query at the render pass boundary.
+            if( m_Profiler.m_Config.m_SamplingMode <= VK_PROFILER_MODE_PER_RENDER_PASS_EXT )
+            {
+                // Reuse subpass end timestamp if available.
+                auto lastSubpassIt = m_pCurrentRenderPassData->m_Subpasses.rbegin();
+                if( lastSubpassIt != m_pCurrentRenderPassData->m_Subpasses.rend() )
+                {
+                    m_pCurrentRenderPassData->m_EndTimestamp = lastSubpassIt->m_EndTimestamp;
+                }
+
+                if( m_pCurrentRenderPassData->m_EndTimestamp.m_Index == UINT64_MAX )
+                {
+                    m_pCurrentRenderPassData->m_EndTimestamp.m_Index =
+                        m_pQueryPool->WriteTimestamp( m_CommandBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
+                }
+            }
+
+            // Clear renderpass-scoped pointers.
+            m_pCurrentRenderPass = nullptr;
+            m_pCurrentRenderPassData = nullptr;
         }
     }
 
@@ -1481,32 +1650,11 @@ namespace Profiler
         previously owned by the vector.
 
     \***********************************************************************************/
-    void ProfilerCommandBuffer::SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& pipeline, DeviceProfilerPipelineData** ppPreviousPipelineData )
+    void ProfilerCommandBuffer::SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& pipeline )
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
         const DeviceProfilerRenderPassType renderPassType = GetRenderPassTypeFromPipelineType( pipeline.m_Type );
-
-        // Save index of the current pipeline
-        size_t previousPipelineIndex = SIZE_MAX;
-        DeviceProfilerSubpassData* pPreviousSubpassData = nullptr;
-
-        if( m_pCurrentPipelineData )
-        {
-            assert( m_pCurrentSubpassData );
-            pPreviousSubpassData = m_pCurrentSubpassData;
-            previousPipelineIndex = m_pCurrentSubpassData->m_Data.size();
-
-            while( (previousPipelineIndex--) > 0 )
-            {
-                auto& data = m_pCurrentSubpassData->m_Data[previousPipelineIndex];
-                if( (data.GetType() == DeviceProfilerSubpassDataType::ePipeline) &&
-                    (&std::get<DeviceProfilerPipelineData>( data ) == m_pCurrentPipelineData) )
-                {
-                    break;
-                }
-            }
-        }
 
         // Check if we're in render pass
         if( !m_pCurrentRenderPassData ||
@@ -1514,12 +1662,11 @@ namespace Profiler
                 (m_pCurrentRenderPassData->m_Dynamic == false) &&
                 (m_pCurrentRenderPassData->m_Type != renderPassType)) )
         {
+            EndRenderPass();
+
             m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
             m_pCurrentRenderPassData->m_Handle = VK_NULL_HANDLE;
             m_pCurrentRenderPassData->m_Type = renderPassType;
-
-            // Invalidate subpass pointer after changing the render pass.
-            m_pCurrentSubpassData = nullptr;
         }
 
         // Check if current subpass allows inline commands
@@ -1527,12 +1674,11 @@ namespace Profiler
             ((m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_INLINE) &&
                 (m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT)) )
         {
+            EndSubpass();
+
             m_pCurrentSubpassData = &m_pCurrentRenderPassData->m_Subpasses.emplace_back();
             m_pCurrentSubpassData->m_Index = m_CurrentSubpassIndex;
             m_pCurrentSubpassData->m_Contents = VK_SUBPASS_CONTENTS_INLINE;
-
-            // Invalidate pipeline pointer after chainging the subpass.
-            m_pCurrentPipelineData = nullptr;
         }
 
         // Check if we're in pipeline
@@ -1543,13 +1689,9 @@ namespace Profiler
             ((m_pCurrentPipelineData->m_UsesShaderObjects || pipeline.m_UsesShaderObjects) &&
                 (m_pCurrentPipelineData->m_ShaderTuple.m_Hash != pipeline.m_ShaderTuple.m_Hash)) )
         {
-            m_pCurrentPipelineData = &std::get<DeviceProfilerPipelineData>( m_pCurrentSubpassData->m_Data.emplace_back( pipeline ) );
-        }
+            EndPipeline();
 
-        // Return previous pipeline
-        if( pPreviousSubpassData && previousPipelineIndex != SIZE_MAX )
-        {
-            (*ppPreviousPipelineData) = &std::get<DeviceProfilerPipelineData>( pPreviousSubpassData->m_Data[previousPipelineIndex] );
+            m_pCurrentPipelineData = &std::get<DeviceProfilerPipelineData>( m_pCurrentSubpassData->m_Data.emplace_back( pipeline ) );
         }
     }
 
@@ -1566,8 +1708,13 @@ namespace Profiler
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
         // Check if we're in render pass
-        if( !m_pCurrentRenderPassData )
+        if( !m_pCurrentRenderPassData ||
+            ((m_pCurrentRenderPassData->m_Handle == VK_NULL_HANDLE) &&
+                (m_pCurrentRenderPassData->m_Dynamic == false) &&
+                (m_pCurrentRenderPassData->m_Type != DeviceProfilerRenderPassType::eNone)) )
         {
+            EndRenderPass();
+
             m_pCurrentRenderPassData = &m_Data.m_RenderPasses.emplace_back();
             m_pCurrentRenderPassData->m_Handle = VK_NULL_HANDLE;
             m_pCurrentRenderPassData->m_Type = DeviceProfilerRenderPassType::eNone;
@@ -1578,6 +1725,8 @@ namespace Profiler
             ((m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS) &&
                 (m_pCurrentSubpassData->m_Contents != VK_SUBPASS_CONTENTS_INLINE_AND_SECONDARY_COMMAND_BUFFERS_EXT)) )
         {
+            EndSubpass();
+
             m_pCurrentSubpassData = &m_pCurrentRenderPassData->m_Subpasses.emplace_back();
             m_pCurrentSubpassData->m_Index = m_CurrentSubpassIndex;
             m_pCurrentSubpassData->m_Contents = VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS;

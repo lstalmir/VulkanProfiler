@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,7 @@
 
 #pragma once
 #include <vulkan/vulkan.h>
+#include <vk_mem_alloc.h>
 #include <algorithm>
 #include <vector>
 #include <string>
@@ -103,6 +104,7 @@ namespace Profiler
         std::vector<VkQueue>        Queues;
         VkCommandPool               CommandPool;
         VkDescriptorPool            DescriptorPool;
+        VmaAllocator                Allocator;
 
         struct CreateInfo
         {
@@ -122,6 +124,7 @@ namespace Profiler
             , Queue( VK_NULL_HANDLE )
             , CommandPool( VK_NULL_HANDLE )
             , DescriptorPool( VK_NULL_HANDLE )
+            , Allocator( nullptr )
         {
             // Application info
             {
@@ -148,6 +151,26 @@ namespace Profiler
                 std::vector<const char*> extensions = GetExtensions( createInfo.InstanceExtensions, availableExtensions );
                 instanceCreateInfo.enabledExtensionCount = uint32_t( extensions.size() );
                 instanceCreateInfo.ppEnabledExtensionNames = extensions.data();
+
+                std::vector<const char*> layers = { "VK_LAYER_PROFILER_unified" };
+                instanceCreateInfo.enabledLayerCount = static_cast<uint32_t>( layers.size() );
+                instanceCreateInfo.ppEnabledLayerNames = layers.data();
+
+                VkLayerSettingsCreateInfoEXT layerSettingsCreateInfo = {};
+                layerSettingsCreateInfo.sType = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT;
+
+                const char* output = "none";
+                const char* sampling_mode = "drawcall";
+                const VkBool32 enable_threading = VK_FALSE;
+
+                std::vector<VkLayerSettingEXT> layerSettings;
+                layerSettings.push_back( { "VK_LAYER_PROFILER_unified", "output", VK_LAYER_SETTING_TYPE_STRING_EXT, 1, &output } );
+                layerSettings.push_back( { "VK_LAYER_PROFILER_unified", "sampling_mode", VK_LAYER_SETTING_TYPE_STRING_EXT, 1, &sampling_mode } );
+                layerSettings.push_back( { "VK_LAYER_PROFILER_unified", "enable_threading", VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &enable_threading } );
+
+                layerSettingsCreateInfo.settingCount = static_cast<uint32_t>( layerSettings.size() );
+                layerSettingsCreateInfo.pSettings = layerSettings.data();
+                instanceCreateInfo.pNext = &layerSettingsCreateInfo;
 
                 VERIFY_RESULT( this, vkCreateInstance( &instanceCreateInfo, nullptr, &Instance ) );
             }
@@ -330,6 +353,20 @@ namespace Profiler
 
                 VERIFY_RESULT( this, vkCreateCommandPool( Device, &commandPoolCreateInfo, nullptr, &CommandPool ) );
             }
+
+            // Create memory allocator
+            {
+                VmaVulkanFunctions vulkanFunctions = {};
+                vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+                vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
+                VmaAllocatorCreateInfo allocatorCreateInfo = {};
+                allocatorCreateInfo.physicalDevice = PhysicalDevice;
+                allocatorCreateInfo.device = Device;
+                allocatorCreateInfo.instance = Instance;
+                allocatorCreateInfo.vulkanApiVersion = ApplicationInfo.apiVersion;
+                allocatorCreateInfo.pVulkanFunctions = &vulkanFunctions;
+                VERIFY_RESULT( this, vmaCreateAllocator( &allocatorCreateInfo, &Allocator ) );
+            }
         }
 
         inline void VerifyResult( VkResult result, const char* message )
@@ -345,6 +382,7 @@ namespace Profiler
             vkDeviceWaitIdle( Device );
 
             // Destroy resources allocated for the test
+            vmaDestroyAllocator( Allocator );
             vkDestroyCommandPool( Device, CommandPool, nullptr );
             vkDestroyDescriptorPool( Device, DescriptorPool, nullptr );
 

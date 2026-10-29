@@ -72,6 +72,9 @@ namespace Profiler
 
         // XDG topleve event handlers.
         static void HandleToplevelConfigure( void*, xdg_toplevel*, int32_t, int32_t, wl_array* );
+        static void HandleTopLevelClose( void*, xdg_toplevel* );
+        static void HandleTopLevelConfigureBounds( void*, xdg_toplevel*, int32_t, int32_t );
+        static void HandleTopLevelCapabilities( void*, xdg_toplevel*, wl_array* );
 
         static const xdg_toplevel_listener m_scXdgToplevelListener;
 

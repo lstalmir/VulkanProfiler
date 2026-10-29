@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025 Lukasz Stalmirski
+# Copyright (c) 2024-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,9 +23,14 @@ import os
 import pathlib
 import argparse
 import subprocess
+import locale
 
 # List of file names (without extension) to scan for licenses.
 LICENSE_FILES = [ "COPYING", "LICENSE" ]
+
+# Get the default encoding to use for reading license files.
+DEFAULT_ENCODING = locale.getpreferredencoding()
+SUPPORTED_ENCODINGS = [ DEFAULT_ENCODING, "utf-8" ]
 
 class library_info:
     def __init__( self, name: str, license_path: str ):
@@ -37,7 +42,7 @@ def execute_process( cmd, cwd ):
     result = subprocess.check_output( cmd, cwd=cwd, stderr=subprocess.DEVNULL )
     return result.decode( "utf-8" ).strip()
 
-def find_licenses( directory ):
+def find_licenses( directory, skip_libs ):
     licenses = {}
     for lib in os.listdir( directory ):
         libdir = os.path.join( directory, lib )
@@ -61,9 +66,18 @@ def find_licenses( directory ):
                 info.git_url = execute_process( ["git", "remote", "get-url", remote], cwd=libdir )
             licenses[ lib ] = info
             break
-        if lib not in licenses.keys():
-            raise Exception( f"License not found for {lib}" )
+        if lib not in licenses.keys() and lib not in skip_libs:
+            raise Exception( f"ERROR: License not found for {lib}" )
     return licenses.values()
+
+def read_license_file( license_path ):
+    for encoding in SUPPORTED_ENCODINGS:
+        try:
+            with open( license_path, encoding=encoding ) as license_file:
+                return license_file.readlines()
+        except UnicodeDecodeError:
+            pass
+    raise Exception( f"Failed to read '{license_path}' using any of the known encodings" )
 
 def append_license_file( out, info: library_info ):
     out.write( f"| **{info.name}**\n" )
@@ -71,24 +85,24 @@ def append_license_file( out, info: library_info ):
         out.write( f"| {info.git_url}\n" )
     out.write( "\n" )
     out.write( ".. code-block:: text\n\n" )
-    with open( info.license_path ) as license_file:
-        for line in license_file:
-            out.write( "  " + line.strip() + "\n" )
+    for line in read_license_file( info.license_path ):
+        out.write( "  " + line.strip() + "\n" )
     out.write( "\n\n" )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument( "--license", action="append", nargs=2, dest="license_paths", metavar=("NAME", "PATH") )
+    parser.add_argument( "--license", action="append", nargs=2, dest="license_paths", metavar=("NAME", "PATH"), default=[] )
+    parser.add_argument( "--skip", nargs="*", dest="skip_libs", metavar=("NAME"), default=[] )
     parser.add_argument( "--externaldir", action="append", dest="external_dirs" )
     parser.add_argument( "--output", "-o", dest="output", required=True )
     args = parser.parse_args()
 
-    with open( args.output, mode="w" ) as out:
+    with open( args.output, mode="w", encoding="utf-8" ) as out:
         for lib, path in args.license_paths:
             info = library_info( lib, path )
             append_license_file( out, info )
         for directory in args.external_dirs:
-            licenses = find_licenses( directory )
+            licenses = find_licenses( directory, args.skip_libs )
             for info in licenses:
                 append_license_file( out, info )
 

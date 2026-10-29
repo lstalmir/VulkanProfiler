@@ -36,7 +36,10 @@ namespace Profiler
     };
 
     const xdg_toplevel_listener OverlayLayerWaylandPlatformBackend::m_scXdgToplevelListener = {
-        &OverlayLayerWaylandPlatformBackend::HandleToplevelConfigure
+        &OverlayLayerWaylandPlatformBackend::HandleToplevelConfigure,
+        &OverlayLayerWaylandPlatformBackend::HandleTopLevelClose,
+        &OverlayLayerWaylandPlatformBackend::HandleTopLevelConfigureBounds,
+        &OverlayLayerWaylandPlatformBackend::HandleTopLevelCapabilities
     };
 
     const wl_seat_listener OverlayLayerWaylandPlatformBackend::m_scSeatListener = {
@@ -158,7 +161,6 @@ namespace Profiler
 
         // Setup backend info
         ImGuiIO& io = ImGui::GetIO();
-        io.BackendFlags = 0;
         io.BackendPlatformName = "wayland";
         io.BackendPlatformUserData = this;
 
@@ -212,13 +214,11 @@ namespace Profiler
             assert( ImGui::GetCurrentContext() == m_pImGuiContext );
 
             ImGuiIO& io = ImGui::GetIO();
-            io.BackendFlags = 0;
             io.BackendPlatformName = nullptr;
             io.BackendPlatformUserData = nullptr;
 
             ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
-            platformIO.Platform_GetClipboardTextFn = nullptr;
-            platformIO.Platform_SetClipboardTextFn = nullptr;
+            platformIO.ClearPlatformHandlers();
         }
     }
 
@@ -368,6 +368,48 @@ namespace Profiler
 
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandleToplevelConfigure( void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states )
+    {
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        assert( bd );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        HandleGlobalRemove
+
+    Description:
+
+    \***********************************************************************************/
+    void OverlayLayerWaylandPlatformBackend::HandleTopLevelClose( void* data, xdg_toplevel* toplevel )
+    {
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        assert( bd );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        HandleGlobalRemove
+
+    Description:
+
+    \***********************************************************************************/
+    void OverlayLayerWaylandPlatformBackend::HandleTopLevelConfigureBounds( void* data, xdg_toplevel* toplevel, int32_t width, int32_t height )
+    {
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        assert( bd );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        HandleGlobalRemove
+
+    Description:
+
+    \***********************************************************************************/
+    void OverlayLayerWaylandPlatformBackend::HandleTopLevelCapabilities( void* data, xdg_toplevel* toplevel, wl_array* capabilities )
     {
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
         assert( bd );

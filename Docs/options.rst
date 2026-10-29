@@ -13,6 +13,9 @@ This section describes in detail all available configuration options exposed by 
 
     .. glossary::
 
+        none
+            The data is not written anywhere. Applications can choose to disable the built-in output and read the data using the profiler's extension API, defined in VkProfilerEXT.h.
+
         overlay
             An overlay is displayed in the application's window. It intercepts incoming input events to allow the user to interact with it and browse through the profiling data. The overlay displays live performance data, which can be paused and resumed at any time. It also provides useful widgets showing post-processed data, such as command queue utilization graphs, top pipelines list, drawcall statistics, shader code disassembly, and more.
 
@@ -53,11 +56,67 @@ This section describes in detail all available configuration options exposed by 
             .. NOTE::
                 The extension allows to collect more in more passes, but that requires resubmission of the command buffers, which could result in unexpected behavior when done from the layer without application's knowledge. Because of that, the layer does not support multi-pass performance queries.
 
-.. confval:: default_metrics_set
+        nvidia
+            Enables NVIDIA performance counters using NvPerf SDK. To use this option, copy `nvperf_grfx_host.dll` or `libnvperf_grfx_host.so` library (available in the NvPerf SDK: `https://developer.nvidia.com/nsight-perf-sdk`_) to the profiler's installation directory.
+
+.. confval:: intel_performance_query_mode
+    :type: enum
+    :default: query
+
+    Controls the type of instrumentation used to collect performance counters when :confval:`enable_performance_query_ext` is set to **intel**.
+
+    The following options are available:
+
+    .. glossary::
+
+        query
+            Uses Vulkan queries to instrument VkCommandBuffers. The resulting data is collected at the command buffer level, and then aggregated to the entire frame range.
+
+        stream
+            Uses Intel Metrics-Discovery API to sample the performance counters in regular intervals, allowing to analyze the GPU metrics at much finer scale. Depending on the selected sampling period, the data may present the value changes even within the execution of a single command.
+
+            This mode requires the profiler to spawn an internal thread, regardless of :confval:`enable_threading` value, to ensure that the data is collected before the metrics buffer overflows.
+
+.. confval:: intel_performance_stream_timer_period
+    :type: int
+    :default: 25000
+
+    When :confval:`intel_performance_query_mode` is set to **stream**, this option controls the period of the timer triggering metrics samples.
+
+    The value is expressed in nanoseconds, and is recommended to be kept in range of 5000ns to 1000000ns (1ms). Smaller values may result in buffer overflows, and consequently the data loss, and higher values may expand over multiple frames, which may result in data presentation issues.
+
+    Decreasing the period causes more samples to be generated and processed, so increase in CPU utilization is expected. If the application is CPU-bound or heavily multithreaded, this may impact its overall performance.
+
+.. confval:: intel_default_metrics_set
     :type: string
     :default: RenderBasic
 
-    Name of the default metrics set selected immediately after initialization of the performance query extension. Available only if :confval:`enable_performance_query_ext` is set to **intel**.
+    Name of the default metrics set selected immediately after initialization of the Intel performance query extension.
+
+.. confval:: nvidia_performance_stream_timer_period
+    :type: int
+    :default: 25000
+
+    This option controls the period of the timer triggering metrics samples collected using NVIDIA Perf SDK.
+    
+    The value is expressed in nanoseconds, and is recommended to be kept in range of 5000ns to 1000000ns (1ms). Smaller values may result in buffer overflows, and consequently the data loss, and higher values may expand over multiple frames, which may result in data presentation issues.
+
+    Decreasing the period causes more samples to be generated and processed, so increase in CPU utilization is expected. If the application is CPU-bound or heavily multithreaded, this may impact its overall performance.
+
+.. confval:: performance_query_mode
+    :type: enum
+
+    Alias for :confval:`intel_performance_query_mode`.
+
+.. confval:: performance_stream_timer_period
+    :type: int
+
+    Alias for :confval:`intel_performance_stream_timer_period` and :confval:`nvidia_performance_stream_timer_period`.
+
+.. confval:: default_metrics_set
+    :type: string
+
+    Alias for :confval:`intel_default_metrics_set`.
 
 .. confval:: enable_pipeline_executable_properties_ext
     :type: bool
@@ -71,9 +130,9 @@ This section describes in detail all available configuration options exposed by 
     :type: bool
     :default: false
 
-    When :confval:`sampling_mode` is set to **render_pass** or higher, setting this option will enable profiling of vkCmdBeginRenderPass and vkCmdEndRenderPass commands.
+    When :confval:`sampling_mode` is set to **renderpass** or higher, setting this option will enable profiling of vkCmdBeginRenderPass and vkCmdEndRenderPass commands.
 
-.. confval:: capture_indirect_args
+.. confval:: capture_indirect_arguments
     :type: bool
     :default: false
 
@@ -115,11 +174,11 @@ This section describes in detail all available configuration options exposed by 
 
             The layer will collect profiling data for each pipeline, inserting timestamp queries when a new pipeline state is used. This mode provides a good balance between detail and overhead, allowing to analyze performance of individual pipelines without the overhead of collecting data for each draw call or dispatch command.
 
-        render_pass
+        renderpass
 
             The layer will collect profiling data for each render pass, dynamic rendering pass, compute or transfer commands pass, inserting timestamp queries at boundaries of those passes.
 
-        command_buffer
+        commandbuffer
 
             The layer will collect profiling data for each command buffer, placing timestamp queries at the beginning and end of each command buffer. This is the most coarse-grained mode supported by the layer.
 
@@ -141,6 +200,10 @@ This section describes in detail all available configuration options exposed by 
 
             The layer will delimit frames at command buffer submission operations. This mode is useful for applications that do not use swapchains or each submission should be considered as a separate frame.
 
+        frame_boundary_ext
+
+            The layer will use information provided by the application using VK_EXT_frame_boundary extension. The profiled application is required to supply VkFrameBoundaryEXT in the pNext chain on each vkQueueSubmit, vkQueueSubmit2 or vkQueuePresentKHR. See `VK_EXT_frame_boundary proposal <https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/features/latest/features/proposals/VK_EXT_frame_boundary.html>`_ for more information.
+
 .. confval:: frame_count
     :type: int
     :default: 1
@@ -149,6 +212,12 @@ This section describes in detail all available configuration options exposed by 
 
     When this option is set to 0, the layer will profile all frames until the profiling session is stopped manually.
 
+.. confval:: frame_skip_count
+    :type: int
+    :default: 0
+
+    The number of frames to skip before presenting the first frame. The option is currently supported only in **trace** output. Once the requested number of frames is reached, the profiler will write the next :confval:`frame_count` frames to the file.
+
 .. confval:: ref_pipelines
     :type: path
     :default: empty
@@ -156,3 +225,9 @@ This section describes in detail all available configuration options exposed by 
 .. confval:: ref_metrics
     :type: path
     :default: empty
+
+.. confval:: synchronize_queues
+    :type: bool
+    :default: false
+
+    When enabled, the layer will insert synchronization primitives to ensure that any work is executed without overlap with the other queues. This can help to reduce variability in performance measurements caused by asynchronous GPU execution. However, it will also significantly impact the overall performance of the application, so it is recommended to use this option only for specific use cases where accurate timing of individual queues is required.

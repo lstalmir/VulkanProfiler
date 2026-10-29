@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,15 +21,21 @@
 #pragma once
 #include "profiler/profiler_frontend.h"
 #include "profiler_helpers/profiler_time_helpers.h"
-#include <nlohmann/json.hpp>
+#include "profiler_helpers/profiler_json_builder.h"
 #include <vulkan/vulkan.h>
 #include <atomic>
+#include <list>
 #include <vector>
 #include <string>
 #include <mutex>
+#include <thread>
+#include <condition_variable>
+#include <queue>
 
 namespace Profiler
 {
+    struct TraceEvent;
+
     /*************************************************************************\
 
     Structure:
@@ -67,10 +73,14 @@ namespace Profiler
         DeviceProfilerTraceSerializer( DeviceProfilerFrontend& frontend );
         ~DeviceProfilerTraceSerializer();
 
-        DeviceProfilerTraceSerializationResult Serialize( const struct DeviceProfilerFrameData& data );
-        DeviceProfilerTraceSerializationResult Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
+        bool OpenOutputFile( const std::string& fileName );
+        bool CloseOutputFile();
 
-        DeviceProfilerTraceSerializationResult SaveEventsToFile( const std::string& fileName );
+        bool Serialize( const struct DeviceProfilerFrameData& data );
+        bool Serialize( const std::string& fileName, const struct DeviceProfilerFrameData& data );
+
+        void ClearErrorMessages();
+        const std::list<std::string>& GetErrorMessages() const;
 
         static std::string GetDefaultTraceFileName( int samplingMode );
 
@@ -80,6 +90,12 @@ namespace Profiler
         class DeviceProfilerStringSerializer* m_pStringSerializer;
         class DeviceProfilerJsonSerializer* m_pJsonSerializer;
 
+        std::list<std::string> m_ErrorMessages;
+
+        // Output file
+        std::ofstream m_OutputFile;
+        bool m_OutputFileEmpty;
+
         // Currently serialized frame data
         const struct DeviceProfilerFrameData* m_pData;
 
@@ -87,7 +103,7 @@ namespace Profiler
         VkQueue      m_CommandQueue;
 
         // Serialized events
-        nlohmann::json m_Events;
+        DeviceProfilerJsonBuilder m_JsonBuilder;
 
         // Debug labels can cross command buffer and frame boundaries
         // Tracking depth of the stack to detect labels which begin in one frame and end in the next
@@ -118,7 +134,10 @@ namespace Profiler
         void Serialize( const struct DeviceProfilerDrawcall& );
         void Serialize( const std::vector<struct TipRange>& );
 
-        void Cleanup();
+        void AppendEvent( const TraceEvent& event );
+        bool AppendEventsToOutputFile();
+
+        std::string_view BuildMetadataObject();
     };
 
     /*************************************************************************\
@@ -144,22 +163,31 @@ namespace Profiler
         void Update() override;
         void Present() override;
 
-        void SetOutputFileName( const std::string& fileName );
         void SetMaxFrameCount( uint32_t maxFrameCount );
+        void SetSkipFrameCount( uint32_t skipFrameCount );
 
     private:
         DeviceProfilerStringSerializer* m_pStringSerializer;
         DeviceProfilerTraceSerializer* m_pTraceSerializer;
         std::mutex m_TraceSerializerMutex;
 
-        std::string m_OutputFileName;
-
         uint32_t m_MaxFrameCount;
-        std::atomic_uint32_t m_SerializedFrameCount;
-        std::atomic_bool m_Flushed;
+        uint32_t m_SkipFrameCount;
+        std::atomic_uint32_t m_ProcessedFrameCount;
+
+        std::thread m_TraceSerializationThread;
+        std::condition_variable m_TraceSerializationThreadInputAvailable;
+        bool m_TraceSerializationThreadRunning;
+        bool m_TraceSerializationThreadQuitSignal;
+
+        std::mutex m_FrameDataQueueMutex;
+        std::queue<std::shared_ptr<struct DeviceProfilerFrameData>> m_FrameDataQueue;
 
         void ResetMembers();
 
-        void Flush();
+        void TraceSerializationThreadProc();
+        void StopTraceSerializationThread();
+
+        void HandleErrorMessages();
     };
 }

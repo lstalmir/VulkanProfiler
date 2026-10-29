@@ -5,6 +5,16 @@ Prebuilt binaries can be downloaded from `GitHub releases page <https://github.c
 
 Once downloaded or built, the dynamic-link library with the layer must be installed so that the Vulkan loader knows where to look for it. The process is different for Windows and Linux-based systems, and it's described in detail in `Vulkan Layer Interface to the Loader documentation <https://github.com/KhronosGroup/Vulkan-Loader/blob/main/docs/LoaderLayerInterface.md>`_.
 
+.. note::
+
+    Installation of the layer can be avoided. To use the layer without installation set ``VK_LAYER_PATH`` environment variable to the directory containing the JSON file.
+
+    Additionally, when using this approach on Linux systems, ``LD_LIBRARY_PATH`` has to contain path to the .so files:
+
+    .. code:: bash
+
+        export LD_LIBRARY_PATH=/home/user/vulkan-profiler/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+
 Windows
 -------
 
@@ -22,9 +32,17 @@ Linux
 
 The following instructions have been prepared for Debian-based distributions. Locations of Vulkan layers may be different on other distros.
 
-Vulkan layers on Linux are stored in predefined directories. To install the layer, simply copy the .so and .json files from the package to one of those directories.
+Vulkan layers on Linux are stored in predefined directories. To install the layer, copy the JSON manifest file to one of the directories listed below:
 
 - $HOME/.local/share/vulkan/explicit_layer.d
 - /usr/local/share/vulkan/explicit_layer.d
 - /usr/share/vulkan/explicit_layer.d
 - /etc/vulkan/explicit_layer.d
+
+Then, copy all .so files from the package (from "lib" directory) to one of the system library locations:
+
+- /usr/local/lib
+- /usr/lib
+- /lib
+
+Apart from the libVkLayer_profiler_layer.so that is the Vulkan layer library, the layer also requires libigdmd to support Intel performance counters on Linux. This library can be found either in the package, next to libVkLayer_profiler_layer.so, or in "<REPOSITORY_DIR>/External/metrics-discovery/dump/linux64/<CONFIG>/metrics_discovery" directory when building the layer from source.

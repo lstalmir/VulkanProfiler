@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Lukasz Stalmirski
+# Copyright (c) 2023-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -62,4 +62,21 @@ if (Wayland_FOUND AND WAYLAND_SCANNER)
     set (PROFILER_PLATFORM_WAYLAND_FOUND 1)
     set (PROFILER_PLATFORM_FOUND 1)
     add_definitions (-DVK_USE_PLATFORM_WAYLAND_KHR)
+endif ()
+
+# Determine target architecture.
+if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+    set (PROFILER_ARCH_X86 1)
+    set (PROFILER_ARCH_X86_64 1)
+elseif (CMAKE_SYSTEM_PROCESSOR STREQUAL "i386" OR
+        CMAKE_SYSTEM_PROCESSOR STREQUAL "i868")
+    set (PROFILER_ARCH_X86 1)
+elseif (CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" OR
+        CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64_be" OR
+        CMAKE_SYSTEM_PROCESSOR STREQUAL "armv8b" OR
+        CMAKE_SYSTEM_PROCESSOR STREQUAL "armv8l")
+    set (PROFILER_ARCH_ARM 1)
+    set (PROFILER_ARCH_ARM64 1)
+elseif (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm")
+    set (PROFILER_ARCH_ARM 1)
 endif ()

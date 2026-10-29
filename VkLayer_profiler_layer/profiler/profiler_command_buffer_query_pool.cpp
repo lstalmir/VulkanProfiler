@@ -161,24 +161,6 @@ namespace Profiler
     {
         TipGuard tip( m_Profiler.m_pDevice->TIP, __func__ );
 
-        // Reset the full query pools.
-        for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
-        {
-            m_Device.Callbacks.CmdResetQueryPool(
-                commandBuffer,
-                m_QueryPools[ queryPoolIndex ],
-                0, m_QueryPoolSize );
-        }
-
-        // Reset the last query pool.
-        if( m_CurrentQueryIndex != UINT32_MAX )
-        {
-            m_Device.Callbacks.CmdResetQueryPool(
-                commandBuffer,
-                m_QueryPools[ m_CurrentQueryPoolIndex ],
-                0, (m_CurrentQueryIndex + 1) );
-        }
-
         m_AbsQueryIndex = UINT64_MAX;
         m_CurrentQueryIndex = UINT32_MAX;
         m_CurrentQueryPoolIndex = 0;
@@ -196,19 +178,29 @@ namespace Profiler
     \***********************************************************************************/
     void CommandBufferQueryPool::BeginPerformanceQuery( VkCommandBuffer commandBuffer )
     {
-        AllocatePerformanceQueryPool();
-
-        // Check if there is performance query extension is available.
-        if( (m_PerformanceQueryPool != VK_NULL_HANDLE) &&
-            (m_PerformanceQueryMetricsSetIndex != UINT32_MAX) )
+        if( (m_pPerformanceCounters != nullptr) &&
+            (m_CommandBufferLevel == VK_COMMAND_BUFFER_LEVEL_PRIMARY) )
         {
-            m_Device.Callbacks.CmdResetQueryPool(
-                commandBuffer,
-                m_PerformanceQueryPool, 0, 1 );
+            const VkProfilerPerformanceCountersSamplingModeEXT samplingMode =
+                m_pPerformanceCounters->GetSamplingMode();
 
-            m_Device.Callbacks.CmdBeginQuery(
-                commandBuffer,
-                m_PerformanceQueryPool, 0, 0 );
+            if( samplingMode == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT )
+            {
+                AllocatePerformanceQueryPool();
+
+                // Check if there is performance query extension is available.
+                if( (m_PerformanceQueryPool != VK_NULL_HANDLE) &&
+                    (m_PerformanceQueryMetricsSetIndex != UINT32_MAX) )
+                {
+                    m_Device.Callbacks.CmdResetQueryPool(
+                        commandBuffer,
+                        m_PerformanceQueryPool, 0, 1 );
+
+                    m_Device.Callbacks.CmdBeginQuery(
+                        commandBuffer,
+                        m_PerformanceQueryPool, 0, 0 );
+                }
+            }
         }
     }
 
@@ -283,6 +275,36 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ResetQueryPools
+
+    Description:
+        Resets the query pools.
+
+    \***********************************************************************************/
+    void CommandBufferQueryPool::ResetQueryPools( VkCommandBuffer commandBuffer ) const
+    {
+        // Reset the full query pools.
+        for( uint32_t queryPoolIndex = 0; queryPoolIndex < m_CurrentQueryPoolIndex; ++queryPoolIndex )
+        {
+            m_Device.Callbacks.CmdResetQueryPool(
+                commandBuffer,
+                m_QueryPools[queryPoolIndex],
+                0, m_QueryPoolSize );
+        }
+
+        // Reset the last query pool.
+        if( m_CurrentQueryIndex != UINT32_MAX )
+        {
+            m_Device.Callbacks.CmdResetQueryPool(
+                commandBuffer,
+                m_QueryPools[m_CurrentQueryPoolIndex],
+                0, ( m_CurrentQueryIndex + 1 ) );
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
         WriteTimestamp
 
     Description:
@@ -348,9 +370,6 @@ namespace Profiler
         {
             assert( queryPool != VK_NULL_HANDLE );
             m_QueryPools.push_back( queryPool );
-
-            // Pools must be reset before first use
-            m_Device.Callbacks.CmdResetQueryPool( commandBuffer, queryPool, 0, m_QueryPoolSize );
         }
     }
 
@@ -365,42 +384,41 @@ namespace Profiler
     \***********************************************************************************/
     void CommandBufferQueryPool::AllocatePerformanceQueryPool()
     {
-        if( ( m_CommandBufferLevel == VK_COMMAND_BUFFER_LEVEL_PRIMARY ) &&
-            ( m_pPerformanceCounters != nullptr ) )
+        assert( m_pPerformanceCounters != nullptr );
+        assert( m_pPerformanceCounters->GetSamplingMode() == VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT );
+
+        // Try to reuse the existing query pool if possible.
+        bool canReuseCurrentQueryPool = ( m_PerformanceQueryPool != VK_NULL_HANDLE );
+
+        // If the current metrics set has changed, it's possible to reuse the query pool
+        // only if the provider supports it.
+        const uint32_t activeMetricsSetIndex = m_pPerformanceCounters->GetActiveMetricsSetIndex();
+        if( !m_pPerformanceCounters->AreMetricsSetsCompatible(
+                m_PerformanceQueryMetricsSetIndex,
+                activeMetricsSetIndex ) )
         {
-            // Try to reuse the existing query pool if possible.
-            bool canReuseCurrentQueryPool = ( m_PerformanceQueryPool != VK_NULL_HANDLE );
-
-            // If the current metrics set has changed, it's possible to reuse the query pool
-            // only if the provider supports it.
-            const uint32_t activeMetricsSetIndex = m_pPerformanceCounters->GetActiveMetricsSetIndex();
-            if( !m_pPerformanceCounters->AreMetricsSetsCompatible(
-                    m_PerformanceQueryMetricsSetIndex,
-                    activeMetricsSetIndex ) )
-            {
-                canReuseCurrentQueryPool &= m_pPerformanceCounters->SupportsQueryPoolReuse();
-            }
-
-            // Allocate new query pool if needed.
-            if( !canReuseCurrentQueryPool )
-            {
-                if( m_PerformanceQueryPool != VK_NULL_HANDLE )
-                {
-                    m_Device.Callbacks.DestroyQueryPool(
-                        m_Device.Handle,
-                        m_PerformanceQueryPool,
-                        nullptr );
-
-                    m_PerformanceQueryPool = VK_NULL_HANDLE;
-                }
-
-                m_pPerformanceCounters->CreateQueryPool(
-                    m_QueueFamilyIndex, 1,
-                    &m_PerformanceQueryPool );
-            }
-
-            // Save the metrics set index for post-processing.
-            m_PerformanceQueryMetricsSetIndex = activeMetricsSetIndex;
+            canReuseCurrentQueryPool &= m_pPerformanceCounters->SupportsQueryPoolReuse();
         }
+
+        // Allocate new query pool if needed.
+        if( !canReuseCurrentQueryPool )
+        {
+            if( m_PerformanceQueryPool != VK_NULL_HANDLE )
+            {
+                m_Device.Callbacks.DestroyQueryPool(
+                    m_Device.Handle,
+                    m_PerformanceQueryPool,
+                    nullptr );
+
+                m_PerformanceQueryPool = VK_NULL_HANDLE;
+            }
+
+            m_pPerformanceCounters->CreateQueryPool(
+                m_QueueFamilyIndex, 1,
+                &m_PerformanceQueryPool );
+        }
+
+        // Save the metrics set index for post-processing.
+        m_PerformanceQueryMetricsSetIndex = activeMetricsSetIndex;
     }
 }

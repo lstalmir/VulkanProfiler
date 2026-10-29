@@ -182,11 +182,25 @@ namespace ImGuiX
         Set color alpha.
 
     \*************************************************************************/
-    ImU32 ColorAlpha( ImU32 color, float alpha )
+    ImU32 ColorAlpha( ImU32 color, float alpha, ColorAlphaOp op )
     {
-        ImU32 c = color & 0x00FFFFFF;
-        ImU8 a = ImClamp( 255.f * alpha, 0.f, 255.f );
-        return ( c & 0x00FFFFFF ) | ( a << 24 );
+        ImU32 a = ( color & IM_COL32_A_MASK ) >> IM_COL32_A_SHIFT;
+        switch( op )
+        {
+        case ColorAlphaOp_Set:
+            a = ImClamp<ImU32>( 255 * alpha, 0, 255 );
+            break;
+        case ColorAlphaOp_Add:
+            a = ImClamp<ImU32>( a + 255 * alpha, 0, 255 );
+            break;
+        case ColorAlphaOp_Multiply:
+            a = ImClamp<ImU32>( a * alpha, 0, 255 );
+            break;
+        default:
+            IM_ASSERT( false );
+            break;
+        }
+        return ( color & ~IM_COL32_A_MASK ) | ( a << IM_COL32_A_SHIFT );
     }
 
     /*************************************************************************\
@@ -203,7 +217,7 @@ namespace ImGuiX
         ImGuiContext& g = *GImGui;
         ImGuiWindow* window = ImGui::GetCurrentWindow();
 
-        ImGuiNextWindowDataFlags backup_next_window_data_flags = g.NextWindowData.Flags;
+        ImGuiNextWindowDataFlags backup_next_window_data_flags = g.NextWindowData.HasFlags;
         g.NextWindowData.ClearFlags(); // We behave like Begin() and need to consume those values
         if( window->SkipItems )
             return false;
@@ -289,7 +303,7 @@ namespace ImGuiX
         if( !popup_open )
             return false;
 
-        g.NextWindowData.Flags = backup_next_window_data_flags;
+        g.NextWindowData.HasFlags = backup_next_window_data_flags;
         return ImGui::BeginComboPopup( popup_id, bb, flags );
     }
 
@@ -409,7 +423,23 @@ namespace ImGuiX
             table->RowPosY2 += bottom;
         }
 
-        ImGui::SetCursorPosY( ImGui::GetCursorPosY() + bottom );
+        Space( bottom );
+    }
+
+    /*************************************************************************\
+
+    Function:
+        Space
+
+    Description:
+        Unpadded space.
+
+    \*************************************************************************/
+    void Space( float height )
+    {
+        ImGui::PushStyleVar( ImGuiStyleVar_ItemSpacing, ImVec2( 0, 0 ) );
+        ImGui::Dummy( ImVec2( 0, height ) );
+        ImGui::PopStyleVar();
     }
 
     /*************************************************************************\

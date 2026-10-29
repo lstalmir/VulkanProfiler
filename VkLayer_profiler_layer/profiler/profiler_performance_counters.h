@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Lukasz Stalmirski
+// Copyright (c) 2025-2026 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,24 @@ namespace Profiler
     /***********************************************************************************\
 
     Class:
+        DeviceProfilerPerformanceCountersStreamResult
+
+    Description:
+        An intermediate structure holding performance counters stream data with all
+        counters at a specific timestamp.
+
+    \***********************************************************************************/
+    struct DeviceProfilerPerformanceCountersStreamResult
+    {
+        uint64_t                                            m_GpuTimestamp;
+        uint64_t                                            m_CpuTimestamp;
+        uint32_t                                            m_MetricsSetIndex;
+        std::vector<VkProfilerPerformanceCounterResultEXT>  m_Data;
+    };
+
+    /***********************************************************************************\
+
+    Class:
         DeviceProfilerPerformanceCounters
 
     Description:
@@ -48,6 +66,8 @@ namespace Profiler
         virtual void Destroy() {}
 
         virtual VkResult SetQueuePerformanceConfiguration( VkQueue queue ) { return VK_SUCCESS; }
+
+        virtual VkProfilerPerformanceCountersSamplingModeEXT GetSamplingMode() const { return VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT; }
 
         virtual uint32_t GetReportSize( uint32_t metricsSetIndex, uint32_t queueFamilyIndex ) const { return 0; }
         virtual uint32_t GetMetricsCount( uint32_t metricsSetIndex ) const { return 0; }
@@ -69,6 +89,8 @@ namespace Profiler
         virtual uint32_t CreateCustomMetricsSet( const VkProfilerCustomPerformanceMetricsSetCreateInfoEXT* pCreateInfo ) { return UINT32_MAX; }
         virtual void DestroyCustomMetricsSet( uint32_t ) {}
         virtual void UpdateCustomMetricsSets( uint32_t updateCount, const VkProfilerCustomPerformanceMetricsSetUpdateInfoEXT* pUpdateInfos ) {}
+
+        virtual bool ReadStreamData( uint64_t beginTimestamp, uint64_t endTimestamp, std::vector<DeviceProfilerPerformanceCountersStreamResult>& results ) { return true; }
 
         virtual void ParseReport( uint32_t metricsSetIndex, uint32_t queueFamilyIndex, uint32_t reportSize, const uint8_t* pReport, std::vector<VkProfilerPerformanceCounterResultEXT>& results ) {}
     };

@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025 Lukasz Stalmirski
+# Copyright (c) 2023-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -19,6 +19,8 @@
 # SOFTWARE.
 
 cmake_minimum_required (VERSION 3.8...3.31)
+
+find_package (Python3 COMPONENTS Interpreter)
 
 set (CMAKE_FOLDER External)
 
@@ -55,19 +57,25 @@ set (INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 add_subdirectory (googletest)
 
 # intel/metrics-discovery
+if (PROFILER_WITH_INTEL_METRICS AND PROFILER_ARCH_X86)
 add_library (metrics-discovery INTERFACE)
 target_include_directories (metrics-discovery
     INTERFACE metrics-discovery/inc/common/instrumentation/api)
 
+# intel/metrics-library
+add_library (metrics-library INTERFACE)
+target_include_directories (metrics-library
+    INTERFACE metrics-library/inc/common/instrumentation/api)
+
 if (UNIX)
-    function (build_metrics_discovery)
+    function (build_intel_metrics_libraries)
         # libdrm development package is required to build the metrics library.
         find_library (libdrm drm)
         if (${libdrm} STREQUAL libdrm-NOTFOUND)
             message (WARNING "libdrm not found - Intel metrics-discovery library will not be included in the package")
             return ()
         endif ()
-        # Metrics-discovery supports only release and debug build types.
+        # Metrics-discovery and metrics-library support only release and debug build types.
         if (CMAKE_BUILD_TYPE)
             string (TOLOWER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
         endif ()
@@ -75,20 +83,41 @@ if (UNIX)
             set (CMAKE_BUILD_TYPE "release")
         endif ()
         add_subdirectory (metrics-discovery)
+        add_subdirectory (metrics-library)
     endfunction ()
 
-    build_metrics_discovery()
+    build_intel_metrics_libraries()
 
     # Include the library in the installed package.
     if (TARGET metrics_discovery)
         add_dependencies (metrics-discovery metrics_discovery)
         list (APPEND _PROFILER_INSTALL_EXTERNAL_TARGETS metrics_discovery)
     endif ()
+
+    if (TARGET metrics_library)
+        add_dependencies (metrics-library metrics_library)
+        list (APPEND _PROFILER_INSTALL_EXTERNAL_TARGETS metrics_library)
+    endif ()
 endif ()
+endif () # PROFILER_WITH_INTEL_METRICS
 
 # KhronosGroup/Vulkan-Headers
-add_subdirectory (Vulkan-Headers)
-set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers" PARENT_SCOPE)
+execute_process (COMMAND "${CMAKE_COMMAND}"
+    -S "${CMAKE_CURRENT_SOURCE_DIR}/Vulkan-Headers"
+    -B "${CMAKE_CURRENT_BINARY_DIR}/Vulkan-Headers"
+    OUTPUT_QUIET)
+
+execute_process (COMMAND "${CMAKE_COMMAND}"
+    --install "${CMAKE_CURRENT_BINARY_DIR}/Vulkan-Headers"
+    --prefix "${CMAKE_CURRENT_BINARY_DIR}/install"
+    OUTPUT_QUIET)
+
+set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/install")
+set (VULKAN_HEADERS_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/install" PARENT_SCOPE)
+
+add_library (Vulkan-Headers INTERFACE)
+target_include_directories (Vulkan-Headers
+    INTERFACE "${VULKAN_HEADERS_INSTALL_DIR}/include")
 
 # KhronosGroup/Vulkan-Utility-Libraries
 add_subdirectory (Vulkan-Utility-Libraries)
@@ -108,9 +137,88 @@ add_subdirectory (SPIRV-Specification)
 # GPUOpen/VulkanMemoryAllocator
 add_subdirectory (VulkanMemoryAllocator)
 
-# nlohmann/json
-set (JSON_BuildTests OFF CACHE INTERNAL "")
-add_subdirectory (json)
+# simdjson/simdjson
+add_subdirectory (simdjson)
+
+# biojppm/rapidyaml
+function (build_rapidyaml)
+    # Amalgamate ryml into a single header:
+    set (ryml_dir "${CMAKE_CURRENT_SOURCE_DIR}/rapidyaml")
+    set (ryml_header_dir "${CMAKE_CURRENT_BINARY_DIR}/rapidyaml")
+    set (ryml_header "${ryml_header_dir}/ryml_all.hpp")
+    set (amscript "${ryml_dir}/tools/amalgamate.py")
+
+    file (GLOB_RECURSE ryml_sources
+        LIST_DIRECTORIES FALSE
+        CONFIGURE_DEPENDS "${ryml_dir}/src")
+
+    add_custom_command (OUTPUT "${ryml_header}"
+        COMMAND "${Python3_EXECUTABLE}" "${amscript}" "${ryml_header}"
+        COMMENT "${Python3_EXECUTABLE} ${amscript} ${ryml_header}"
+        DEPENDS ${ryml_sources} "${amscript}" "${ryml_dir}/ext/c4core/cmake/amalgamate_utils.py")
+
+    # Build the static library.
+    add_library (ryml STATIC
+        "${ryml_dir}/samples/singleheaderlib/lib.cpp"
+        "${ryml_header}")
+
+    target_include_directories (ryml PUBLIC "${ryml_header_dir}")
+endfunction ()
+
+build_rapidyaml()
+
+# nvidia/nvperf
+if (PROFILER_WITH_NV_METRICS)
+function (build_nvperf_sdk)
+    # Generate metrics configuration headers:
+    file (GLOB nvperf_metric_configurations_dirs LIST_DIRECTORIES TRUE CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvperf/redist/NvPerfUtility/data/MetricConfigurations/*")
+
+    set (nvperf_metric_configurations_generator
+        "${CMAKE_CURRENT_SOURCE_DIR}/nvperf/redist/NvPerfUtility/build/MetricConfigurations/metric_configurations_generator.py")
+
+    set (nvperf_metric_configurations_output_dir
+        "${CMAKE_CURRENT_BINARY_DIR}/nvperf/NvPerfUtility/include")
+
+    file (MAKE_DIRECTORY "${nvperf_metric_configurations_output_dir}")
+
+    foreach (dir IN LISTS nvperf_metric_configurations_dirs)
+        get_filename_component (chip "${dir}" NAME)
+
+        file (GLOB dir_files LIST_DIRECTORIES TRUE CONFIGURE_DEPENDS
+            "${dir}/*.yaml")
+
+        set (output_file "${nvperf_metric_configurations_output_dir}/NvPerfMetricConfigurations${chip}.h")
+
+        add_custom_command (OUTPUT "${output_file}"
+            COMMAND "${Python3_EXECUTABLE}"
+                "${nvperf_metric_configurations_generator}"
+                --chip ${chip}
+                --outDir "${nvperf_metric_configurations_output_dir}"
+                --yamlPaths "${dir}"
+            COMMENT "Generating NvPerf metric configurations for ${chip}"
+            DEPENDS ${dir_files} "${nvperf_metric_configurations_generator}")
+            
+        list (APPEND nvperf_metric_configurations_headers "${output_file}")
+    endforeach ()
+
+    add_custom_target (nvperf_codegen
+        DEPENDS ${nvperf_metric_configurations_headers})
+
+    # Create interface library to include the headers.
+    # The PerfSDK license doesn't allow for including its binaries,
+    # but headers are allowed in order to build software on top of the SDK.
+    add_library (nvperf INTERFACE)
+    target_include_directories (nvperf
+        INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nvperf/redist/include"
+        INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nvperf/redist/NvPerfUtility/include"
+        INTERFACE "${nvperf_metric_configurations_output_dir}")
+
+    add_dependencies (nvperf nvperf_codegen)
+endfunction ()
+
+build_nvperf_sdk()
+endif () # PROFILER_WITH_NV_METRICS
 
 # ocornut/imgui
 set (imgui_backends
@@ -134,7 +242,9 @@ target_include_directories (imgui
     PUBLIC imgui/misc/cpp)
 
 target_compile_definitions (imgui
-    PUBLIC IMGUI_USER_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/imgui_config.h"
+    PUBLIC IMGUI_USER_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/imgui/imgui_config.h"
+    PUBLIC IMGUI_USER_H_FILENAME="${CMAKE_CURRENT_SOURCE_DIR}/config/imgui/imgui_user.h"
+    PUBLIC IMGUI_INCLUDE_IMGUI_USER_H=1
     PRIVATE VK_NO_PROTOTYPES=1)
 
 target_link_libraries (imgui

@@ -57,13 +57,12 @@ jobs:
         fetch-depth: 0
 
     - name: Install Dependencies
-      uses: awalsh128/cache-apt-pkgs-action@latest
       if: runner.os == 'Linux'
-      with:
-        packages: extra-cmake-modules libvulkan-dev libxkbcommon-dev libx11-dev libxext-dev libxcb1-dev libxcb-shape0-dev libwayland-dev libdrm-dev
-        version: 1.0
+      run: |
+        sudo apt update
+        sudo apt install extra-cmake-modules libvulkan-dev libxkbcommon-dev libx11-dev libxext-dev libxcb1-dev libxcb-shape0-dev libwayland-dev libdrm-dev
 
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v6
       with:
         python-version: '3.12'
         cache: 'pip'

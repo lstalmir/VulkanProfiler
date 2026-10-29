@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -41,6 +41,7 @@
 
 // Public interface
 #include "profiler_ext/VkProfilerEXT.h"
+#include "profiler_ext/VkProfilerCustomFlagsEXT.h"
 
 struct ImGuiContext;
 struct ImPlotContext;
@@ -160,6 +161,8 @@ namespace Profiler
         bool m_HasNewSnapshots;
 
         std::shared_ptr<DeviceProfilerFrameData> m_pData;
+
+        float m_Opacity;
         bool m_Pause;
         bool m_Fullscreen;
         bool m_ShowDebugLabels;
@@ -246,7 +249,6 @@ namespace Profiler
         VkBufferUsageFlags m_ResourceBrowserBufferUsageFilter;
         VkImageUsageFlags m_ResourceBrowserImageUsageFilter;
         VkFlags m_ResourceBrowserAccelerationStructureTypeFilter;
-        VkFlags m_ResourceBrowserMicromapTypeFilter;
         bool m_ResourceBrowserShowDifferences;
 
         VkBufferHandle m_ResourceInspectorBuffer;
@@ -286,6 +288,7 @@ namespace Profiler
         bool m_PerformanceQueryMetricsFilterRegexValid;
         bool m_PerformanceQueryMetricsFilterRegexMode;
         bool m_PerformanceQueryMetricsSetPropertiesExpanded;
+        bool m_PerformanceQueryCustomMetricsSetsSupported;
 
         void SelectPerformanceQueryMetricsSet( const std::shared_ptr<PerformanceQueryMetricsSet>& );
 
@@ -298,6 +301,13 @@ namespace Profiler
         // Performance metrics filter.
         // The profiler will show only metrics for the selected command buffer.
         // If no command buffer is selected, the aggregated stats for the whole frame will be displayed.
+        struct PerformanceQueryRangeData
+        {
+            const DeviceProfilerPerformanceCountersData* m_pPerformanceCountersData;
+            uint64_t m_BeginTimestamp;
+            uint64_t m_EndTimestamp;
+        };
+
         VkCommandBufferHandle m_PerformanceQueryCommandBufferFilter;
         std::string m_PerformanceQueryCommandBufferFilterName;
 
@@ -419,6 +429,11 @@ namespace Profiler
         void UpdatePerformanceQueryMetricsSetExporter();
         void SavePerformanceQueryMetricsSetToFile( const std::string&, const std::shared_ptr<PerformanceQueryMetricsSet>& );
 
+        void DrawPerformanceCountersQueryData( const PerformanceQueryRangeData& );
+        void DrawPerformanceCountersStreamData( const PerformanceQueryRangeData& );
+        void DrawPerformanceCountersEditor();
+        void DrawPerformanceCounterTooltip( const VkProfilerPerformanceCounterProperties2EXT&, bool, bool );
+
         // Top pipelines helpers
         void UpdateTopPipelinesExporter();
         void SaveTopPipelinesToFile( const std::string&, const DeviceProfilerFrameData& );
@@ -441,7 +456,7 @@ namespace Profiler
 
         std::string GetDefaultResourceListFileName() const;
         void UpdateResourceListExporter();
-        void SaveResourceListToFile( const std::string&, const std::shared_ptr<DeviceProfilerFrameData>&, const std::string&, VkBufferUsageFlags, VkImageUsageFlags, VkFlags, VkFlags );
+        void SaveResourceListToFile( const std::string&, const std::shared_ptr<DeviceProfilerFrameData>&, const std::string&, VkBufferUsageFlags, VkImageUsageFlags, VkProfilerAccelerationStructureTypeFlagsEXT );
 
         // Pipeline inspector helpers
         void Inspect( const DeviceProfilerPipeline& );

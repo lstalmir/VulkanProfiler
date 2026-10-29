@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023 Lukasz Stalmirski
+# Copyright (c) 2019-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,8 @@ if (BUILD_TESTS)
 
     set (tests
         "profiler_command_buffer_tests.cpp"
+        "profiler_config_tests.cpp"
+        "profiler_data_tests.cpp"
         "profiler_extensions_tests.cpp"
         "profiler_memory_tests.cpp"
         "profiler_testing_common.h"
@@ -57,11 +59,15 @@ if (BUILD_TESTS)
         PRIVATE ${Vulkan_LIBRARIES}
         PRIVATE gtest_main
         PRIVATE profiler
+        PRIVATE profiler_helpers
         )
 
     target_include_directories (profiler_tests
         PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
         )
 
-    install (TARGETS profiler_tests)
+    install (TARGETS profiler_tests
+        COMPONENT Tests
+        EXCLUDE_FROM_ALL
+        )
 endif (BUILD_TESTS)

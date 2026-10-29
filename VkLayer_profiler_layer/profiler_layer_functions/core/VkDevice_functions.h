@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,8 +31,11 @@
 #include "VkDrawIndirectCountAmd_functions.h"
 #include "VkDrawIndirectCountKhr_functions.h"
 #include "VkDynamicRenderingKhr_functions.h"
+#include "VkFragmentDensityMapOffsetExt_functions.h"
+#include "VkMaintenanceKhr_functions.h"
 #include "VkMeshShaderExt_functions.h"
 #include "VkMeshShaderNv_functions.h"
+#include "VkMultiDrawExt_functions.h"
 #include "VkOpacityMicromapExt_functions.h"
 #include "VkPipelineExecutablePropertiesKhr_functions.h"
 #include "VkRayTracingMaintenance1Khr_functions.h"
@@ -65,8 +68,11 @@ namespace Profiler
         , VkDrawIndirectCountAmd_Functions
         , VkDrawIndirectCountKhr_Functions
         , VkDynamicRenderingKhr_Functions
+        , VkFragmentDensityMapOffsetExt_Functions
+        , VkMaintenanceKhr_Functions
         , VkMeshShaderExt_Functions
         , VkMeshShaderNv_Functions
+        , VkMultiDrawExt_Functions
         , VkOpacityMicromapExt_Functions
         , VkPipelineExecutablePropertiesKhr_Functions
         , VkRayTracingMaintenance1Khr_Functions
@@ -193,6 +199,12 @@ namespace Profiler
             VkDevice device,
             VkBuffer buffer,
             const VkAllocationCallbacks* pAllocator );
+
+        // vkGetDeviceBufferMemoryRequirements
+        static VKAPI_ATTR void VKAPI_CALL GetDeviceBufferMemoryRequirements(
+            VkDevice device,
+            const VkDeviceBufferMemoryRequirements* pInfo,
+            VkMemoryRequirements2* pMemoryRequirements );
 
         // vkBindBufferMemory
         static VKAPI_ATTR VkResult VKAPI_CALL BindBufferMemory(

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -42,22 +42,39 @@ namespace Profiler
         // Synchronize host access to the queue object in case the overlay tries to use it.
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        DeviceProfilerSubmitBatch submitBatch;
-        dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
-        dd.Profiler.PreSubmitCommandBuffers( submitBatch );
+        // Prepare the command buffers for profiling.
+        // This may insert additional command buffers to each VkSubmitInfo to reset queries and copy data to buffers.
+        DeviceProfilerSubmitCommandScratchData scratchData( queue, submitCount, pSubmits );
+        dd.Profiler.PrepareQueueSubmit( scratchData );
+
+        // Additionally, synchronize all queues if requested by the user.
+        std::unique_lock queueLock( dd.Profiler.m_SubmitMutex, std::defer_lock );
+        if( dd.Profiler.m_Config.m_SynchronizeQueues )
+        {
+            queueLock.lock();
+        }
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit( queue, submitCount, pSubmits, fence );
+        VkResult result = dd.Device.Callbacks.QueueSubmit(
+            queue,
+            scratchData.GetSubmitInfoCount(),
+            scratchData.GetSubmitInfos(),
+            fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+        // Finalize the submission.
+        dd.Profiler.FinishQueueSubmit( scratchData, result );
+
+        // Wait for the command buffers to finish executing to ensure the queues are not executing in parallel.
+        if( dd.Profiler.m_Config.m_SynchronizeQueues )
+        {
+            dd.Device.Callbacks.QueueWaitIdle( queue );
+            queueLock.unlock();
+        }
 
         // Consume the collected data
-        if( dd.Profiler.m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        if( dd.pOutput )
         {
-            if( dd.pOutput )
-            {
-                dd.pOutput->Update();
-            }
+            dd.pOutput->Update();
         }
 
         return result;
@@ -83,22 +100,39 @@ namespace Profiler
         // Synchronize host access to the queue object in case the overlay tries to use it.
         VkQueue_Object_Scope queueScope( dd.Device.Queues.at( queue ) );
 
-        DeviceProfilerSubmitBatch submitBatch;
-        dd.Profiler.CreateSubmitBatchInfo( queue, submitCount, pSubmits, &submitBatch );
-        dd.Profiler.PreSubmitCommandBuffers( submitBatch );
+        // Prepare the command buffers for profiling.
+        // This may insert additional command buffers to each VkSubmitInfo to reset queries and copy data to buffers.
+        DeviceProfilerSubmitCommandScratchData scratchData( queue, submitCount, pSubmits );
+        dd.Profiler.PrepareQueueSubmit( scratchData );
+
+        // Additionally, synchronize all queues if requested by the user.
+        std::unique_lock queueLock( dd.Profiler.m_SubmitMutex, std::defer_lock );
+        if( dd.Profiler.m_Config.m_SynchronizeQueues )
+        {
+            queueLock.lock();
+        }
 
         // Submit the command buffers
-        VkResult result = dd.Device.Callbacks.QueueSubmit2( queue, submitCount, pSubmits, fence );
+        VkResult result = dd.Device.Callbacks.QueueSubmit2(
+            queue,
+            scratchData.GetSubmitInfoCount(),
+            scratchData.GetSubmitInfos(),
+            fence );
 
-        dd.Profiler.PostSubmitCommandBuffers( submitBatch );
+        // Finalize the submission.
+        dd.Profiler.FinishQueueSubmit( scratchData, result );
+
+        // Wait for the command buffers to finish executing to ensure the queues are not executing in parallel.
+        if( dd.Profiler.m_Config.m_SynchronizeQueues )
+        {
+            dd.Device.Callbacks.QueueWaitIdle( queue );
+            queueLock.unlock();
+        }
 
         // Consume the collected data
-        if( dd.Profiler.m_Config.m_FrameDelimiter == VK_PROFILER_FRAME_DELIMITER_SUBMIT_EXT )
+        if( dd.pOutput )
         {
-            if( dd.pOutput )
-            {
-                dd.pOutput->Update();
-            }
+            dd.pOutput->Update();
         }
 
         return result;
@@ -129,40 +163,7 @@ namespace Profiler
 
         if( result == VK_SUCCESS )
         {
-            for( uint32_t i = 0; i < bindInfoCount; ++i )
-            {
-                const VkBindSparseInfo& bindInfo = pBindInfo[i];
-
-                // Register buffer memory bindings
-                for( uint32_t j = 0; j < bindInfo.bufferBindCount; ++j )
-                {
-                    const VkSparseBufferMemoryBindInfo& bufferBind = bindInfo.pBufferBinds[j];
-                    dd.Profiler.BindBufferMemory(
-                        bufferBind.buffer,
-                        bufferBind.bindCount,
-                        bufferBind.pBinds );
-                }
-
-                // Register image opaque memory bindings
-                for( uint32_t j = 0; j < bindInfo.imageOpaqueBindCount; ++j )
-                {
-                    const VkSparseImageOpaqueMemoryBindInfo& imageBind = bindInfo.pImageOpaqueBinds[j];
-                    dd.Profiler.BindImageMemory(
-                        imageBind.image,
-                        imageBind.bindCount,
-                        imageBind.pBinds );
-                }
-
-                // Register image block memory bindings
-                for( uint32_t j = 0; j < bindInfo.imageBindCount; ++j )
-                {
-                    const VkSparseImageMemoryBindInfo& imageBind = bindInfo.pImageBinds[j];
-                    dd.Profiler.BindImageMemory(
-                        imageBind.image,
-                        imageBind.bindCount,
-                        imageBind.pBinds );
-                }
-            }
+            dd.Profiler.BindSparseMemory( queue, bindInfoCount, pBindInfo );
         }
 
         return result;

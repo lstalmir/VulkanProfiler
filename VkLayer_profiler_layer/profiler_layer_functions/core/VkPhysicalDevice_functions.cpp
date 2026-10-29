@@ -212,7 +212,9 @@ namespace Profiler
 
         static VkExtensionProperties layerExtensions[] = {
             { VK_EXT_PROFILER_EXTENSION_NAME, VK_EXT_PROFILER_SPEC_VERSION },
-            { VK_EXT_DEBUG_MARKER_EXTENSION_NAME, VK_EXT_DEBUG_MARKER_SPEC_VERSION } };
+            { VK_EXT_DEBUG_MARKER_EXTENSION_NAME, VK_EXT_DEBUG_MARKER_SPEC_VERSION },
+            { VK_EXT_TOOLING_INFO_EXTENSION_NAME, VK_EXT_TOOLING_INFO_SPEC_VERSION },
+            { VK_EXT_FRAME_BOUNDARY_EXTENSION_NAME, VK_EXT_FRAME_BOUNDARY_SPEC_VERSION } };
 
         if( !pLayerName || queryThisLayerExtensionsOnly )
         {

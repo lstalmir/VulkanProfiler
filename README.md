@@ -1,18 +1,25 @@
 # Vulkan profiler
-This tool is a basic real-time GPU profiling layer for applications using [Vulkan API](https://www.khronos.org/vulkan/). It provides data for performance analysis on all levels, down to single draw calls.
+This tool is a real-time GPU profiling layer for applications using [Vulkan API](https://www.khronos.org/vulkan/). It provides data for performance analysis on all levels, down to single draw calls.
 
 If you have any questions, suggestions or problems, please [create an issue](https://github.com/lstalmir/VulkanProfiler/issues/new).
 
 ## Documentation
 Full documentation of the layer is available at [lstalmir.github.io/VulkanProfiler](https://lstalmir.github.io/VulkanProfiler).
 
-## Compiling
+## Compiling & Installation
+> [!TIP]
+> Please refer to the [documentation](https://lstalmir.github.io/VulkanProfiler/docs/master/getting_started/index.html) for more detailed instructions.
+
 The layer is available for Windows and Linux. On both platforms CMake is used as the main build management tool.
 
-### Windows
-The solution compiles on Visual Studio 2017 or later. Using C++ CMake tools for Windows component is recommended, but generating VS project files using `cmake -G` works fine as well.
+Clone this repository using `git clone --recursive https://github.com/lstalmir/VulkanProfiler`.
 
-`VkLayer_profiler_layer.dll` and `VkLayer_profiler_layer.json` files are the products of the compilation. Both must be placed in the same directory. To use the layer register it in the Windows registry:
+### Windows
+The solution compiles on Visual Studio 2017 or later, and CLion. Using C++ CMake tools for Windows component is recommended, but generating VS project files using `cmake -G` works fine as well.
+
+The project also requires Python3 with packages listed in VkLayer_profiler_layer/scripts/requirements.txt.
+
+`VkLayer_profiler_layer.dll` and `VkLayer_profiler_layer.json` files are the products of compiling the `VkLayer_profiler_layer` run configuration. Both must be placed in the same directory. To use the layer register it in the Windows registry:
 ```
 REG ADD HKCU\Software\Khronos\Vulkan\ExplicitLayers /F /T REG_DWORD /D 0 /V <path-to-json>
 ```
@@ -28,13 +35,26 @@ Following packages are required for building on Debian-based systems:
 - libx11-dev, libxext-dev (for Xlib support)
 - libxcb1-dev, libxcb-shape0-dev (for XCB support)
 - libwayland-dev (for Wayland support)
+- python3, python3-pip
+- Python packages specified in VkLayer_profiler_layer/scripts/requirements.txt
 
 To build the layer create "cmake_build" folder in the project root directory and run following command from it:
 ```
-cmake .. && make all
+cmake .. -DCMAKE_BUILD_TYPE=Release && make all -j
 ```
 
-To install the layer copy `libVkLayer_profiler_layer.so` and `VkLayer_profiler_layer.json` files to `~/.local/share/vulkan/explicit_layer.d` directory.
+Then, install the layer:
+
+```
+sudo cmake --install . --prefix /usr/local/
+```
+
+This command will copy all required libraries to `/usr/local/lib` directory and the JSON manifest file to `/usr/local/share/vulkan/explicit_layer.d` directory.
+
+To support Intel performance counters on Linux the layer requires `libigdmd`. The library is built as part of the project and its binaries are located in `<REPOSITORY_ROOT_DIR>/External/metrics-discovery/dump/linux64/<CONFIG>/metrics_discovery`. These files are also copied during install step into `<INSTALL_DIR>/lib/` directory.
+
+> [!NOTE]
+> On multiarch Linux distributions all the libraries will be placed in `<INSTALL_DIR>/lib/<ARCH>/`, e.g. `/usr/local/lib/x86_64-linux-gnu/`.
 
 ### Notes
 Installation of the layer can be avoided. To use the layer without installation set VK_LAYER_PATH environment variable to the directory containing layer files.

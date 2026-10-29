@@ -51,9 +51,10 @@ namespace Profiler
         virtual float GetDPIScale() const = 0;
         virtual ImVec2 GetRenderArea() const = 0;
 
-        virtual uint64_t CreateImage( int width, int height, const void* pData ) = 0;
-        virtual void DestroyImage( uint64_t image ) = 0;
+        virtual int CreateImage( int width, int height, const void* pData ) = 0;
+        virtual void DestroyImage( int image ) = 0;
         virtual void CreateFontsImage() = 0;
         virtual void DestroyFontsImage() = 0;
+        virtual uint64_t GetImageHandle( int image ) = 0;
     };
 }

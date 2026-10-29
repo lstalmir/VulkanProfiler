@@ -1,15 +1,15 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
-// 
+// Copyright (c) 2019-2026 Lukasz Stalmirski
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -30,12 +30,75 @@
 
 namespace Profiler
 {
+    struct PerformanceCounterStorageLimits
+    {
+        VkProfilerPerformanceCounterResultEXT m_Max;
+        VkProfilerPerformanceCounterResultEXT m_Min;
+
+        explicit PerformanceCounterStorageLimits(
+            VkProfilerPerformanceCounterStorageEXT storage )
+        {
+            switch (storage)
+            {
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT32_EXT:
+                Initialize( m_Min.float32, m_Max.float32 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_FLOAT64_EXT:
+                Initialize( m_Min.float64, m_Max.float64 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT32_EXT:
+                Initialize( m_Min.int32, m_Max.int32 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_INT64_EXT:
+                Initialize( m_Min.int64, m_Max.int64 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT32_EXT:
+                Initialize( m_Min.uint32, m_Max.uint32 );
+                break;
+            case VK_PROFILER_PERFORMANCE_COUNTER_STORAGE_UINT64_EXT:
+                Initialize( m_Min.uint64, m_Max.uint64 );
+                break;
+            }
+        }
+
+        template<typename T>
+        inline static void Initialize( T& min, T& max )
+        {
+            min = std::numeric_limits<T>::lowest();
+            max = std::numeric_limits<T>::max();
+        }
+    };
+
     struct SumAggregator
     {
         template<typename T>
         inline void operator()( uint64_t&, T& acc, uint64_t, const T& value ) const
         {
             acc += value;
+        }
+    };
+
+    struct MinAggregator
+    {
+        template<typename T>
+        inline void operator()( uint64_t&, T& acc, uint64_t, const T& value ) const
+        {
+            if( value < acc )
+            {
+                acc = value;
+            }
+        }
+    };
+
+    struct MaxAggregator
+    {
+        template<typename T>
+        inline void operator()( uint64_t&, T& acc, uint64_t, const T& value ) const
+        {
+            if( value > acc )
+            {
+                acc = value;
+            }
         }
     };
 
@@ -55,10 +118,16 @@ namespace Profiler
         inline void operator()( uint64_t&, T& acc, uint64_t valueWeight, const T& value ) const
         {
             if( valueWeight > 0 )
-                acc = static_cast<T>(value / static_cast<double>(valueWeight));
+                acc = static_cast<T>( value / static_cast<double>( valueWeight ) );
             else
                 acc = value;
         }
+    };
+
+    struct WeightedCounterResult
+    {
+        VkProfilerPerformanceCounterResultEXT m_Value = {};
+        uint64_t m_Weight = 0;
     };
 
     template<typename AggregatorType>
@@ -105,8 +174,8 @@ namespace Profiler
         const VkProfilerPerformanceCounterResultEXT& value,
         VkProfilerPerformanceCounterStorageEXT storage )
     {
-        uint64_t dummy = 0;
-        Aggregate<AggregatorType>( dummy, acc, valueWeight, value, storage );
+        uint64_t accWeight = 0;
+        Aggregate<AggregatorType>( accWeight, acc, valueWeight, value, storage );
     }
 
     /***********************************************************************************\
@@ -123,13 +192,10 @@ namespace Profiler
         , m_DataCollectionThread()
         , m_DataCollectionThreadRunning( false )
         , m_pResolvedFrames()
-        , m_NextFrames()
+        , m_pPendingFrames()
         , m_Mutex()
-        , m_FrameIndex( 0 )
         , m_MaxResolvedFrameCount( 1 )
         , m_CopyCommandPools()
-        , m_PerformanceMetricProperties()
-        , m_PerformanceMetricsSetIndex( UINT32_MAX )
     {
     }
 
@@ -145,7 +211,6 @@ namespace Profiler
     VkResult ProfilerDataAggregator::Initialize( DeviceProfiler* pProfiler )
     {
         m_pProfiler = pProfiler;
-        m_PerformanceMetricsSetIndex = UINT32_MAX;
 
         VkResult result = VK_SUCCESS;
 
@@ -257,26 +322,56 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        BeginNextFrame
+        PrepareSubmit
 
     Description:
-        Add new frame to the aggregator.
+        Prepare submit batch for execution.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::AppendFrame( const DeviceProfilerFrame& frame )
+    void ProfilerDataAggregator::PrepareSubmit( DeviceProfilerSubmitBatch& submitBatch )
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        std::scoped_lock lk( m_Mutex );
+        // Get the command pool associated with the queue.
+        submitBatch.m_pInternalCommandPool = &m_CopyCommandPools.at( submitBatch.m_Handle );
 
-        if( !m_NextFrames.empty() )
+        if( submitBatch.m_pSubmittedCommandBuffers.empty() )
         {
-            // Finalize the previous frame.
-            m_NextFrames.back().m_EndTimestamp = frame.m_Timestamp;
+            DiscardSubmitData( submitBatch );
+            return;
         }
 
-        m_FrameIndex = frame.m_FrameIndex;
-        m_NextFrames.emplace_back( frame );
+        // Reset all query pools used in this submit batch.
+        if( !ResetQueryPools( submitBatch ) )
+        {
+            DiscardSubmitData( submitBatch );
+            return;
+        }
+
+        // Try to copy the data using GPU.
+        // It may fallback to CPU allocation if the function fails to allocate the command buffer.
+        if( !WriteQueryDataToGpuBuffer( submitBatch ) )
+        {
+            DiscardSubmitData( submitBatch );
+            return;
+        }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DiscardSubmitData
+
+    Description:
+        Drop the submit data due to failed resource allocation or submit error.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::DiscardSubmitData( DeviceProfilerSubmitBatch& submitBatch )
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        // Free all dynamic allocations associated with the submit batch to prevent collection of invalid data.
+        FreeDynamicAllocations( submitBatch );
     }
 
     /***********************************************************************************\
@@ -288,52 +383,90 @@ namespace Profiler
         Add submit data to the aggregator.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::AppendSubmit( const DeviceProfilerSubmitBatch& submit )
+    void ProfilerDataAggregator::AppendSubmit( uint32_t frameIndex, DeviceProfilerSubmitBatch& submitBatch )
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        // Prepare submit batch info.
-        SubmitBatch submitBatch( (submit) );
+        // Synchronize with data collection thread.
+        std::scoped_lock lk( m_Mutex );
+        std::shared_ptr<Frame> pFrame = GetPendingFrame( frameIndex );
 
-        for( const DeviceProfilerSubmit& _submit : submitBatch.m_Submits )
+        if( pFrame == nullptr )
         {
-            submitBatch.m_pSubmittedCommandBuffers.insert(
-                _submit.m_pCommandBuffers.begin(),
-                _submit.m_pCommandBuffers.end() );
+            pFrame = std::make_shared<Frame>();
+            pFrame->m_FrameIndex = frameIndex;
+            pFrame->m_ThreadId = submitBatch.m_ThreadId;
+            pFrame->m_Timestamp = submitBatch.m_Timestamp;
+            pFrame->m_FramesPerSec = m_pProfiler->m_CpuFpsCounter.GetValue();
+            pFrame->m_FrameDelimiter = static_cast<VkProfilerFrameDelimiterEXT>( m_pProfiler->m_Config.m_FrameDelimiter.value );
+            pFrame->m_SyncTimestamps = m_pProfiler->GetSynchronizationTimestamps();
+
+            m_pPendingFrames.push_back( pFrame );
         }
 
-        // Allocate a buffer for the query data.
-        uint64_t bufferSize = 0;
+        Frame& frame = *pFrame;
+        submitBatch.m_SubmitBatchDataIndex = static_cast<uint32_t>( frame.m_CompleteSubmits.size() );
 
-        for( const ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+        DeviceProfilerSubmitBatchData& submitBatchData = frame.m_CompleteSubmits.emplace_back();
+        submitBatchData.m_Handle = submitBatch.m_Handle;
+        submitBatchData.m_ThreadId = submitBatch.m_ThreadId;
+        submitBatchData.m_Timestamp = submitBatch.m_Timestamp;
+
+        // Append the submit to the last frame in the queue.
+        frame.m_PendingSubmits.push_back( std::move( submitBatch ) );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        EndFrame
+
+    Description:
+        Mark the frame as ended.
+        It is possible that some submits that belong to this frame will be submitted,
+        but as the last pending submission ends, the frame will be considered completed.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::EndFrame( uint32_t frameIndex )
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        const uint64_t timestamp = m_pProfiler->m_CpuTimestampCounter.GetCurrentValue();
+
+        // Synchronize with data collection thread.
+        std::scoped_lock lk( m_Mutex );
+        std::shared_ptr<Frame> pFrame = GetPendingFrame( frameIndex );
+
+        if( pFrame )
         {
-            bufferSize += pCommandBuffer->GetRequiredQueryDataBufferSize();
+            pFrame->m_EndTimestamp = timestamp;
+            pFrame->m_Ended = true;
         }
+    }
 
-        submitBatch.m_pDataBuffer = new DeviceProfilerQueryDataBuffer( *m_pProfiler, bufferSize );
+    /***********************************************************************************\
 
-        // Try to copy the data using GPU.
-        // It may fallback to CPU allocation if the function fails to allocate the command buffer.
-        bool succeeded = WriteQueryDataToGpuBuffer( submitBatch );
-        if( !succeeded )
-        {
-            FreeDynamicAllocations( submitBatch );
-            return;
-        }
+    Function:
+        EndPendingFrames
+
+    Description:
+        Mark all pending frames as ended.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::EndPendingFrames()
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        const uint64_t timestamp = m_pProfiler->m_CpuTimestampCounter.GetCurrentValue();
 
         // Synchronize with data collection thread.
         std::scoped_lock lk( m_Mutex );
 
-        Frame& frame = m_NextFrames.back();
-        submitBatch.m_SubmitBatchDataIndex = static_cast<uint32_t>( frame.m_CompleteSubmits.size() );
-
-        DeviceProfilerSubmitBatchData& submitBatchData = frame.m_CompleteSubmits.emplace_back();
-        submitBatchData.m_Handle = submit.m_Handle;
-        submitBatchData.m_ThreadId = submit.m_ThreadId;
-        submitBatchData.m_Timestamp = submit.m_Timestamp;
-
-        // Append the submit to the last frame in the queue.
-        frame.m_PendingSubmits.push_back( std::move( submitBatch ) );
+        for( std::shared_ptr<Frame>& pFrame : m_pPendingFrames )
+        {
+            pFrame->m_EndTimestamp = timestamp;
+            pFrame->m_Ended = true;
+        }
     }
 
     /***********************************************************************************\
@@ -360,14 +493,14 @@ namespace Profiler
             std::vector<VkFence> waitFences;
 
             // Wait for all pending submits that reference the command buffer.
-            for( const Frame& frame : m_NextFrames )
+            for( const std::shared_ptr<Frame>& pFrame : m_pPendingFrames )
             {
-                for( const SubmitBatch& submitBatch : frame.m_PendingSubmits )
+                for( const DeviceProfilerSubmitBatch& submitBatch : pFrame->m_PendingSubmits )
                 {
-                    if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
+                    if( submitBatch.m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) && submitBatch.m_Fence )
                     {
                         // Wait for this submit batch.
-                        waitFences.push_back( submitBatch.m_DataCopyFence );
+                        waitFences.push_back( submitBatch.m_Fence.get() );
                     }
                 }
             }
@@ -377,7 +510,7 @@ namespace Profiler
                 // Wait for the fences.
                 m_pProfiler->m_pDevice->Callbacks.WaitForFences(
                     m_pProfiler->m_pDevice->Handle,
-                    static_cast<uint32_t>(waitFences.size()),
+                    static_cast<uint32_t>( waitFences.size() ),
                     waitFences.data(),
                     VK_TRUE,
                     UINT64_MAX );
@@ -396,40 +529,50 @@ namespace Profiler
             }
         }
 
-        // Check if any submit has completed
-        for( Frame& frame : m_NextFrames )
+        // Check if any submit has completed.
+        for( const std::shared_ptr<Frame>& pFrame : m_pPendingFrames )
         {
-            auto submitBatchIt = frame.m_PendingSubmits.begin();
-            while( submitBatchIt != frame.m_PendingSubmits.end() )
+            auto submitBatchIt = pFrame->m_PendingSubmits.begin();
+            while( submitBatchIt != pFrame->m_PendingSubmits.end() )
             {
                 VkResult result = VK_NOT_READY;
 
-                // Aggregate only submits that contain the specified command buffer
+                // Aggregate only submits that contain the specified command buffer.
                 if( !pWaitForCommandBuffer || submitBatchIt->m_pSubmittedCommandBuffers.count( pWaitForCommandBuffer ) )
                 {
-                    result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
-                        m_pProfiler->m_pDevice->Handle,
-                        submitBatchIt->m_DataCopyFence );
+                    if( submitBatchIt->m_Fence )
+                    {
+                        result = m_pProfiler->m_pDevice->Callbacks.GetFenceStatus(
+                            m_pProfiler->m_pDevice->Handle,
+                            submitBatchIt->m_Fence.get() );
+                    }
+                    else
+                    {
+                        result = VK_SUCCESS;
+                    }
                 }
 
                 if( result == VK_SUCCESS )
                 {
-                    bool succeeded = true;
-                    if( !submitBatchIt->m_pDataBuffer->UsesGpuAllocation() )
+                    if( submitBatchIt->m_pDataBuffer )
                     {
-                        succeeded = WriteQueryDataToCpuBuffer( *submitBatchIt );
-                    }
+                        bool succeeded = true;
+                        if( !submitBatchIt->m_pDataBuffer->UsesGpuAllocation() )
+                        {
+                            succeeded = WriteQueryDataToCpuBuffer( *submitBatchIt );
+                        }
 
-                    if( succeeded )
-                    {
-                        ResolveSubmitBatchData(
-                            *submitBatchIt,
-                            frame.m_CompleteSubmits[submitBatchIt->m_SubmitBatchDataIndex] );
+                        if( succeeded )
+                        {
+                            ResolveSubmitBatchData(
+                                *submitBatchIt,
+                                pFrame->m_CompleteSubmits[submitBatchIt->m_SubmitBatchDataIndex] );
+                        }
                     }
 
                     FreeDynamicAllocations( *submitBatchIt );
 
-                    submitBatchIt = frame.m_PendingSubmits.erase( submitBatchIt );
+                    submitBatchIt = pFrame->m_PendingSubmits.erase( submitBatchIt );
                 }
                 else
                 {
@@ -438,16 +581,37 @@ namespace Profiler
             }
         }
 
-        // Check if any frame has completed
-        if( !pWaitForCommandBuffer && !m_NextFrames.empty() )
+        // Check if any frame has completed.
+        if( !pWaitForCommandBuffer )
         {
-            auto frameIt = m_NextFrames.begin();
-            while( (frameIt != m_NextFrames.end()) && (frameIt->m_FrameIndex < m_FrameIndex) && (frameIt->m_PendingSubmits.empty()) )
+            while( !m_pPendingFrames.empty()  )
             {
-                LoadPerformanceMetricsProperties();
+                std::shared_ptr<Frame> pFrame = m_pPendingFrames.front();
+
+                // A frame is completed when all its submits have been processed and no more are expected.
+                const bool frameCompleted =
+                    ( pFrame->m_Ended ) &&
+                    ( pFrame->m_PendingSubmits.empty() );
+
+                if( !frameCompleted )
+                {
+                    // This, and all subsequent frames, are not completed yet.
+                    break;
+                }
+
+                m_pPendingFrames.pop_front();
+
+                // Resolving frame data is time consuming, release the lock while processing to avoid
+                // blocking recording of the next frames.
+                uniqueLock.unlock();
 
                 std::shared_ptr<DeviceProfilerFrameData> pFrameData = std::make_shared<DeviceProfilerFrameData>();
-                ResolveFrameData( *frameIt, *pFrameData );
+                ResolveFrameData( *pFrame, *pFrameData );
+
+                pFrame.reset();
+
+                // Re-acquire the lock to update the resolved frames list.
+                uniqueLock.lock();
 
                 // Remove unconsumed frames.
                 if( m_MaxResolvedFrameCount != 0 )
@@ -459,13 +623,6 @@ namespace Profiler
                 }
 
                 m_pResolvedFrames.push_back( std::move( pFrameData ) );
-
-                frameIt++;
-            }
-
-            if( frameIt != m_NextFrames.begin() )
-            {
-                m_NextFrames.erase( m_NextFrames.begin(), frameIt );
             }
         }
     }
@@ -489,6 +646,29 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        GetPendingFrame
+
+    Description:
+        Get the frame with the given index from the pending frames list.
+        m_Mutex must be locked by the caller.
+
+    \***********************************************************************************/
+    std::shared_ptr<ProfilerDataAggregator::Frame> ProfilerDataAggregator::GetPendingFrame( uint32_t frameIndex ) const
+    {
+        for( std::shared_ptr<Frame> pFrame : m_pPendingFrames )
+        {
+            if( pFrame->m_FrameIndex == frameIndex )
+            {
+                return pFrame;
+            }
+        }
+
+        return nullptr;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         ResolveSubmitBatchData
 
     Description:
@@ -497,7 +677,7 @@ namespace Profiler
 
     \***********************************************************************************/
     void ProfilerDataAggregator::ResolveSubmitBatchData(
-        SubmitBatch& submitBatch,
+        DeviceProfilerSubmitBatch& submitBatch,
         DeviceProfilerSubmitBatchData& submitBatchData ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
@@ -548,7 +728,6 @@ namespace Profiler
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
         frameData.m_TopPipelines = CollectTopPipelines( frame );
-        frameData.m_PerformanceCounters = AggregatePerformanceMetrics( frame );
 
         frameData.m_Ticks = 0;
         frameData.m_BeginTimestamp = std::numeric_limits<uint64_t>::max();
@@ -564,10 +743,44 @@ namespace Profiler
                 for( const auto& commandBuffer : submit.m_CommandBuffers )
                 {
                     frameData.m_Stats += commandBuffer.m_Stats;
-                    frameData.m_Ticks += (commandBuffer.m_EndTimestamp.m_Value - commandBuffer.m_BeginTimestamp.m_Value);
+                    frameData.m_Ticks += ( commandBuffer.m_EndTimestamp.m_Value - commandBuffer.m_BeginTimestamp.m_Value );
                     frameData.m_BeginTimestamp = std::min( frameData.m_BeginTimestamp, commandBuffer.m_BeginTimestamp.m_Value );
                     frameData.m_EndTimestamp = std::max( frameData.m_EndTimestamp, commandBuffer.m_EndTimestamp.m_Value );
                 }
+            }
+        }
+
+        if( frameData.m_Ticks == 0 )
+        {
+            // No data collected.
+            frameData.m_BeginTimestamp = 0;
+            frameData.m_EndTimestamp = 0;
+        }
+
+        // Collect performance counters data.
+        if( m_pProfiler->m_pPerformanceCounters )
+        {
+            switch( m_pProfiler->m_pPerformanceCounters->GetSamplingMode() )
+            {
+            case VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_QUERY_EXT:
+                // Post-process the data.
+                AggregatePerformanceQueryMetrics(
+                    frame.m_CompleteSubmits,
+                    frameData.m_PerformanceCounters );
+                break;
+
+            case VK_PROFILER_PERFORMANCE_COUNTERS_SAMPLING_MODE_STREAM_EXT:
+                // Collect data from the performance metrics stream.
+                CollectPerformanceMetricsStreamData(
+                    frameData.m_BeginTimestamp,
+                    frameData.m_EndTimestamp,
+                    frameData.m_PerformanceCounters );
+
+                // Post-process the data.
+                AggregatePerformanceStreamMetrics(
+                    frame.m_CompleteSubmits,
+                    frameData.m_PerformanceCounters );
+                break;
             }
         }
 
@@ -622,70 +835,189 @@ namespace Profiler
         Get metrics properties from the metrics API.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::LoadPerformanceMetricsProperties()
+    void ProfilerDataAggregator::LoadPerformanceMetricsProperties(
+        uint32_t metricsSetIndex,
+        std::vector<VkProfilerPerformanceCounterProperties2EXT>& properties ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        auto* pPerformanceCounters = m_pProfiler->m_pPerformanceCounters.get();
-        if( pPerformanceCounters )
+        if( metricsSetIndex == UINT32_MAX )
         {
-            // Check if metrics set has changed.
-            const uint32_t activeMetricsSetIndex = pPerformanceCounters->GetActiveMetricsSetIndex();
-            if( m_PerformanceMetricsSetIndex != activeMetricsSetIndex )
+            properties.clear();
+            return;
+        }
+
+        const uint32_t metricCount = m_pProfiler->m_pPerformanceCounters->GetMetricsCount( metricsSetIndex );
+        properties.resize( metricCount );
+
+        m_pProfiler->m_pPerformanceCounters->GetMetricsSetMetricsProperties(
+            metricsSetIndex,
+            metricCount,
+            properties.data() );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        CollectPerformanceMetricsStreamData
+
+    Description:
+        Read performance metrics stream data for the given time range.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::CollectPerformanceMetricsStreamData(
+        uint64_t beginTimestamp,
+        uint64_t endTimestamp,
+        DeviceProfilerPerformanceCountersData& outData ) const
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        // Get active metrics set properties.
+        const uint32_t performanceMetricsSetIndex =
+            m_pProfiler->m_pPerformanceCounters->GetActiveMetricsSetIndex();
+
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> performanceMetricProperties( 0 );
+        LoadPerformanceMetricsProperties(
+            performanceMetricsSetIndex,
+            performanceMetricProperties );
+
+        const uint32_t metricCount = static_cast<uint32_t>( performanceMetricProperties.size() );
+
+        // No vendor metrics available
+        if( metricCount == 0 )
+        {
+            return;
+        }
+
+        // Temporary storage for the raw data received from the counters backend.
+        thread_local std::vector<DeviceProfilerPerformanceCountersStreamResult> intermediateResults;
+
+        auto ProcessStreamData = [&]()
+        {
+            const size_t previousSampleCount = outData.m_StreamTimestamps.size();
+            const size_t newSampleCount = previousSampleCount + intermediateResults.size();
+
+            // Preallocate space for the new samples.
+            outData.m_StreamTimestamps.reserve( newSampleCount );
+
+            for( DeviceProfilerPerformanceCounterStreamData& streamData : outData.m_StreamResults )
             {
-                m_PerformanceMetricsSetIndex = activeMetricsSetIndex;
-                m_PerformanceMetricProperties.clear();
+                streamData.m_Samples.reserve( newSampleCount );
+            }
 
-                if( m_PerformanceMetricsSetIndex != UINT32_MAX )
+            // Transpose the data for better cache locality.
+            for( const DeviceProfilerPerformanceCountersStreamResult& result : intermediateResults )
+            {
+                // Filter out results using different metrics sets.
+                if( result.m_MetricsSetIndex == performanceMetricsSetIndex )
                 {
-                    const uint32_t metricCount = pPerformanceCounters->GetMetricsCount( m_PerformanceMetricsSetIndex );
-                    m_PerformanceMetricProperties.resize( metricCount );
+                    outData.m_StreamTimestamps.push_back( result.m_GpuTimestamp );
 
-                    pPerformanceCounters->GetMetricsSetMetricsProperties(
-                        m_PerformanceMetricsSetIndex,
-                        metricCount,
-                        m_PerformanceMetricProperties.data() );
+                    for( size_t i = 0; i < metricCount; ++i )
+                    {
+                        outData.m_StreamResults[i].m_Samples.push_back( result.m_Data[i] );
+                    }
                 }
             }
+
+            // Update min/max values.
+            for( size_t i = 0; i < metricCount; ++i )
+            {
+                DeviceProfilerPerformanceCounterStreamData& streamResults = outData.m_StreamResults[i];
+                const VkProfilerPerformanceCounterResultEXT* pStreamSamples = streamResults.m_Samples.data();
+                const VkProfilerPerformanceCounterStorageEXT storage = performanceMetricProperties[i].storage;
+
+                for( size_t j = previousSampleCount; j < newSampleCount; ++j )
+                {
+                    VkProfilerPerformanceCounterResultEXT sample = pStreamSamples[j];
+                    Profiler::Aggregate<MinAggregator>( streamResults.m_MinValue, 1, sample, storage );
+                    Profiler::Aggregate<MaxAggregator>( streamResults.m_MaxValue, 1, sample, storage );
+                }
+            }
+
+            intermediateResults.clear();
+        };
+
+        // Prepare the output buffers.
+        outData.m_MetricsSetIndex = performanceMetricsSetIndex;
+        outData.m_StreamResults.resize( metricCount );
+
+        for( uint32_t i = 0; i < metricCount; ++i )
+        {
+            DeviceProfilerPerformanceCounterStreamData& streamResults = outData.m_StreamResults[i];
+
+            PerformanceCounterStorageLimits storageLimits( performanceMetricProperties[i].storage );
+            streamResults.m_MinValue = storageLimits.m_Max;
+            streamResults.m_MaxValue = storageLimits.m_Min;
+        }
+
+        // Read the stream data from the backend.
+        while( !m_pProfiler->m_pPerformanceCounters->ReadStreamData(
+            beginTimestamp,
+            endTimestamp,
+            intermediateResults ) )
+        {
+            if( !intermediateResults.empty() )
+            {
+                // Process collected samples while waiting for more data.
+                ProcessStreamData();
+            }
+            else
+            {
+                // Avoid busy waiting if there is no data to process yet.
+                std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+            }
+        }
+
+        if( !intermediateResults.empty() )
+        {
+            // Process the last batch of samples.
+            ProcessStreamData();
         }
     }
 
     /***********************************************************************************\
 
     Function:
-        AggregatePerformanceMetrics
+        AggregatePerformanceQueryMetrics
 
     Description:
         Merge performance metrics collected from different command buffers.
 
     \***********************************************************************************/
-    DeviceProfilerPerformanceCountersData ProfilerDataAggregator::AggregatePerformanceMetrics(
-        const Frame& frame ) const
+    void ProfilerDataAggregator::AggregatePerformanceQueryMetrics(
+        ContainerType<DeviceProfilerSubmitBatchData>& submits,
+        DeviceProfilerPerformanceCountersData& frameData ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
-        const uint32_t metricCount = static_cast<uint32_t>( m_PerformanceMetricProperties.size() );
+        // Get active metrics set properties.
+        const uint32_t performanceMetricsSetIndex =
+            m_pProfiler->m_pPerformanceCounters->GetActiveMetricsSetIndex();
 
-        // No vendor metrics available
+        std::vector<VkProfilerPerformanceCounterProperties2EXT> performanceMetricProperties( 0 );
+        LoadPerformanceMetricsProperties(
+            performanceMetricsSetIndex,
+            performanceMetricProperties );
+
+        const uint32_t metricCount = static_cast<uint32_t>( performanceMetricProperties.size() );
+
+        // No vendor metrics available.
         if( metricCount == 0 )
-            return {};
+        {
+            return;
+        }
 
         // Helper structure containing aggregated metric value and its weight.
-        struct __WeightedMetric
-        {
-            VkProfilerPerformanceCounterResultEXT value;
-            uint64_t weight;
-        };
+        std::vector<WeightedCounterResult> aggregatedVendorMetrics( metricCount );
 
-        std::vector<__WeightedMetric> aggregatedVendorMetrics( metricCount );
-
-        for( const auto& submitBatchData : frame.m_CompleteSubmits )
+        for( const auto& submitBatchData : submits )
         {
             for( const auto& submitData : submitBatchData.m_Submits )
             {
                 for( const auto& commandBufferData : submitData.m_CommandBuffers )
                 {
-                    if( commandBufferData.m_PerformanceCounters.m_MetricsSetIndex != m_PerformanceMetricsSetIndex )
+                    if( commandBufferData.m_PerformanceCounters.m_MetricsSetIndex != performanceMetricsSetIndex )
                     {
                         // The command buffer has been recorded with at different set of metrics.
                         continue;
@@ -697,12 +1029,16 @@ namespace Profiler
                         continue;
                     }
 
+                    // Use command buffer duration as weight of the metric value in the frame
+                    const uint64_t valueWeight = ( commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value );
+                    const auto* pValues = commandBufferData.m_PerformanceCounters.m_Results.data();
+
                     for( uint32_t i = 0; i < metricCount; ++i )
                     {
                         // Get metric accumulator
-                        __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+                        WeightedCounterResult& weightedMetric = aggregatedVendorMetrics[i];
 
-                        switch( m_PerformanceMetricProperties[ i ].unit )
+                        switch( performanceMetricProperties[i].unit )
                         {
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_BYTES_EXT:
                         case VK_PROFILER_PERFORMANCE_COUNTER_UNIT_CYCLES_EXT:
@@ -711,11 +1047,11 @@ namespace Profiler
                         {
                             // Metrics aggregated by sum
                             Profiler::Aggregate<SumAggregator>(
-                                weightedMetric.weight,
-                                weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferData.m_PerformanceCounters.m_Results[ i ],
-                                m_PerformanceMetricProperties[ i ].storage );
+                                weightedMetric.m_Weight,
+                                weightedMetric.m_Value,
+                                valueWeight,
+                                pValues[i],
+                                performanceMetricProperties[i].storage );
 
                             break;
                         }
@@ -730,11 +1066,11 @@ namespace Profiler
                         {
                             // Metrics aggregated by average
                             Profiler::Aggregate<AvgAggregator>(
-                                weightedMetric.weight,
-                                weightedMetric.value,
-                                (commandBufferData.m_EndTimestamp.m_Value - commandBufferData.m_BeginTimestamp.m_Value),
-                                commandBufferData.m_PerformanceCounters.m_Results[ i ],
-                                m_PerformanceMetricProperties[ i ].storage );
+                                weightedMetric.m_Weight,
+                                weightedMetric.m_Value,
+                                valueWeight,
+                                pValues[i],
+                                performanceMetricProperties[i].storage );
 
                             break;
                         }
@@ -745,21 +1081,45 @@ namespace Profiler
         }
 
         // Normalize aggregated metrics by weight
-        DeviceProfilerPerformanceCountersData normalizedAggregatedVendorMetrics;
-        normalizedAggregatedVendorMetrics.m_MetricsSetIndex = m_PerformanceMetricsSetIndex;
-        normalizedAggregatedVendorMetrics.m_Results.resize( metricCount );
+        frameData.m_MetricsSetIndex = performanceMetricsSetIndex;
+        frameData.m_Results.resize( metricCount );
 
         for( uint32_t i = 0; i < metricCount; ++i )
         {
-            const __WeightedMetric& weightedMetric = aggregatedVendorMetrics[ i ];
+            WeightedCounterResult weightedMetric = aggregatedVendorMetrics[i];
             Profiler::Aggregate<NormAggregator>(
-                normalizedAggregatedVendorMetrics.m_Results[ i ],
-                weightedMetric.weight,
-                weightedMetric.value,
-                m_PerformanceMetricProperties[ i ].storage );
+                frameData.m_Results[i],
+                weightedMetric.m_Weight,
+                weightedMetric.m_Value,
+                performanceMetricProperties[i].storage );
         }
+    }
 
-        return normalizedAggregatedVendorMetrics;
+    /***********************************************************************************\
+
+    Function:
+        AggregatePerformanceStreamMetrics
+
+    Description:
+        Patch metrics set index in the command buffer performance data.
+
+    \***********************************************************************************/
+    void ProfilerDataAggregator::AggregatePerformanceStreamMetrics(
+        ContainerType<DeviceProfilerSubmitBatchData>& submits,
+        DeviceProfilerPerformanceCountersData& frameData ) const
+    {
+        TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
+
+        for( auto& submitBatchData : submits )
+        {
+            for( auto& submitData : submitBatchData.m_Submits )
+            {
+                for( auto& commandBufferData : submitData.m_CommandBuffers )
+                {
+                    commandBufferData.m_PerformanceCounters.m_MetricsSetIndex = frameData.m_MetricsSetIndex;
+                }
+            }
+        }
     }
 
     /***********************************************************************************\
@@ -801,7 +1161,7 @@ namespace Profiler
         std::sort( pipelines.begin(), pipelines.end(),
             []( const DeviceProfilerPipelineData& a, const DeviceProfilerPipelineData& b )
             {
-                return (a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value) > (b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value);
+                return ( a.m_EndTimestamp.m_Value - a.m_BeginTimestamp.m_Value ) > ( b.m_EndTimestamp.m_Value - b.m_BeginTimestamp.m_Value );
             } );
 
         return pipelines;
@@ -822,6 +1182,8 @@ namespace Profiler
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
+        std::unordered_map<uint32_t, std::pair<uint64_t, uint64_t>> topLevelPipelineRanges;
+
         // Include begin/end
         DeviceProfilerPipelineData beginRenderPassPipeline = m_pProfiler->GetPipeline(
             (VkPipeline)DeviceProfilerPipelineType::eBeginRenderPass );
@@ -832,8 +1194,8 @@ namespace Profiler
         for( const auto& renderPass : commandBuffer.m_RenderPasses )
         {
             // Aggregate begin/end render pass time
-            beginRenderPassPipeline.m_EndTimestamp.m_Value += (renderPass.m_Begin.m_EndTimestamp.m_Value - renderPass.m_Begin.m_BeginTimestamp.m_Value);
-            endRenderPassPipeline.m_EndTimestamp.m_Value += (renderPass.m_End.m_EndTimestamp.m_Value - renderPass.m_End.m_BeginTimestamp.m_Value);
+            beginRenderPassPipeline.m_EndTimestamp.m_Value += ( renderPass.m_Begin.m_EndTimestamp.m_Value - renderPass.m_Begin.m_BeginTimestamp.m_Value );
+            endRenderPassPipeline.m_EndTimestamp.m_Value += ( renderPass.m_End.m_EndTimestamp.m_Value - renderPass.m_End.m_BeginTimestamp.m_Value );
 
             for( const auto& subpass : renderPass.m_Subpasses )
             {
@@ -842,7 +1204,7 @@ namespace Profiler
                 {
                     for( const auto& data : subpass.m_Data )
                     {
-                        CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines );
+                        CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines, topLevelPipelineRanges );
                     }
                 }
 
@@ -863,7 +1225,7 @@ namespace Profiler
                         switch( data.GetType() )
                         {
                         case DeviceProfilerSubpassDataType::ePipeline:
-                            CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines );
+                            CollectPipeline( std::get<DeviceProfilerPipelineData>( data ), aggregatedPipelines, topLevelPipelineRanges );
                             break;
                         case DeviceProfilerSubpassDataType::eCommandBuffer:
                             CollectPipelinesFromCommandBuffer( std::get<DeviceProfilerCommandBufferData>( data ), aggregatedPipelines );
@@ -875,8 +1237,8 @@ namespace Profiler
         }
 
         // Insert aggregated begin/end render pass pipelines
-        CollectPipeline( beginRenderPassPipeline, aggregatedPipelines );
-        CollectPipeline( endRenderPassPipeline, aggregatedPipelines );
+        CollectPipeline( beginRenderPassPipeline, aggregatedPipelines, topLevelPipelineRanges );
+        CollectPipeline( endRenderPassPipeline, aggregatedPipelines, topLevelPipelineRanges );
     }
 
     /***********************************************************************************\
@@ -890,7 +1252,8 @@ namespace Profiler
     \***********************************************************************************/
     void ProfilerDataAggregator::CollectPipeline(
         const DeviceProfilerPipelineData& pipeline,
-        std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines ) const
+        std::unordered_map<uint32_t, DeviceProfilerPipelineData>& aggregatedPipelines,
+        std::unordered_map<uint32_t, std::pair<uint64_t, uint64_t>>& topLevelPipelineRanges ) const
     {
         TipGuard tip( m_pProfiler->m_pDevice->TIP, __func__ );
 
@@ -907,8 +1270,43 @@ namespace Profiler
             aggregatedPipelineData.m_EndTimestamp.m_Value = 0;
         }
 
+        uint64_t pipelineSelfTime = pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value;
+
+        // Check if the current pipeline is a top-level pipeline (i.e. not executed within another pipeline)
+        // by looking for the existing pipeline range that contains its execution time range.
+        auto &topLevelRange = topLevelPipelineRanges[pipeline.m_ShaderTuple.m_Hash];
+
+        if( ( pipeline.m_BeginTimestamp.m_Value < topLevelRange.second ) &&
+            ( pipeline.m_EndTimestamp.m_Value > topLevelRange.second ) )
+        {
+            // Pipeline partially overlaps with the end of the existing top-level pipeline,
+            // adjust the existing range to include the new pipeline.
+            pipelineSelfTime -= ( topLevelRange.second - pipeline.m_BeginTimestamp.m_Value );
+            topLevelRange.second = pipeline.m_EndTimestamp.m_Value;
+        }
+        else if( ( pipeline.m_BeginTimestamp.m_Value < topLevelRange.first ) &&
+                 ( pipeline.m_EndTimestamp.m_Value > topLevelRange.first ) )
+        {
+            // Pipeline partially overlaps with the beginning of the existing top-level pipeline,
+            // adjust the existing range to include the new pipeline.
+            pipelineSelfTime -= ( pipeline.m_EndTimestamp.m_Value - topLevelRange.first );
+            topLevelRange.first = pipeline.m_BeginTimestamp.m_Value;
+        }
+        else if( ( pipeline.m_BeginTimestamp.m_Value >= topLevelRange.first ) &&
+                 ( pipeline.m_EndTimestamp.m_Value <= topLevelRange.second ) )
+        {
+            // Pipeline is fully contained within the existing top-level pipeline.
+            pipelineSelfTime = 0;
+        }
+        else
+        {
+            // New top-level pipeline started, update the range to the new pipeline execution time.
+            topLevelRange.first = pipeline.m_BeginTimestamp.m_Value;
+            topLevelRange.second = pipeline.m_EndTimestamp.m_Value;
+        }
+
         // Increase total pipeline time
-        aggregatedPipelineData.m_EndTimestamp.m_Value += ( pipeline.m_EndTimestamp.m_Value - pipeline.m_BeginTimestamp.m_Value );
+        aggregatedPipelineData.m_EndTimestamp.m_Value += pipelineSelfTime;
     }
 
     /***********************************************************************************\
@@ -920,27 +1318,120 @@ namespace Profiler
         Frees all dynamic allocations of the submit batch.
 
     \***********************************************************************************/
-    void ProfilerDataAggregator::FreeDynamicAllocations( SubmitBatch& submitBatch )
+    void ProfilerDataAggregator::FreeDynamicAllocations( DeviceProfilerSubmitBatch& submitBatch )
     {
-        if( submitBatch.m_DataCopyFence )
+        if( submitBatch.m_ResetCommandBuffer )
         {
-            m_pProfiler->m_pDevice->Callbacks.DestroyFence(
-                m_pProfiler->m_pDevice->Handle,
-                submitBatch.m_DataCopyFence,
-                nullptr );
-        }
-        if( submitBatch.m_DataCopyCommandBuffer )
-        {
-            assert( submitBatch.m_pDataCopyCommandPool != nullptr );
-            std::unique_lock commandPoolLock( submitBatch.m_pDataCopyCommandPool->GetMutex() );
+            assert( submitBatch.m_pInternalCommandPool != nullptr );
+            std::unique_lock commandPoolLock( submitBatch.m_pInternalCommandPool->GetMutex() );
 
             m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
                 m_pProfiler->m_pDevice->Handle,
-                submitBatch.m_pDataCopyCommandPool->GetHandle(),
-                1, &submitBatch.m_DataCopyCommandBuffer );
+                submitBatch.m_pInternalCommandPool->GetHandle(),
+                1, &submitBatch.m_ResetCommandBuffer );
+
+            submitBatch.m_ResetCommandBuffer = VK_NULL_HANDLE;
         }
 
+        if( submitBatch.m_CopyCommandBuffer )
+        {
+            assert( submitBatch.m_pInternalCommandPool != nullptr );
+            std::unique_lock commandPoolLock( submitBatch.m_pInternalCommandPool->GetMutex() );
+
+            m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
+                m_pProfiler->m_pDevice->Handle,
+                submitBatch.m_pInternalCommandPool->GetHandle(),
+                1, &submitBatch.m_CopyCommandBuffer );
+
+            submitBatch.m_CopyCommandBuffer = VK_NULL_HANDLE;
+        }
+
+        submitBatch.m_pInternalCommandPool = nullptr;
+
         delete submitBatch.m_pDataBuffer;
+        submitBatch.m_pDataBuffer = nullptr;
+
+        submitBatch.m_Fence.reset();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ResetQueryPools
+
+    Description:
+        Allocate a command buffer, record reset commands and submit it for execution.
+
+    \***********************************************************************************/
+    bool ProfilerDataAggregator::ResetQueryPools( DeviceProfilerSubmitBatch& submitBatch )
+    {
+        // Synchronize access to the command pool.
+        std::unique_lock commandPoolLock( submitBatch.m_pInternalCommandPool->GetMutex() );
+
+        // Allocate the command buffer.
+        VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+        commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        commandBufferAllocateInfo.commandBufferCount = 1;
+        commandBufferAllocateInfo.commandPool = submitBatch.m_pInternalCommandPool->GetHandle();
+
+        VkResult result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
+            m_pProfiler->m_pDevice->Handle,
+            &commandBufferAllocateInfo,
+            &submitBatch.m_ResetCommandBuffer );
+
+        if( result == VK_SUCCESS )
+        {
+            // Command buffers are dispatchable handles, update pointers to parent's dispatch table.
+            result = m_pProfiler->m_pDevice->SetDeviceLoaderData(
+                m_pProfiler->m_pDevice->Handle,
+                submitBatch.m_ResetCommandBuffer );
+        }
+
+        if( result == VK_SUCCESS )
+        {
+            // Begin recording commands to the copy command buffer.
+            VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+            commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+            result = m_pProfiler->m_pDevice->Callbacks.BeginCommandBuffer(
+                submitBatch.m_ResetCommandBuffer,
+                &commandBufferBeginInfo );
+        }
+
+        if( result == VK_SUCCESS )
+        {
+            // Reset all query pools on the GPU.
+            for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
+            {
+                for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+                {
+                    pCommandBuffer->ResetQueryPools( submitBatch.m_ResetCommandBuffer );
+                }
+            }
+
+            result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
+                submitBatch.m_ResetCommandBuffer );
+        }
+
+        if( result != VK_SUCCESS )
+        {
+            // todo: Reset using host.
+
+            // And don't execute the GPU reset command buffer.
+            if( submitBatch.m_ResetCommandBuffer != VK_NULL_HANDLE )
+            {
+                m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
+                    m_pProfiler->m_pDevice->Handle,
+                    submitBatch.m_pInternalCommandPool->GetHandle(),
+                    1, &submitBatch.m_ResetCommandBuffer );
+
+                submitBatch.m_ResetCommandBuffer = VK_NULL_HANDLE;
+            }
+        }
+
+        return ( result == VK_SUCCESS );
     }
 
     /***********************************************************************************\
@@ -953,41 +1444,51 @@ namespace Profiler
         Fallback to a CPU allocation if the allocation or recording fails.
 
     \***********************************************************************************/
-    bool ProfilerDataAggregator::WriteQueryDataToGpuBuffer( SubmitBatch& submitBatch )
+    bool ProfilerDataAggregator::WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
     {
-        // Always submit the fence to GPU to check for data availability later.
-        uint32_t submitCount = 0;
-        VkSubmitInfo submitInfo = {};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        // Allocate a buffer for the query data.
+        uint64_t bufferSize = 0;
+
+        for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
+        {
+            for( const ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+            {
+                bufferSize += pCommandBuffer->GetRequiredQueryDataBufferSize();
+            }
+        }
+
+        if( bufferSize == 0 )
+        {
+            // No query data to write.
+            return false;
+        }
+
+        submitBatch.m_pDataBuffer = new DeviceProfilerQueryDataBuffer( *m_pProfiler, bufferSize );
 
         // Try to copy using GPU if allocation is available.
         if( submitBatch.m_pDataBuffer->UsesGpuAllocation() )
         {
-            // Get the command pool associated with the queue.
-            DeviceProfilerInternalCommandPool& commandPool = m_CopyCommandPools.at( submitBatch.m_Handle );
-            submitBatch.m_pDataCopyCommandPool = &commandPool;
-
             // Synchronize access to the command pool.
-            std::unique_lock commandPoolLock( commandPool.GetMutex() );
+            std::unique_lock commandPoolLock( submitBatch.m_pInternalCommandPool->GetMutex() );
 
             // Allocate the command buffer.
             VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
             commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
             commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             commandBufferAllocateInfo.commandBufferCount = 1;
-            commandBufferAllocateInfo.commandPool = commandPool.GetHandle();
+            commandBufferAllocateInfo.commandPool = submitBatch.m_pInternalCommandPool->GetHandle();
 
             VkResult result = m_pProfiler->m_pDevice->Callbacks.AllocateCommandBuffers(
                 m_pProfiler->m_pDevice->Handle,
                 &commandBufferAllocateInfo,
-                &submitBatch.m_DataCopyCommandBuffer );
+                &submitBatch.m_CopyCommandBuffer );
 
             if( result == VK_SUCCESS )
             {
                 // Command buffers are dispatchable handles, update pointers to parent's dispatch table.
                 result = m_pProfiler->m_pDevice->SetDeviceLoaderData(
                     m_pProfiler->m_pDevice->Handle,
-                    submitBatch.m_DataCopyCommandBuffer );
+                    submitBatch.m_CopyCommandBuffer );
             }
 
             if( result == VK_SUCCESS )
@@ -998,7 +1499,7 @@ namespace Profiler
                 commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
                 result = m_pProfiler->m_pDevice->Callbacks.BeginCommandBuffer(
-                    submitBatch.m_DataCopyCommandBuffer,
+                    submitBatch.m_CopyCommandBuffer,
                     &commandBufferBeginInfo );
             }
 
@@ -1008,53 +1509,39 @@ namespace Profiler
                 DeviceProfilerQueryDataBufferWriter writer(
                     *m_pProfiler,
                     *submitBatch.m_pDataBuffer,
-                    submitBatch.m_DataCopyCommandBuffer );
+                    submitBatch.m_CopyCommandBuffer );
 
-                for( ProfilerCommandBuffer* pCommandBuffer : submitBatch.m_pSubmittedCommandBuffers )
+                for( const DeviceProfilerSubmit& submit : submitBatch.m_Submits )
                 {
-                    pCommandBuffer->WriteQueryData( writer );
+                    for( ProfilerCommandBuffer* pCommandBuffer : submit.m_pCommandBuffers )
+                    {
+                        pCommandBuffer->WriteQueryData( writer );
+                    }
                 }
 
                 result = m_pProfiler->m_pDevice->Callbacks.EndCommandBuffer(
-                    submitBatch.m_DataCopyCommandBuffer );
-            }
-
-            if( result == VK_SUCCESS )
-            {
-                // Submit the command buffer for execution.
-                submitCount = 1;
-                submitInfo.commandBufferCount = 1;
-                submitInfo.pCommandBuffers = &submitBatch.m_DataCopyCommandBuffer;
+                    submitBatch.m_CopyCommandBuffer );
             }
 
             if( result != VK_SUCCESS )
             {
                 // If any of the steps above has failed, fallback to CPU allocation and collect the data later.
                 submitBatch.m_pDataBuffer->FallbackToCpuAllocation();
+
+                // And don't execute the GPU copy command buffer.
+                if( submitBatch.m_CopyCommandBuffer != VK_NULL_HANDLE )
+                {
+                    m_pProfiler->m_pDevice->Callbacks.FreeCommandBuffers(
+                        m_pProfiler->m_pDevice->Handle,
+                        submitBatch.m_pInternalCommandPool->GetHandle(),
+                        1, &submitBatch.m_CopyCommandBuffer );
+
+                    submitBatch.m_CopyCommandBuffer = VK_NULL_HANDLE;
+                }
             }
         }
 
-        // Always submit the fence, which is required to check for data availability.
-        VkFenceCreateInfo fenceCreateInfo = {};
-        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-
-        VkResult result = m_pProfiler->m_pDevice->Callbacks.CreateFence(
-            m_pProfiler->m_pDevice->Handle,
-            &fenceCreateInfo,
-            nullptr,
-            &submitBatch.m_DataCopyFence );
-
-        if( result == VK_SUCCESS )
-        {
-            // Submit the fence, and optionally the command buffer, for execution.
-            result = m_pProfiler->m_pDevice->Callbacks.QueueSubmit(
-                submitBatch.m_Handle,
-                submitCount,
-                &submitInfo,
-                submitBatch.m_DataCopyFence );
-        }
-
-        return (result == VK_SUCCESS);
+        return submitBatch.m_pDataBuffer->IsValid();
     }
 
     /***********************************************************************************\
@@ -1066,7 +1553,7 @@ namespace Profiler
         Copy the data from the query pools to the buffer.
 
     \***********************************************************************************/
-    bool ProfilerDataAggregator::WriteQueryDataToCpuBuffer( SubmitBatch& submitBatch )
+    bool ProfilerDataAggregator::WriteQueryDataToCpuBuffer( DeviceProfilerSubmitBatch& submitBatch )
     {
         // Drop the packet if the CPU buffer allocation failed.
         if( submitBatch.m_pDataBuffer->GetCpuBuffer() == nullptr )

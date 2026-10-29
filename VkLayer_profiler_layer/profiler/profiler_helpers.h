@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -70,8 +70,14 @@
 #define PROFILER_FORCE_INLINE inline
 #endif
 
+// Shorthands for string comparison functions
+#define PROFILER_STREQ( STR1, STR2 ) ( Profiler::ProfilerStringFunctions::Equals<Profiler::ProfilerStringFunctions::CaseSensitivity::CaseSensitive>( ( STR1 ), ( STR2 ) ) )
+#define PROFILER_STREQI( STR1, STR2 ) ( Profiler::ProfilerStringFunctions::Equals<Profiler::ProfilerStringFunctions::CaseSensitivity::CaseInsensitive>( ( STR1 ), ( STR2 ) ) )
+
 namespace Profiler
 {
+    typedef void ( *VoidFunction )();
+
     /***********************************************************************************\
 
     Class:
@@ -709,6 +715,23 @@ namespace Profiler
         }
 
         template<CaseSensitivity caseSensitivity, typename CharT>
+        static bool Equals( const CharT* pStr1, const CharT* pStr2 )
+        {
+            while( *pStr1 && *pStr2 )
+            {
+                if( !CharEquals<caseSensitivity>( *pStr1, *pStr2 ) )
+                {
+                    return false;
+                }
+
+                pStr1++;
+                pStr2++;
+            }
+
+            return ( *pStr1 == 0 ) && ( *pStr2 == 0 );
+        }
+
+        template<CaseSensitivity caseSensitivity, typename CharT>
         static size_t Find( const CharT* pStr, const CharT* pSubstr )
         {
             if( *pSubstr == 0 )
@@ -886,6 +909,16 @@ namespace Profiler
         static void GetLocalTime( tm*, const time_t& );
 
         static std::optional<std::string> GetEnvironmentVar(const char* pVariableName);
+
+        static void* OpenLibrary( const char* pLibraryName );
+        static void CloseLibrary( void* pLibraryHandle );
+        static VoidFunction GetProcAddress( void* pLibraryHandle, const char* pProcName );
+
+        template<typename FunctionT>
+        static FunctionT GetProcAddress( void* pLibraryHandle, const char* pProcName )
+        {
+            return reinterpret_cast<FunctionT>( GetProcAddress( pLibraryHandle, pProcName ) );
+        }
     };
 
     /***********************************************************************************\
@@ -933,6 +966,54 @@ namespace Profiler
                     return i;
             return SIZE_MAX;
         }
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        ScopedAllocator
+
+    Description:
+        Allocator that automatically frees memory when it goes out of scope.
+
+    \***********************************************************************************/
+    class ScopedAllocator
+    {
+    public:
+        ScopedAllocator() = default;
+
+        ScopedAllocator( const ScopedAllocator& ) = delete;
+        ScopedAllocator& operator=( const ScopedAllocator& ) = delete;
+
+        ScopedAllocator( ScopedAllocator&& ) = delete;
+        ScopedAllocator& operator=( ScopedAllocator&& ) = delete;
+
+        ~ScopedAllocator()
+        {
+            for( void* pMemory : m_pAllocations )
+            {
+                free( pMemory );
+            }
+        }
+
+        void* Allocate( size_t size )
+        {
+            void* pMemory = malloc( size );
+            if( pMemory )
+            {
+                m_pAllocations.insert( pMemory );
+            }
+            return pMemory;
+        }
+
+        template<typename T>
+        T* Allocate( size_t count )
+        {
+            return reinterpret_cast<T*>( Allocate( count * sizeof( T ) ) );
+        }
+
+    private:
+        std::unordered_set<void*> m_pAllocations;
     };
 
     /***********************************************************************************\

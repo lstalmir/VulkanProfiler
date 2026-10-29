@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,7 @@
 #include "profiler_command_buffer.h"
 #include "profiler_command_pool.h"
 #include <list>
-#include <map>
+#include <vector>
 #include <shared_mutex>
 #include <thread>
 #include <unordered_set>
@@ -45,20 +45,51 @@ namespace Profiler
 
     struct DeviceProfilerSubmitBatch
     {
-        VkQueueHandle                                   m_Handle = {};
+        VkQueueHandle                                   m_Handle = VK_NULL_HANDLE;
         ContainerType<DeviceProfilerSubmit>             m_Submits = {};
-        uint64_t                                        m_Timestamp = {};
-        uint32_t                                        m_ThreadId = {};
-    };
-    
-    struct DeviceProfilerFrame
-    {
-        uint32_t                                        m_FrameIndex = 0;
-        uint32_t                                        m_ThreadId = 0;
         uint64_t                                        m_Timestamp = 0;
-        float                                           m_FramesPerSec = 0;
-        VkProfilerFrameDelimiterEXT                     m_FrameDelimiter = {};
-        DeviceProfilerSynchronizationTimestamps         m_SyncTimestamps = {};
+        uint32_t                                        m_ThreadId = 0;
+        uint32_t                                        m_FrameIndex = 0;
+        bool                                            m_FrameBoundary = false;
+
+        uint32_t                                        m_SubmitBatchDataIndex = 0;
+        std::unordered_set<ProfilerCommandBuffer*>      m_pSubmittedCommandBuffers = {};
+
+        DeviceProfilerQueryDataBuffer*                  m_pDataBuffer = nullptr;
+
+        DeviceProfilerInternalCommandPool*              m_pInternalCommandPool = nullptr;
+        VkCommandBuffer                                 m_ResetCommandBuffer  = VK_NULL_HANDLE;
+        VkCommandBuffer                                 m_CopyCommandBuffer = VK_NULL_HANDLE;
+        std::shared_ptr<VkFence_T>                      m_Fence = nullptr;
+    };
+
+    struct DeviceProfilerSubmitBatchList
+    {
+        VkQueueHandle                                   m_Queue = VK_NULL_HANDLE;
+        std::shared_ptr<VkFence_T>                      m_Fence = nullptr;
+        std::vector<DeviceProfilerSubmitBatch>          m_Batches = {};
+    };
+
+    template<typename SubmitInfoT>
+    struct DeviceProfilerSubmitCommandScratchData
+        : public DeviceProfilerSubmitBatchList
+    {
+        std::vector<SubmitInfoT>                        m_SubmitInfos = {};
+        ScopedAllocator                                 m_Allocator;
+
+        DeviceProfilerSubmitCommandScratchData() = default;
+        DeviceProfilerSubmitCommandScratchData( VkQueue queue, uint32_t submitCount, const SubmitInfoT* pSubmits )
+            : DeviceProfilerSubmitBatchList{ queue }
+        {
+            if( submitCount > 0 )
+            {
+                assert( pSubmits != nullptr );
+                m_SubmitInfos.assign( pSubmits, pSubmits + submitCount );
+            }
+        }
+
+        uint32_t GetSubmitInfoCount() const { return static_cast<uint32_t>( m_SubmitInfos.size() ); }
+        const SubmitInfoT* GetSubmitInfos() const { return m_SubmitInfos.data(); }
     };
 
     /***********************************************************************************\
@@ -72,32 +103,21 @@ namespace Profiler
     \***********************************************************************************/
     class ProfilerDataAggregator
     {
-        struct SubmitBatch : DeviceProfilerSubmitBatch
+        struct Frame
         {
-            DeviceProfilerQueryDataBuffer*              m_pDataBuffer = {};
+            uint32_t                                    m_FrameIndex = 0;
+            uint32_t                                    m_ThreadId = 0;
+            uint64_t                                    m_Timestamp = 0;
+            float                                       m_FramesPerSec = 0;
+            VkProfilerFrameDelimiterEXT                 m_FrameDelimiter = {};
+            DeviceProfilerSynchronizationTimestamps     m_SyncTimestamps = {};
 
-            DeviceProfilerInternalCommandPool*          m_pDataCopyCommandPool = {};
-            VkCommandBuffer                             m_DataCopyCommandBuffer = {};
-            VkFence                                     m_DataCopyFence = {};
-
-            uint32_t                                    m_SubmitBatchDataIndex = 0;
-            std::unordered_set<ProfilerCommandBuffer*>  m_pSubmittedCommandBuffers = {};
-
-            SubmitBatch( const DeviceProfilerSubmitBatch& submitBatch )
-                : DeviceProfilerSubmitBatch( submitBatch )
-            {}
-        };
-
-        struct Frame : DeviceProfilerFrame
-        {
-            std::list<SubmitBatch>                      m_PendingSubmits = {};
+            std::list<DeviceProfilerSubmitBatch>        m_PendingSubmits = {};
             std::deque<DeviceProfilerSubmitBatchData>   m_CompleteSubmits = {};
 
             uint64_t                                    m_EndTimestamp = {};
 
-            Frame( const DeviceProfilerFrame& frame )
-                : DeviceProfilerFrame( frame )
-            {}
+            bool                                        m_Ended = false;
         };
 
     public:
@@ -111,8 +131,12 @@ namespace Profiler
         bool IsDataCollectionThreadRunning() const { return m_DataCollectionThreadRunning; }
         void StopDataCollectionThread();
 
-        void AppendFrame( const DeviceProfilerFrame& );
-        void AppendSubmit( const DeviceProfilerSubmitBatch& );
+        void PrepareSubmit( DeviceProfilerSubmitBatch& );
+        void DiscardSubmitData( DeviceProfilerSubmitBatch& );
+        void AppendSubmit( uint32_t, DeviceProfilerSubmitBatch& );
+        void EndFrame( uint32_t );
+        void EndPendingFrames();
+
         void Aggregate( ProfilerCommandBuffer* = nullptr );
 
         std::list<std::shared_ptr<DeviceProfilerFrameData>> GetAggregatedData();
@@ -124,34 +148,34 @@ namespace Profiler
         std::atomic_bool m_DataCollectionThreadRunning;
 
         std::list<std::shared_ptr<DeviceProfilerFrameData>> m_pResolvedFrames;
-        std::list<Frame> m_NextFrames;
+        std::list<std::shared_ptr<Frame>> m_pPendingFrames;
 
         std::shared_mutex m_Mutex;
-        uint32_t m_FrameIndex;
 
         uint32_t m_MaxResolvedFrameCount;
 
         // Command pools used for copying query data
         std::unordered_map<VkQueue, DeviceProfilerInternalCommandPool> m_CopyCommandPools;
 
-        // Performance metric properties
-        std::vector<VkProfilerPerformanceCounterProperties2EXT> m_PerformanceMetricProperties;
-        uint32_t m_PerformanceMetricsSetIndex;
+        std::shared_ptr<Frame> GetPendingFrame( uint32_t ) const;
 
         void DataCollectionThreadProc();
 
-        void LoadPerformanceMetricsProperties();
-        DeviceProfilerPerformanceCountersData AggregatePerformanceMetrics( const Frame& ) const;
+        void LoadPerformanceMetricsProperties( uint32_t, std::vector<VkProfilerPerformanceCounterProperties2EXT>& ) const;
+        void CollectPerformanceMetricsStreamData( uint64_t, uint64_t, DeviceProfilerPerformanceCountersData& ) const;
+        void AggregatePerformanceQueryMetrics( ContainerType<DeviceProfilerSubmitBatchData>&, DeviceProfilerPerformanceCountersData& ) const;
+        void AggregatePerformanceStreamMetrics( ContainerType<DeviceProfilerSubmitBatchData>&, DeviceProfilerPerformanceCountersData& ) const;
 
         ContainerType<DeviceProfilerPipelineData> CollectTopPipelines( const Frame& ) const;
         void CollectPipelinesFromCommandBuffer( const DeviceProfilerCommandBufferData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
-        void CollectPipeline( const DeviceProfilerPipelineData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>& ) const;
+        void CollectPipeline( const DeviceProfilerPipelineData&, std::unordered_map<uint32_t, DeviceProfilerPipelineData>&, std::unordered_map<uint32_t, std::pair<uint64_t, uint64_t>>& ) const;
 
-        void ResolveSubmitBatchData( SubmitBatch&, DeviceProfilerSubmitBatchData& ) const;
+        void ResolveSubmitBatchData( DeviceProfilerSubmitBatch&, DeviceProfilerSubmitBatchData& ) const;
         void ResolveFrameData( Frame&, DeviceProfilerFrameData& ) const;
 
-        void FreeDynamicAllocations( SubmitBatch& );
-        bool WriteQueryDataToGpuBuffer( SubmitBatch& );
-        bool WriteQueryDataToCpuBuffer( SubmitBatch& );
+        void FreeDynamicAllocations( DeviceProfilerSubmitBatch& );
+        bool ResetQueryPools( DeviceProfilerSubmitBatch& );
+        bool WriteQueryDataToGpuBuffer( DeviceProfilerSubmitBatch& );
+        bool WriteQueryDataToCpuBuffer( DeviceProfilerSubmitBatch& );
     };
 }

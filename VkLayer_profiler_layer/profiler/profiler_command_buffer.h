@@ -87,6 +87,9 @@ namespace Profiler
 
         uint64_t GetRequiredQueryDataBufferSize() const;
         void WriteQueryData( DeviceProfilerQueryDataBufferWriter& ) const;
+        void ResetQueryPools( VkCommandBuffer ) const;
+
+        const std::unordered_set<ProfilerCommandBuffer*>& GetSecondaryCommandBuffers() const;
 
         const DeviceProfilerCommandBufferData& GetData( DeviceProfilerQueryDataBufferReader& );
 
@@ -99,7 +102,7 @@ namespace Profiler
 
         bool                                m_ProfilingEnabled;
 
-        std::unordered_set<VkCommandBuffer> m_SecondaryCommandBuffers;
+        std::unordered_set<ProfilerCommandBuffer*> m_pSecondaryCommandBuffers;
 
         CommandBufferQueryPool*             m_pQueryPool;
 
@@ -139,9 +142,11 @@ namespace Profiler
         void PreBeginRenderPassCommonProlog();
         void PreBeginRenderPassCommonEpilog();
 
+        void EndPipeline();
         void EndSubpass();
+        void EndRenderPass();
 
-        void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline&, DeviceProfilerPipelineData** );
+        void SetupCommandBufferForStatCounting( const DeviceProfilerPipeline& );
         void SetupCommandBufferForSecondaryBuffers();
 
         DeviceProfilerRenderPassType GetRenderPassTypeFromPipelineType( DeviceProfilerPipelineType ) const;

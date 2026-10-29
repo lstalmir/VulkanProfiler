@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,7 @@
 
 // Vulkan headers
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan.hpp>
 
 #include "VkLayer_profiler_layer.generated.h"
 #include "profiler_vulkan_state.h"
@@ -40,6 +41,7 @@
 
 // Windows: Undefine names conflicting in tests
 #undef SetEnvironmentVariable
+#undef GetEnvironmentVariable
 
 #define SkipIfUnsupported( feature )                    \
     do                                                  \
@@ -120,5 +122,90 @@ namespace Profiler
 
         // Overridden in tests that require specific extensions or features
         inline virtual void SetUpVulkan( VulkanState::CreateInfo& createInfo ) {}
+    };
+
+    /***********************************************************************************\
+
+    Class:
+        EnvironmentVariableScope
+
+    Description:
+        RAII class for managing environment variables within a scope.
+
+    \***********************************************************************************/
+    class EnvironmentVariableScope
+    {
+    public:
+        EnvironmentVariableScope( const std::string& name, const std::optional<std::string>& value )
+            : m_Name( name )
+            , m_OriginalValue( Get() )
+        {
+            Set( value );
+        }
+
+        ~EnvironmentVariableScope()
+        {
+            Set( m_OriginalValue );
+        }
+
+        inline bool Unset()
+        {
+            return Set( std::nullopt );
+        }
+
+        inline bool Set( const std::optional<std::string>& value )
+        {
+#ifdef WIN32
+            const char* pValue = nullptr;
+
+            if( value.has_value() )
+            {
+                pValue = value->c_str();
+            }
+
+            return ::SetEnvironmentVariableA( m_Name.c_str(), pValue );
+#else
+            if( value.has_value() )
+            {
+                return setenv( m_Name.c_str(), value->c_str(), 1 /*overwrite*/ ) == 0;
+            }
+            else
+            {
+                return unsetenv( m_Name.c_str() ) == 0;
+            }
+#endif
+        }
+
+        inline std::optional<std::string> Get() const
+        {
+#ifdef WIN32
+            DWORD length = ::GetEnvironmentVariableA( m_Name.c_str(), nullptr, 0 );
+            if( length == 0 )
+            {
+                return std::nullopt;
+            }
+
+            std::vector<char> buffer( length );
+
+            if( ::GetEnvironmentVariableA( m_Name.c_str(), buffer.data(), length ) == 0 )
+            {
+                return std::nullopt;
+            }
+
+            return std::string( buffer.data() );
+#else
+            const char* pValue = getenv( m_Name.c_str() );
+            if( !pValue )
+            {
+                return std::nullopt;
+            }
+
+            return std::string( pValue );
+#endif
+        }
+
+    private:
+        std::string m_Name;
+        std::optional<std::string> m_OriginalValue;
     };
 }

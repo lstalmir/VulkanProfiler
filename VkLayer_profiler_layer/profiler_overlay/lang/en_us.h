@@ -171,6 +171,7 @@ namespace Profiler
         inline static constexpr char SamplingMode[] = "Sampling mode";
         inline static constexpr char FrameDelimiter[] = "Frame delimiter";
         inline static constexpr char InterfaceScale[] = "Interface scale";
+        inline static constexpr char InterfaceOpacity[] = "Interface opacity";
         inline static constexpr char CollectedFrameCount[] = "Collected frame count";
         inline static constexpr char ShowDebugLabels[] = "Show debug labels";
         inline static constexpr char ShowShaderCapabilities[] = "Show shader capabilities";

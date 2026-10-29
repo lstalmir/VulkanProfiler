@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Lukasz Stalmirski
+// Copyright (c) 2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,7 +19,29 @@
 // SOFTWARE.
 
 #pragma once
-#include <stdint.h>
+#include "VkDevice_functions_base.h"
 
-// Vulkan handles are always 64-bit.
-#define ImTextureID uint64_t
+namespace Profiler
+{
+    struct VkMultiDrawExt_Functions : VkDevice_Functions_Base
+    {
+        // vkCmdDrawMultiEXT
+        static VKAPI_ATTR void VKAPI_CALL CmdDrawMultiEXT(
+            VkCommandBuffer commandBuffer,
+            uint32_t drawCount,
+            const VkMultiDrawInfoEXT* pVertexInfo,
+            uint32_t instanceCount,
+            uint32_t firstInstance,
+            uint32_t stride );
+
+        // vkCmdDrawMultiIndexedEXT
+        static VKAPI_ATTR void VKAPI_CALL CmdDrawMultiIndexedEXT(
+            VkCommandBuffer commandBuffer,
+            uint32_t drawCount,
+            const VkMultiDrawIndexedInfoEXT* pIndexInfo,
+            uint32_t instanceCount,
+            uint32_t firstInstance,
+            uint32_t stride,
+            const int32_t* pVertexOffset );
+    };
+}

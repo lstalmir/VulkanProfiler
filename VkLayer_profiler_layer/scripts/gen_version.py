@@ -1,4 +1,4 @@
-# Copyright (c) 2023 Lukasz Stalmirski
+# Copyright (c) 2023-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -44,11 +44,15 @@ ver_minor = rev_base_date.month
 ver_build = rev_base_count
 ver_patch = rev_count - rev_base_count
 
-# Write cmake file with the version info
-with open(sys.argv[1], "w") as output:
-  profiler_version_cmake = \
-    "set (PROFILER_LAYER_VER_MAJOR {})\n".format(ver_major) + \
-    "set (PROFILER_LAYER_VER_MINOR {})\n".format(ver_minor) + \
-    "set (PROFILER_LAYER_VER_BUILD {})\n".format(ver_build) + \
-    "set (PROFILER_LAYER_VER_PATCH {})\n".format(ver_patch)
-  output.write(profiler_version_cmake)
+if len(sys.argv) > 1:
+  # Write cmake file with the version info
+  with open(sys.argv[1], "w") as output:
+    profiler_version_cmake = \
+      f"set (PROFILER_LAYER_VER_MAJOR {ver_major})\n" + \
+      f"set (PROFILER_LAYER_VER_MINOR {ver_minor})\n" + \
+      f"set (PROFILER_LAYER_VER_BUILD {ver_build})\n" + \
+      f"set (PROFILER_LAYER_VER_PATCH {ver_patch})\n"
+    output.write(profiler_version_cmake)
+else:
+  # Write version to the standard output
+  print(f"vulkan-profiler-{ver_major}.{ver_minor}.{ver_build}.{ver_patch}")

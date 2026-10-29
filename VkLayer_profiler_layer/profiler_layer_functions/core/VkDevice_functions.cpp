@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -62,6 +62,7 @@ namespace Profiler
         GETPROCADDR( FreeMemory );
         GETPROCADDR( CreateBuffer );
         GETPROCADDR( DestroyBuffer );
+        GETPROCADDR( GetDeviceBufferMemoryRequirements );
         GETPROCADDR( BindBufferMemory );
         GETPROCADDR( BindBufferMemory2 );
         GETPROCADDR( CreateImage );
@@ -139,6 +140,13 @@ namespace Profiler
         GETPROCADDR( CmdBeginRenderingKHR );
         GETPROCADDR( CmdEndRenderingKHR );
 
+        // VK_EXT_fragment_density_map_offset functions
+        GETPROCADDR( CmdEndRendering2EXT );
+
+        // VK_KHR_maintenance* functions
+        GETPROCADDR( GetDeviceBufferMemoryRequirementsKHR );
+        GETPROCADDR( CmdEndRendering2KHR );
+
         // VK_EXT_debug_marker functions
         GETPROCADDR( DebugMarkerSetObjectNameEXT );
         GETPROCADDR( DebugMarkerSetObjectTagEXT );
@@ -178,6 +186,10 @@ namespace Profiler
         GETPROCADDR( CmdDrawMeshTasksNV );
         GETPROCADDR( CmdDrawMeshTasksIndirectNV );
         GETPROCADDR( CmdDrawMeshTasksIndirectCountNV );
+
+        // VK_EXT_multi_draw functions
+        GETPROCADDR( CmdDrawMultiEXT );
+        GETPROCADDR( CmdDrawMultiIndexedEXT );
 
         // VK_EXT_opacity_micromap functions
         GETPROCADDR( CreateMicromapEXT );
@@ -692,15 +704,9 @@ namespace Profiler
         auto& dd = DeviceDispatch.Get( device );
         TipGuard tip( dd.Device.TIP, __func__ );
 
-        // Make sure all indirect buffers are created with VK_BUFFER_USAGE_TRANSFER_SRC_BIT flag,
-        // so the layer can copy the data from it.
+        // Adjust the buffer create info based on profiler configuration.
         VkBufferCreateInfo createInfo = *pCreateInfo;
-
-        if( ( createInfo.usage & VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT ) ||
-            ( createInfo.usage & VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR ) )
-        {
-            createInfo.usage |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-        }
+        dd.Profiler.SetupBufferCreateInfo( &createInfo );
 
         // Create the buffer
         VkResult result = dd.Device.Callbacks.CreateBuffer(
@@ -736,6 +742,35 @@ namespace Profiler
 
         // Destroy the buffer
         dd.Device.Callbacks.DestroyBuffer( device, buffer, pAllocator );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetDeviceBufferMemoryRequirements
+
+    Description:
+
+    \***********************************************************************************/
+    VKAPI_ATTR void VKAPI_CALL VkDevice_Functions::GetDeviceBufferMemoryRequirements(
+        VkDevice device,
+        const VkDeviceBufferMemoryRequirements* pInfo,
+        VkMemoryRequirements2* pMemoryRequirements )
+    {
+        auto& dd = DeviceDispatch.Get( device );
+        TipGuard tip( dd.Device.TIP, __func__ );
+
+        // Apply the same adjustments to the buffer create info as in CreateBuffer,
+        // so the memory requirements are consistent with the created buffer.
+        VkBufferCreateInfo createInfo = *pInfo->pCreateInfo;
+        dd.Profiler.SetupBufferCreateInfo( &createInfo );
+
+        VkDeviceBufferMemoryRequirements info = *pInfo;
+        info.pCreateInfo = &createInfo;
+
+        // Get the memory requirements.
+        dd.Device.Callbacks.GetDeviceBufferMemoryRequirements(
+            device, &info, pMemoryRequirements );
     }
 
     /***********************************************************************************\

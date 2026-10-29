@@ -19,10 +19,11 @@
 // SOFTWARE.
 
 #include "profiler_metrics_set_file.h"
+#include "profiler_json_builder.h"
+#include "profiler_json_parser.h"
 #include "profiler/profiler_frontend.h"
 
 #include <assert.h>
-#include <nlohmann/json.hpp>
 
 namespace Profiler
 {
@@ -53,27 +54,27 @@ namespace Profiler
     \***********************************************************************************/
     bool DeviceProfilerMetricsSetFile::Read( const std::string& filename )
     {
-        try
-        {
-            std::ifstream file( filename );
-            nlohmann::json json = nlohmann::json::parse( file );
-
-            m_Name = json["name"].get<std::string>();
-            m_Description = json["description"].get<std::string>();
-
-            m_Counters.clear();
-
-            for( const auto& counter : json["counters"] )
-            {
-                m_Counters.push_back( counter.get<std::string>() );
-            }
-
-            return true;
-        }
-        catch( ... )
+        DeviceProfilerJsonParser parser;
+        if( !parser.ParseFile( filename ) )
         {
             return false;
         }
+
+        auto json = parser.GetParsedDocument();
+        if( !json.IsValid() )
+        {
+            return false;
+        }
+
+        // Read metrics set properties.
+        bool error =
+            json.ReadObject()
+                .Read( "name", m_Name )
+                .Read( "description", m_Description )
+                .ReadArray( "counters", m_Counters )
+                .ReadErrors();
+
+        return !error && !m_Name.empty() && !m_Counters.empty();
     }
 
     /***********************************************************************************\
@@ -89,13 +90,14 @@ namespace Profiler
     {
         try
         {
-            nlohmann::json json;
-            json["name"] = m_Name;
-            json["description"] = m_Description;
-            json["counters"] = m_Counters;
+            DeviceProfilerJsonBuilder jsonBuilder;
+            DeviceProfilerJsonObjectBuilder( jsonBuilder )
+                .Add( "name", m_Name )
+                .Add( "description", m_Description )
+                .AddArray( "counters", m_Counters );
 
             std::ofstream file( filename );
-            file << std::setw( 4 ) << json;
+            file << jsonBuilder.view();
 
             return true;
         }

@@ -36,6 +36,8 @@ set    (SPIRV_DOCS_URL "https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV
             CACHE STRING "URL of the SPIR-V documentation page.")
 option (SKIP_PLATFORMS_CHECK "Skip checking for Vulkan platform support." OFF)
 option (PROFILER_ENABLE_TIP "Enable time-in-profiler instrumentation." OFF)
+option (PROFILER_WITH_INTEL_METRICS "Enable Intel performance counters support." ON)
+option (PROFILER_WITH_NV_METRICS "Enable Nvidia performance counters support." ON)
 
 # Vulkan platform support.
 include (CMake/platform.cmake NO_POLICY_SCOPE)

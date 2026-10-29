@@ -81,13 +81,13 @@ namespace Profiler
         ImFont* m_pBoldFont = nullptr;
         ImFont* m_pCodeFont = nullptr;
 
-        EnumArray<OverlayIcon, uint64_t, static_cast<size_t>( OverlayIcon::IconCount )>
-            m_Icons = { 0 };
+        EnumArray<OverlayIcon, int, static_cast<size_t>( OverlayIcon::IconCount )>
+            m_Icons = { -1 };
 
-        uint64_t CreateImage( const uint8_t* pAsset, int assetSize );
+        int CreateImage( const uint8_t* pAsset, int assetSize );
 
         template<size_t Size>
-        uint64_t CreateImage( const uint8_t ( &asset )[Size] )
+        int CreateImage( const uint8_t ( &asset )[Size] )
         {
             return CreateImage( asset, static_cast<int>( Size ) );
         }

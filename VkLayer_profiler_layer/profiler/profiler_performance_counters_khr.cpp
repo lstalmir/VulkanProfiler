@@ -433,7 +433,7 @@ namespace Profiler
     {
         // Fill in the properties.
         const size_t writeCount = std::min<size_t>( counterCount, m_Counters.size() );
-        for( size_t i = 0; i < counterCount; ++i )
+        for( size_t i = 0; i < writeCount; ++i )
         {
             FillPerformanceCounterProperties( m_Counters[i], pCounters[i] );
         }
@@ -545,6 +545,14 @@ namespace Profiler
             const MetricsSetQueueFamilyCounters& queueFamilyCounters = activeCounters.m_QueueFamilyCounters[queueFamilyIndex];
             performanceCreateInfo.counterIndexCount = static_cast<uint32_t>( queueFamilyCounters.m_CounterIndices.size() );
             performanceCreateInfo.pCounterIndices = queueFamilyCounters.m_CounterIndices.data();
+        }
+
+        if( performanceCreateInfo.counterIndexCount == 0 )
+        {
+            // No counters selected for this queue family, cannot create query pool.
+            *pQueryPool = VK_NULL_HANDLE;
+
+            return VK_ERROR_INITIALIZATION_FAILED;
         }
 
         createInfo.pNext = &performanceCreateInfo;

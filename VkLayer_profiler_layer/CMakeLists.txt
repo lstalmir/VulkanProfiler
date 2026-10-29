@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019-2024 Lukasz Stalmirski
+﻿# Copyright (c) 2019-2026 Lukasz Stalmirski
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -21,6 +21,9 @@
 cmake_minimum_required (VERSION 3.8...3.31)
 
 find_package (Python3 REQUIRED)
+
+include (GNUInstallDirs)
+include ("${CMAKE_SOURCE_DIR}/CMake/check_python_module.cmake")
 
 set (PROFILER_LAYER_VER_MAJOR 1)
 set (PROFILER_LAYER_VER_MINOR 0)
@@ -73,22 +76,9 @@ project (${PROFILER_LAYER_PROJECTNAME})
 message ("-- Profiler version: ${PROFILER_LAYER_VER_MAJOR}.${PROFILER_LAYER_VER_MINOR}.${PROFILER_LAYER_VER_BUILD}.${PROFILER_LAYER_VER_PATCH}")
 message ("-- Vulkan version: ${PROFILER_LAYER_API_VERSION}")
 
-# Generate layer manifest file
-set (json
-    "${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_PROJECTNAME}.json"
-    )
-
-if (WIN32)
-    # WA: Windows uses backslash as directory separator, which needs to be
-    # escaped twice (once here and once in the json, thus 4 backslashes)
-    set (THIS_DIR ".\\\\")
-else ()
-    set (THIS_DIR "./")
-endif ()
-
 function (configure_and_generate_file IN_FILE OUT_FILE)
-    get_filename_component (IN_FILE_NAME "${IN_FILE}" NAME)
-    set (CONFIGURED_FILE "${CMAKE_CURRENT_BINARY_DIR}/${IN_FILE_NAME}.configured")
+    get_filename_component (OUT_FILE_NAME "${OUT_FILE}" NAME)
+    set (CONFIGURED_FILE "${CMAKE_CURRENT_BINARY_DIR}/${OUT_FILE_NAME}.configured.in")
 
     configure_file (
         "${IN_FILE}"
@@ -100,17 +90,43 @@ function (configure_and_generate_file IN_FILE OUT_FILE)
         INPUT "${CONFIGURED_FILE}")
 endfunction ()
 
+# Generate layer manifest file
+set (PROFILER_LAYER_JSON_FILENAME "${PROFILER_LAYER_PROJECTNAME}.json")
+set (PROFILER_LAYER_JSON_FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROFILER_LAYER_JSON_FILENAME}")
+set (PROFILER_LAYER_JSON_INSTALL_FILE "${PROFILER_LAYER_JSON_FILE}")
+
+if (WIN32)
+    # WA: Windows uses backslash as directory separator, which needs to be
+    # escaped twice (once here and once in the json, thus 4 backslashes)
+    set (PROFILER_LAYER_JSON_DLL_PREFIX ".\\\\")
+else ()
+    set (PROFILER_LAYER_JSON_DLL_PREFIX "./")
+endif ()
+
 configure_and_generate_file (
-    "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}.json.in"
-    "${json}")
+    "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_JSON_FILENAME}.in"
+    "${PROFILER_LAYER_JSON_FILE}")
+
+if (NOT WIN32)
+    # On Linux the layer library is installed in <prefix>/lib directory and the manifest
+    # is placed in <prefix>/shared/vulkan/explicit_layers.d.
+    # Remove the local directory prefix to use system library load paths.
+    set (PROFILER_LAYER_JSON_DLL_PREFIX "")
+    set (PROFILER_LAYER_JSON_INSTALL_FILE "${PROFILER_LAYER_JSON_FILE}.install")
+    configure_and_generate_file (
+        "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_JSON_FILENAME}.in"
+        "${PROFILER_LAYER_JSON_INSTALL_FILE}")
+endif ()
 
 add_custom_command (
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
     COMMAND "${Python3_EXECUTABLE}"
         "${PROFILER_SCRIPTS_DIR}/gen_config.py"
-        "${json}"
+        "${PROFILER_LAYER_JSON_FILE}"
+        --aliases "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}_settings_aliases.json"
         --output "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h"
-    DEPENDS "${json}"
+    DEPENDS "${PROFILER_LAYER_JSON_FILE}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${PROFILER_LAYER_PROJECTNAME}_settings_aliases.json"
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_config.py")
 list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_layer_config.h")
 
@@ -119,12 +135,20 @@ add_custom_command (
     OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h"
     COMMAND "${Python3_EXECUTABLE}"
         "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py"
-        "${VULKAN_HEADERS_INSTALL_DIR}"
+        "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml"
         "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/registry/vk.xml"
+    DEPENDS "${VULKAN_HEADERS_INSTALL_DIR}/${CMAKE_INSTALL_DATADIR}/vulkan/registry/vk.xml"
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_dispatch_tables.py")
 list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/vk_dispatch_tables.h")
 
+if (BUILD_SPIRV_DOCS)
+    # Check if required modules are available
+    check_python_module (BeautifulSoup NAMES BeautifulSoup bs4)
+    if (NOT BeautifulSoup_FOUND)
+        message (WARNING "BeautifulSoup not found. SPIR-V documentation will be disabled in this build.")
+        set (BUILD_SPIRV_DOCS OFF CACHE BOOL "" FORCE)
+    endif ()
+endif ()
 if (BUILD_SPIRV_DOCS)
     # Generate SPIR-V documentation
     add_custom_command (
@@ -142,7 +166,21 @@ if (BUILD_SPIRV_DOCS)
         DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/SPIRV.html"
         DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_spirv_docs.py")
     list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/spv_docs.h")
+    list (APPEND PROFILER_CODEGEN_GENERATED_LICENSES "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE")
+else ()
+    list (APPEND PROFILER_CODEGEN_SKIP_LICENSES SPIRV-Specification)
 endif ()
+
+# Generate string mappings header file
+add_custom_command (
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_mappings.h"
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROFILER_SCRIPTS_DIR}/gen_string_mappings.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/profiler_helpers/profiler_string_mappings.xml"
+        "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_mappings.h"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/profiler_helpers/profiler_string_mappings.xml"
+    DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_string_mappings.py")
+list (APPEND PROFILER_CODEGEN_FILES "${CMAKE_CURRENT_BINARY_DIR}/profiler_string_mappings.h")
 
 # Generate licenses file
 set (PROFILER_LICENSES_FILE "${CMAKE_BINARY_DIR}/LICENSES.rst")
@@ -153,8 +191,9 @@ add_custom_command (
         --license "Vulkan(R) Profiling Layer" "${CMAKE_SOURCE_DIR}/LICENSE.md"
         --externaldir "${CMAKE_SOURCE_DIR}/External"
         --output "${PROFILER_LICENSES_FILE}"
+        --skip config ${PROFILER_CODEGEN_SKIP_LICENSES}
     VERBATIM
-    DEPENDS "${CMAKE_SOURCE_DIR}/External/SPIRV-Specification/LICENSE"
+    DEPENDS ${PROFILER_CODEGEN_GENERATED_LICENSES}
     DEPENDS "${PROFILER_SCRIPTS_DIR}/gen_licenses.py")
 list (APPEND PROFILER_CODEGEN_FILES ${PROFILER_LICENSES_FILE})
 
@@ -172,7 +211,8 @@ target_link_libraries (profiler_common
     INTERFACE spirv-cross-c
     INTERFACE farmhash
     INTERFACE fmt
-    INTERFACE nlohmann_json)
+    INTERFACE simdjson
+    INTERFACE ryml)
 target_include_directories (profiler_common
     INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}"
     INTERFACE "${CMAKE_CURRENT_BINARY_DIR}"
@@ -260,10 +300,16 @@ set (extension_functions
     "profiler_layer_functions/extensions/VkDrawIndirectCountKhr_functions.h"
     "profiler_layer_functions/extensions/VkDynamicRenderingKhr_functions.cpp"
     "profiler_layer_functions/extensions/VkDynamicRenderingKhr_functions.h"
+    "profiler_layer_functions/extensions/VkFragmentDensityMapOffsetExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkFragmentDensityMapOffsetExt_functions.h"
+    "profiler_layer_functions/extensions/VkMaintenanceKhr_functions.cpp"
+    "profiler_layer_functions/extensions/VkMaintenanceKhr_functions.h"
     "profiler_layer_functions/extensions/VkMeshShaderExt_functions.cpp"
     "profiler_layer_functions/extensions/VkMeshShaderExt_functions.h"
     "profiler_layer_functions/extensions/VkMeshShaderNv_functions.cpp"
     "profiler_layer_functions/extensions/VkMeshShaderNv_functions.h"
+    "profiler_layer_functions/extensions/VkMultiDrawExt_functions.cpp"
+    "profiler_layer_functions/extensions/VkMultiDrawExt_functions.h"
     "profiler_layer_functions/extensions/VkOpacityMicromapExt_functions.cpp"
     "profiler_layer_functions/extensions/VkOpacityMicromapExt_functions.h"
     "profiler_layer_functions/extensions/VkPipelineExecutablePropertiesKhr_functions.h"
@@ -348,6 +394,11 @@ target_link_libraries (${PROFILER_LAYER_PROJECTNAME}_lib
 target_link_libraries (${PROFILER_LAYER_PROJECTNAME}
     PRIVATE ${PROFILER_LAYER_PROJECTNAME}_lib)
 
+add_custom_command (TARGET ${PROFILER_LAYER_PROJECTNAME} POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy
+        "${PROFILER_LAYER_JSON_FILE}"
+        "$<TARGET_FILE_DIR:${PROFILER_LAYER_PROJECTNAME}>/${PROFILER_LAYER_JSON_FILENAME}")
+
 # Set include path
 target_include_directories (${PROFILER_LAYER_PROJECTNAME}_lib
     PUBLIC "${VULKAN_HEADERS_INCLUDE_DIR}"
@@ -361,11 +412,24 @@ install (TARGETS ${PROFILER_LAYER_PROJECTNAME}
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 
-install (FILES "${PROFILER_LICENSES_FILE}" DESTINATION .)
-
-# Copy JSON to the path where DLL/SO is installed
 if (WIN32)
-install (FILES ${json} DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    # Copy JSON to the path where the DLL is installed.
+    install (FILES "${PROFILER_LAYER_JSON_INSTALL_FILE}"
+        DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        RENAME "${PROFILER_LAYER_JSON_FILENAME}")
+
+    # Include a file with all third-party software licenses.
+    install (FILES "${PROFILER_LICENSES_FILE}"
+        DESTINATION .
+        RENAME "${PROFILER_LAYER_PROJECTNAME}_licenses.rst")
 else ()
-install (FILES ${json} DESTINATION "${CMAKE_INSTALL_LIBDIR}")
+    # Copy JSON to shared directory.
+    install (FILES "${PROFILER_LAYER_JSON_INSTALL_FILE}"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/vulkan/explicit_layer.d"
+        RENAME "${PROFILER_LAYER_JSON_FILENAME}")
+
+    # Include a file with all third-party software licenses.
+    install (FILES "${PROFILER_LICENSES_FILE}"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/vulkan/explicit_layer.d"
+        RENAME "${PROFILER_LAYER_PROJECTNAME}_licenses.rst")
 endif ()
