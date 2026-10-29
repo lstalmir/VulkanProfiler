@@ -532,7 +532,8 @@ namespace Profiler
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
                 case OSWindowHandleType::eWayland:
-                    throw; // TODO: Implement ImGui Wayland context.
+                    m_pPlatformBackend = new OverlayLayerWaylandPlatformBackend( windowHandle.WlHandle );
+                    break;
 #endif // VK_USE_PLATFORM_WAYLAND_KHR
 
                 default:

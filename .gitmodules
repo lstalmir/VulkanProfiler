@@ -1,3 +1,6 @@
+[submodule "External/json"]
+	path = External/json
+	url = https://github.com/nlohmann/json
 [submodule "External/imgui"]
 	path = External/imgui
 	url = https://github.com/lstalmir/imgui
@@ -42,7 +45,7 @@
 	url = https://github.com/nothings/stb
 [submodule "External/implot"]
 	path = External/implot
-	url = https://github.com/lstalmir/implot
+	url = https://github.com/epezent/implot
 [submodule "External/tabler-icons"]
 	path = External/tabler-icons
 	url = https://github.com/tabler/tabler-icons
@@ -55,3 +58,6 @@
 [submodule "External/metrics-library"]
 	path = External/metrics-library
 	url = https://github.com/intel/metrics-library
+[submodule "External/wayland-protocols"]
+	path = External/wayland-protocols
+	url = https://gitlab.freedesktop.org/wayland/wayland-protocols
