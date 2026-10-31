@@ -459,7 +459,7 @@ namespace Profiler
             &out.y,
             &child );
 
-        return ( result == 0 );
+        return ( result == True );
     }
 
     /***********************************************************************************\
