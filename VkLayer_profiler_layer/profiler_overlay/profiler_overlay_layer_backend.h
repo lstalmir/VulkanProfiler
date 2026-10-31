@@ -23,6 +23,7 @@
 #include "profiler/profiler_memory_manager.h"
 
 #include <vector>
+#include <memory>
 
 #include <vulkan/vulkan.h>
 
