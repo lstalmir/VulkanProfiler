@@ -305,6 +305,7 @@ namespace Profiler
         // Initialize ImGui platform backend.
         if( !ImGui_ImplWin32_Init( m_AppWindow ) )
         {
+            g_pWin32Contexts.erase( m_AppWindow );
             return false;
         }
 

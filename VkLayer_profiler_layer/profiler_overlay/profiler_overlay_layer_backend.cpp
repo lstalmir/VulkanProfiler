@@ -515,21 +515,21 @@ namespace Profiler
                     {
 #ifdef VK_USE_PLATFORM_WIN32_KHR
                     case OSWindowHandleType::eWin32:
-                        surface.pOverlayPlatformBackend = std::make_unique<OverlayLayerWin32PlatformBackend>(
+                        surface.pOverlayPlatformBackend = std::make_shared<OverlayLayerWin32PlatformBackend>(
                             windowHandle.Win32Handle );
                         break;
 #endif // VK_USE_PLATFORM_WIN32_KHR
 
 #ifdef VK_USE_PLATFORM_XCB_KHR
                     case OSWindowHandleType::eXcb:
-                        surface.pOverlayPlatformBackend = std::make_unique<OverlayLayerXcbPlatformBackend>(
+                        surface.pOverlayPlatformBackend = std::make_shared<OverlayLayerXcbPlatformBackend>(
                             windowHandle.XcbHandle );
                         break;
 #endif // VK_USE_PLATFORM_XCB_KHR
 
 #ifdef VK_USE_PLATFORM_XLIB_KHR
                     case OSWindowHandleType::eXlib:
-                        surface.pOverlayPlatformBackend = std::make_unique<OverlayLayerXlibPlatformBackend>(
+                        surface.pOverlayPlatformBackend = std::make_shared<OverlayLayerXlibPlatformBackend>(
                             windowHandle.XlibHandle );
                         break;
 #endif // VK_USE_PLATFORM_XLIB_KHR
@@ -544,7 +544,7 @@ namespace Profiler
                     }
                 }
 
-                m_pPlatformBackend = surface.pOverlayPlatformBackend.get();
+                m_pPlatformBackend = surface.pOverlayPlatformBackend;
             }
             catch( ... )
             {

@@ -105,6 +105,6 @@ namespace Profiler
         VkSurfaceKHR Handle;
         OSWindowHandle Window;
 
-        std::unique_ptr<OverlayLayerPlatformBackend> pOverlayPlatformBackend;
+        std::shared_ptr<OverlayLayerPlatformBackend> pOverlayPlatformBackend;
     };
 }
