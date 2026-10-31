@@ -43,10 +43,14 @@ namespace Profiler
         OverlayLayerXcbPlatformBackend( xcb_window_t window );
         ~OverlayLayerXcbPlatformBackend();
 
+        void Destroy();
+
+        bool PrepareImGuiBackend() override;
+        void DestroyImGuiBackend() override;
+
         void NewFrame() override;
 
     private:
-        ImGuiContext* m_pImGuiContext;
         OverlayLayerXkbBackend* m_pXkbBackend;
 
         xcb_connection_t* m_Connection;
@@ -64,6 +68,8 @@ namespace Profiler
         xcb_atom_t m_TextAtom;
         xcb_atom_t m_StringAtom;
         xcb_atom_t m_Utf8StringAtom;
+
+        bool ValidateContext() const;
 
         bool GetRootCoordinates( xcb_window_t root, Int2& out ) const;
 

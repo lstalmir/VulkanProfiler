@@ -27,8 +27,6 @@
 
 namespace Profiler
 {
-    extern std::mutex s_ImGuiMutex;
-
     // Flags provided by this backend.
     static constexpr ImGuiBackendFlags s_XcbPlatformBackendFlags =
         ImGuiBackendFlags_HasSetMousePos |
@@ -42,12 +40,9 @@ namespace Profiler
     Description:
         Constructor.
 
-        s_ImGuiMutex must be locked before creating the window context.
-
     \***********************************************************************************/
     OverlayLayerXcbPlatformBackend::OverlayLayerXcbPlatformBackend( xcb_window_t window ) try
-        : m_pImGuiContext( nullptr )
-        , m_pXkbBackend( nullptr )
+        : m_pXkbBackend( nullptr )
         , m_Connection( nullptr )
         , m_AppWindow( window )
         , m_InputWindow( 0 )
@@ -116,21 +111,10 @@ namespace Profiler
         m_TextAtom = InternAtom( "TEXT" );
         m_StringAtom = InternAtom( "STRING" );
         m_Utf8StringAtom = InternAtom( "UTF8_STRING" );
-
-        ImGuiIO& io = ImGui::GetIO();
-        io.BackendFlags |= s_XcbPlatformBackendFlags;
-        io.BackendPlatformName = "xcb";
-        io.BackendPlatformUserData = this;
-
-        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
-        platformIO.Platform_GetClipboardTextFn = nullptr;
-        platformIO.Platform_SetClipboardTextFn = OverlayLayerXcbPlatformBackend::SetClipboardTextFn;
-
-        m_pImGuiContext = ImGui::GetCurrentContext();
     }
-    catch (...)
+    catch( ... )
     {
-        OverlayLayerXcbPlatformBackend::~OverlayLayerXcbPlatformBackend();
+        Destroy();
         throw;
     }
 
@@ -142,10 +126,22 @@ namespace Profiler
     Description:
         Destructor.
 
-        s_ImGuiMutex must be locked before destroying the window context.
-
     \***********************************************************************************/
     OverlayLayerXcbPlatformBackend::~OverlayLayerXcbPlatformBackend()
+    {
+        Destroy();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+        Free all XCB resources created for this backend.
+
+    \***********************************************************************************/
+    void OverlayLayerXcbPlatformBackend::Destroy()
     {
         free( m_pClipboardText );
         m_pClipboardText = nullptr;
@@ -161,19 +157,61 @@ namespace Profiler
 
         delete m_pXkbBackend;
         m_pXkbBackend = nullptr;
+    }
 
-        if( m_pImGuiContext )
+    /***********************************************************************************\
+
+    Function:
+        PrepareImGuiBackend
+
+    Description:
+        Initialize ImGui backend for XCB platform.
+
+    \***********************************************************************************/
+    bool OverlayLayerXcbPlatformBackend::PrepareImGuiBackend()
+    {
+        ImGuiContext* pContext = ImGui::GetCurrentContext();
+        IM_ASSERT(pContext && "OverlayLayerXcbPlatformBackend::PrepareImGuiBackend called when no ImGui context was set.");
+        if( !pContext )
         {
-            assert( ImGui::GetCurrentContext() == m_pImGuiContext );
-
-            ImGuiIO& io = ImGui::GetIO();
-            io.BackendFlags &= ~s_XcbPlatformBackendFlags;
-            io.BackendPlatformName = nullptr;
-            io.BackendPlatformUserData = nullptr;
-
-            ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
-            platformIO.ClearPlatformHandlers();
+            return false;
         }
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags |= s_XcbPlatformBackendFlags;
+        io.BackendPlatformName = "xcb";
+        io.BackendPlatformUserData = this;
+
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.Platform_GetClipboardTextFn = nullptr;
+        platformIO.Platform_SetClipboardTextFn = OverlayLayerXcbPlatformBackend::SetClipboardTextFn;
+
+        return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImGuiBackend
+
+    Description:
+        Destroy ImGui backend.
+
+    \***********************************************************************************/
+    void OverlayLayerXcbPlatformBackend::DestroyImGuiBackend()
+    {
+        if( !ValidateContext() )
+        {
+            return;
+        }
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags &= ~s_XcbPlatformBackendFlags;
+        io.BackendPlatformName = nullptr;
+        io.BackendPlatformUserData = nullptr;
+
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.ClearPlatformHandlers();
     }
 
     /***********************************************************************************\
@@ -187,11 +225,10 @@ namespace Profiler
     void OverlayLayerXcbPlatformBackend::NewFrame()
     {
         // Validate the current ImGui context.
-        ImGuiContext* pContext = ImGui::GetCurrentContext();
-        IM_ASSERT(pContext && "OverlayLayerXcbPlatformBackend::NewFrame called when no ImGui context was set.");
-        IM_ASSERT(pContext == m_pImGuiContext && "OverlayLayerXcbPlatformBackend::NewFrame called with different context than the one used for initialization.");
-        if( !pContext )
+        if( !ValidateContext() )
+        {
             return;
+        }
 
         ImGuiIO& io = ImGui::GetIO();
 
@@ -509,8 +546,39 @@ namespace Profiler
             m_HasKeyboardGrab = false;
 
             // Clear ImGuiIO key states as no key release events will be received.
-            ImGui::GetIO().ClearInputKeys();
+            if( ( ImGui::GetCurrentContext() != nullptr ) &&
+                ( ImGui::GetIO().BackendPlatformUserData == this ) )
+            {
+                ImGui::GetIO().ClearInputKeys();
+            }
         }
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ValidateContext
+
+    Description:
+
+    \***********************************************************************************/
+    bool OverlayLayerXcbPlatformBackend::ValidateContext() const
+    {
+        ImGuiContext* pContext = ImGui::GetCurrentContext();
+        IM_ASSERT(pContext && "OverlayLayerXcbPlatformBackend function called when no ImGui context was set.");
+        if( !pContext )
+        {
+            return false;
+        }
+
+        ImGuiIO& io = ImGui::GetIO();
+        IM_ASSERT(io.BackendPlatformUserData == this && "OverlayLayerXcbPlatformBackend function called but different backend is set.");
+        if( io.BackendPlatformUserData != this )
+        {
+            return false;
+        }
+
+        return true;
     }
 
     /***********************************************************************************\
@@ -615,7 +683,6 @@ namespace Profiler
         OverlayLayerXcbPlatformBackend* pBackend =
             static_cast<OverlayLayerXcbPlatformBackend*>( pContext->IO.BackendPlatformUserData );
         IM_ASSERT( pBackend );
-        IM_ASSERT( pBackend->m_pImGuiContext == pContext );
 
         pBackend->SetClipboardText( pText );
     }

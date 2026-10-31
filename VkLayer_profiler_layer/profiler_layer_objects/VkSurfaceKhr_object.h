@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021 Lukasz Stalmirski
+// Copyright (c) 2019-2026 Lukasz Stalmirski
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,9 @@
 
 #pragma once
 #include "vk_dispatch_tables.h"
+#include "profiler_overlay/profiler_overlay_layer_backend.h"
+
+#include <memory>
 
 namespace Profiler
 {
@@ -101,5 +104,7 @@ namespace Profiler
     {
         VkSurfaceKHR Handle;
         OSWindowHandle Window;
+
+        std::unique_ptr<OverlayLayerPlatformBackend> pOverlayPlatformBackend;
     };
 }

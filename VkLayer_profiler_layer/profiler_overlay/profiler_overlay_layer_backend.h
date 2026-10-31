@@ -45,6 +45,9 @@ namespace Profiler
     public:
         virtual ~OverlayLayerPlatformBackend() = default;
 
+        virtual bool PrepareImGuiBackend() = 0;
+        virtual void DestroyImGuiBackend() = 0;
+
         virtual void NewFrame() = 0;
 
         virtual float GetDPIScale() const { return 1.0f; }

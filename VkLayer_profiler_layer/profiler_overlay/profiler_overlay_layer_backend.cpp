@@ -504,44 +504,58 @@ namespace Profiler
 
         if( !m_pPlatformBackend )
         {
-            // Initialize the platform backend.
             try
             {
-                const OSWindowHandle windowHandle =
-                    m_pDevice->pInstance->Surfaces.at( m_Surface ).Window;
-
-                switch( windowHandle.Type )
+                auto& surface = m_pDevice->pInstance->Surfaces.at( m_Surface );
+                if( !surface.pOverlayPlatformBackend )
                 {
+                    // Initialize the platform backend.
+                    const OSWindowHandle windowHandle = surface.Window;
+                    switch( windowHandle.Type )
+                    {
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-                case OSWindowHandleType::eWin32:
-                    m_pPlatformBackend = new OverlayLayerWin32PlatformBackend( windowHandle.Win32Handle );
-                    break;
+                    case OSWindowHandleType::eWin32:
+                        surface.pOverlayPlatformBackend = std::make_unique<OverlayLayerWin32PlatformBackend>(
+                            windowHandle.Win32Handle );
+                        break;
 #endif // VK_USE_PLATFORM_WIN32_KHR
 
 #ifdef VK_USE_PLATFORM_XCB_KHR
-                case OSWindowHandleType::eXcb:
-                    m_pPlatformBackend = new OverlayLayerXcbPlatformBackend( windowHandle.XcbHandle );
-                    break;
+                    case OSWindowHandleType::eXcb:
+                        surface.pOverlayPlatformBackend = std::make_unique<OverlayLayerXcbPlatformBackend>(
+                            windowHandle.XcbHandle );
+                        break;
 #endif // VK_USE_PLATFORM_XCB_KHR
 
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-                case OSWindowHandleType::eXlib:
-                    m_pPlatformBackend = new OverlayLayerXlibPlatformBackend( windowHandle.XlibHandle );
-                    break;
+                    case OSWindowHandleType::eXlib:
+                        surface.pOverlayPlatformBackend = std::make_unique<OverlayLayerXlibPlatformBackend>(
+                            windowHandle.XlibHandle );
+                        break;
 #endif // VK_USE_PLATFORM_XLIB_KHR
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-                case OSWindowHandleType::eWayland:
-                    throw; // TODO: Implement ImGui Wayland context.
+                    case OSWindowHandleType::eWayland:
+                        throw; // TODO: Implement ImGui Wayland context.
 #endif // VK_USE_PLATFORM_WAYLAND_KHR
 
-                default:
-                    throw; // Not supported.
+                    default:
+                        throw; // Not supported.
+                    }
                 }
+
+                m_pPlatformBackend = surface.pOverlayPlatformBackend.get();
             }
             catch( ... )
             {
-                // Failed to create ImGui window context or surface object was not found.
+                // Failed to create platform backend or surface object was not found.
+                return false;
+            }
+
+            if( !m_pPlatformBackend->PrepareImGuiBackend() )
+            {
+                // ImGui platform backend initialization failed.
+                m_pPlatformBackend = nullptr;
                 return false;
             }
         }
@@ -568,7 +582,7 @@ namespace Profiler
 
         if( m_pPlatformBackend )
         {
-            delete m_pPlatformBackend;
+            m_pPlatformBackend->DestroyImGuiBackend();
             m_pPlatformBackend = nullptr;
         }
     }
