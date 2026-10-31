@@ -168,9 +168,11 @@ namespace Profiler
     bool OverlayLayerXlibPlatformBackend::PrepareImGuiBackend()
     {
         ImGuiContext* pContext = ImGui::GetCurrentContext();
-        IM_ASSERT(pContext && "OverlayLayerXlibPlatformBackend::PrepareImGuiBackend called when no ImGui context was set.");
+        IM_ASSERT( pContext && "OverlayLayerXlibPlatformBackend::PrepareImGuiBackend called when no ImGui context was set." );
         if( !pContext )
+        {
             return false;
+        }
 
         ImGuiIO& io = ImGui::GetIO();
         io.BackendFlags |= s_XlibPlatformBackendFlags;
@@ -196,7 +198,9 @@ namespace Profiler
     void OverlayLayerXlibPlatformBackend::DestroyImGuiBackend()
     {
         if( !ValidateContext() )
+        {
             return;
+        }
 
         ImGuiIO& io = ImGui::GetIO();
         io.BackendFlags &= ~s_XlibPlatformBackendFlags;
@@ -220,7 +224,9 @@ namespace Profiler
     {
         // Validate the current ImGui context.
         if( !ValidateContext() )
+        {
             return;
+        }
 
         ImGuiIO& io = ImGui::GetIO();
 
@@ -417,16 +423,18 @@ namespace Profiler
     bool OverlayLayerXlibPlatformBackend::ValidateContext() const
     {
         ImGuiContext* pContext = ImGui::GetCurrentContext();
-        IM_ASSERT(pContext &&
-            "OverlayLayerXlibPlatformBackend function called when no ImGui context was set.");
+        IM_ASSERT( pContext && "OverlayLayerXlibPlatformBackend function called when no ImGui context was set." );
         if( !pContext )
+        {
             return false;
+        }
 
         ImGuiIO& io = ImGui::GetIO();
-        IM_ASSERT(io.BackendPlatformUserData == this &&
-            "OverlayLayerXlibPlatformBackend function called but different backend is set.");
+        IM_ASSERT( io.BackendPlatformUserData == this && "OverlayLayerXlibPlatformBackend function called but different backend is set." );
         if( io.BackendPlatformUserData != this )
+        {
             return false;
+        }
 
         return true;
     }

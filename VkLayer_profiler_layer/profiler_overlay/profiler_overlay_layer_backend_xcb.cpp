@@ -171,7 +171,7 @@ namespace Profiler
     bool OverlayLayerXcbPlatformBackend::PrepareImGuiBackend()
     {
         ImGuiContext* pContext = ImGui::GetCurrentContext();
-        IM_ASSERT(pContext && "OverlayLayerXcbPlatformBackend::PrepareImGuiBackend called when no ImGui context was set.");
+        IM_ASSERT( pContext && "OverlayLayerXcbPlatformBackend::PrepareImGuiBackend called when no ImGui context was set." );
         if( !pContext )
         {
             return false;
@@ -565,14 +565,14 @@ namespace Profiler
     bool OverlayLayerXcbPlatformBackend::ValidateContext() const
     {
         ImGuiContext* pContext = ImGui::GetCurrentContext();
-        IM_ASSERT(pContext && "OverlayLayerXcbPlatformBackend function called when no ImGui context was set.");
+        IM_ASSERT( pContext && "OverlayLayerXcbPlatformBackend function called when no ImGui context was set." );
         if( !pContext )
         {
             return false;
         }
 
         ImGuiIO& io = ImGui::GetIO();
-        IM_ASSERT(io.BackendPlatformUserData == this && "OverlayLayerXcbPlatformBackend function called but different backend is set.");
+        IM_ASSERT( io.BackendPlatformUserData == this && "OverlayLayerXcbPlatformBackend function called but different backend is set." );
         if( io.BackendPlatformUserData != this )
         {
             return false;
