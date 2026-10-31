@@ -27,8 +27,6 @@
 
 namespace Profiler
 {
-    extern std::mutex s_ImGuiMutex;
-
     // Flags provided by this backend.
     static constexpr ImGuiBackendFlags s_XlibPlatformBackendFlags =
         ImGuiBackendFlags_HasSetMousePos |
@@ -42,12 +40,9 @@ namespace Profiler
     Description:
         Constructor.
 
-        s_ImGuiMutex must be locked before creating the window context.
-
     \***********************************************************************************/
     OverlayLayerXlibPlatformBackend::OverlayLayerXlibPlatformBackend( Window window ) try
-        : m_pImGuiContext( nullptr )
-        , m_pXkbBackend( nullptr )
+        : m_pXkbBackend( nullptr )
         , m_Display( nullptr )
         , m_AppWindow( window )
         , m_InputWindow( None )
@@ -112,22 +107,11 @@ namespace Profiler
         m_TextAtom = XInternAtom( m_Display, "TEXT", False );
         m_StringAtom = XInternAtom( m_Display, "STRING", False );
         m_Utf8StringAtom = XInternAtom( m_Display, "UTF8_STRING", False );
-
-        ImGuiIO& io = ImGui::GetIO();
-        io.BackendFlags |= s_XlibPlatformBackendFlags;
-        io.BackendPlatformName = "xlib";
-        io.BackendPlatformUserData = this;
-
-        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
-        platformIO.Platform_GetClipboardTextFn = nullptr;
-        platformIO.Platform_SetClipboardTextFn = OverlayLayerXlibPlatformBackend::SetClipboardTextFn;
-
-        m_pImGuiContext = ImGui::GetCurrentContext();
     }
-    catch (...)
+    catch( ... )
     {
         // Cleanup the partially initialized context.
-        OverlayLayerXlibPlatformBackend::~OverlayLayerXlibPlatformBackend();
+        Destroy();
         throw;
     }
 
@@ -139,15 +123,25 @@ namespace Profiler
     Description:
         Destructor.
 
-        s_ImGuiMutex must be locked before destroying the window context.
-
     \***********************************************************************************/
     OverlayLayerXlibPlatformBackend::~OverlayLayerXlibPlatformBackend()
     {
+        Destroy();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+        Free all Xlib resources created for this backend.
+
+    \***********************************************************************************/
+    void OverlayLayerXlibPlatformBackend::Destroy()
+    {
         free( m_pClipboardText );
         m_pClipboardText = nullptr;
-
-        SetKeyboardGrab( false );
 
         if( m_InputWindow ) XDestroyWindow( m_Display, m_InputWindow );
         m_InputWindow = None;
@@ -158,19 +152,63 @@ namespace Profiler
 
         delete m_pXkbBackend;
         m_pXkbBackend = nullptr;
+    }
 
-        if( m_pImGuiContext )
+    /***********************************************************************************\
+
+    Function:
+        PrepareImGuiBackend
+
+    Description:
+        Initialize ImGui backend for Xlib platform.
+
+    \***********************************************************************************/
+    bool OverlayLayerXlibPlatformBackend::PrepareImGuiBackend()
+    {
+        ImGuiContext* pContext = ImGui::GetCurrentContext();
+        IM_ASSERT( pContext && "OverlayLayerXlibPlatformBackend::PrepareImGuiBackend called when no ImGui context was set." );
+        if( !pContext )
         {
-            assert( ImGui::GetCurrentContext() == m_pImGuiContext );
-
-            ImGuiIO& io = ImGui::GetIO();
-            io.BackendFlags &= ~s_XlibPlatformBackendFlags;
-            io.BackendPlatformName = nullptr;
-            io.BackendPlatformUserData = nullptr;
-
-            ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
-            platformIO.ClearPlatformHandlers();
+            return false;
         }
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags |= s_XlibPlatformBackendFlags;
+        io.BackendPlatformName = "xlib";
+        io.BackendPlatformUserData = this;
+
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.Platform_GetClipboardTextFn = nullptr;
+        platformIO.Platform_SetClipboardTextFn = OverlayLayerXlibPlatformBackend::SetClipboardTextFn;
+
+        return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImGuiBackend
+
+    Description:
+        Destroy ImGui backend.
+
+    \***********************************************************************************/
+    void OverlayLayerXlibPlatformBackend::DestroyImGuiBackend()
+    {
+        if( !ValidateContext() )
+        {
+            return;
+        }
+
+        SetKeyboardGrab( false );
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags &= ~s_XlibPlatformBackendFlags;
+        io.BackendPlatformName = nullptr;
+        io.BackendPlatformUserData = nullptr;
+
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.ClearPlatformHandlers();
     }
 
     /***********************************************************************************\
@@ -185,11 +223,10 @@ namespace Profiler
     void OverlayLayerXlibPlatformBackend::NewFrame()
     {
         // Validate the current ImGui context.
-        ImGuiContext* pContext = ImGui::GetCurrentContext();
-        IM_ASSERT(pContext && "OverlayLayerXlibPlatformBackend::NewFrame called when no ImGui context was set.");
-        IM_ASSERT(pContext == m_pImGuiContext && "OverlayLayerXlibPlatformBackend::NewFrame called with different context than the one used for initialization.");
-        if( !pContext )
+        if( !ValidateContext() )
+        {
             return;
+        }
 
         ImGuiIO& io = ImGui::GetIO();
 
@@ -378,6 +415,33 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
+        ValidateContext
+
+    Description:
+
+    \***********************************************************************************/
+    bool OverlayLayerXlibPlatformBackend::ValidateContext() const
+    {
+        ImGuiContext* pContext = ImGui::GetCurrentContext();
+        IM_ASSERT( pContext && "OverlayLayerXlibPlatformBackend function called when no ImGui context was set." );
+        if( !pContext )
+        {
+            return false;
+        }
+
+        ImGuiIO& io = ImGui::GetIO();
+        IM_ASSERT( io.BackendPlatformUserData == this && "OverlayLayerXlibPlatformBackend function called but different backend is set." );
+        if( io.BackendPlatformUserData != this )
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
         GetRootCoordinates
 
     Description:
@@ -395,7 +459,7 @@ namespace Profiler
             &out.y,
             &child );
 
-        return ( result == 0 );
+        return ( result == True );
     }
 
     /***********************************************************************************\
@@ -502,7 +566,6 @@ namespace Profiler
         OverlayLayerXlibPlatformBackend* pBackend =
             static_cast<OverlayLayerXlibPlatformBackend*>( pContext->IO.BackendPlatformUserData );
         IM_ASSERT( pBackend );
-        IM_ASSERT( pBackend->m_pImGuiContext == pContext );
 
         pBackend->SetClipboardText( pText );
     }

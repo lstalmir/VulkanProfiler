@@ -23,6 +23,7 @@
 #include "profiler/profiler_memory_manager.h"
 
 #include <vector>
+#include <memory>
 
 #include <vulkan/vulkan.h>
 
@@ -44,6 +45,9 @@ namespace Profiler
     {
     public:
         virtual ~OverlayLayerPlatformBackend() = default;
+
+        virtual bool PrepareImGuiBackend() = 0;
+        virtual void DestroyImGuiBackend() = 0;
 
         virtual void NewFrame() = 0;
 
@@ -106,7 +110,7 @@ namespace Profiler
         bool m_ResetBackendsBeforeNextFrame : 1;
         bool m_VulkanBackendInitialized : 1;
 
-        OverlayLayerPlatformBackend* m_pPlatformBackend;
+        std::shared_ptr<OverlayLayerPlatformBackend> m_pPlatformBackend;
 
         VkSurfaceKHR m_Surface;
         VkSwapchainKHR m_Swapchain;

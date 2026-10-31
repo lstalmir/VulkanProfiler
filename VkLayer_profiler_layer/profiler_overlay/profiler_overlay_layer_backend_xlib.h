@@ -43,10 +43,14 @@ namespace Profiler
         OverlayLayerXlibPlatformBackend( Window window );
         ~OverlayLayerXlibPlatformBackend();
 
+        void Destroy();
+
+        bool PrepareImGuiBackend() override;
+        void DestroyImGuiBackend() override;
+
         void NewFrame() override;
 
     private:
-        ImGuiContext* m_pImGuiContext;
         OverlayLayerXkbBackend* m_pXkbBackend;
 
         Display* m_Display;
@@ -64,6 +68,8 @@ namespace Profiler
         Atom m_TextAtom;
         Atom m_StringAtom;
         Atom m_Utf8StringAtom;
+
+        bool ValidateContext() const;
 
         bool GetRootCoordinates( Window root, Int2& out ) const;
 
