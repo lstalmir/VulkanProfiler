@@ -146,8 +146,6 @@ namespace Profiler
         free( m_pClipboardText );
         m_pClipboardText = nullptr;
 
-        SetKeyboardGrab( false );
-
         xcb_destroy_window( m_Connection, m_InputWindow );
         m_InputWindow = 0;
         m_AppWindow = 0;
@@ -204,6 +202,8 @@ namespace Profiler
         {
             return;
         }
+
+        SetKeyboardGrab( false );
 
         ImGuiIO& io = ImGui::GetIO();
         io.BackendFlags &= ~s_XcbPlatformBackendFlags;
@@ -546,11 +546,7 @@ namespace Profiler
             m_HasKeyboardGrab = false;
 
             // Clear ImGuiIO key states as no key release events will be received.
-            if( ( ImGui::GetCurrentContext() != nullptr ) &&
-                ( ImGui::GetIO().BackendPlatformUserData == this ) )
-            {
-                ImGui::GetIO().ClearInputKeys();
-            }
+            ImGui::GetIO().ClearInputKeys();
         }
     }
 
