@@ -43,6 +43,11 @@ namespace Profiler
         OverlayLayerWaylandPlatformBackend( wl_surface* surface );
         ~OverlayLayerWaylandPlatformBackend();
 
+        void Destroy();
+
+        bool PrepareImGuiBackend() override;
+        void DestroyImGuiBackend() override;
+
         void NewFrame() override;
 
     private:
@@ -57,12 +62,22 @@ namespace Profiler
         wl_surface* m_InputSurface;
         wl_subsurface* m_InputSubsurface;
         wl_region* m_InputRegion;
+        wl_buffer* m_InputBuffer;
+        int m_InputBufferFd;
+        int m_InputBufferSize;
+        void* m_pInputBufferMemory;
+
+        wl_shm* m_Shm;
+        wl_shm_pool* m_ShmPool;
 
         wl_shell* m_Shell;
+        wl_shell_surface* m_ShellSurface;
 
         xdg_wm_base* m_XdgShell;
         xdg_surface* m_XdgSurface;
         xdg_toplevel* m_XdgToplevel;
+
+        bool ValidateContext() const;
 
         // Registry event handlers.
         static void HandleGlobal( void*, wl_registry*, uint32_t, const char*, uint32_t );
@@ -70,11 +85,22 @@ namespace Profiler
 
         static const wl_registry_listener m_scRegistryListener;
 
-        // XDG topleve event handlers.
-        static void HandleToplevelConfigure( void*, xdg_toplevel*, int32_t, int32_t, wl_array* );
-        static void HandleTopLevelClose( void*, xdg_toplevel* );
-        static void HandleTopLevelConfigureBounds( void*, xdg_toplevel*, int32_t, int32_t );
-        static void HandleTopLevelCapabilities( void*, xdg_toplevel*, wl_array* );
+        // Shell surface event handlers.
+        static void HandleShellSurfacePing( void*, wl_shell_surface*, uint32_t );
+        static void HandleShellSurfaceConfigure( void*, wl_shell_surface*, uint32_t, int32_t, int32_t );
+
+        static const wl_shell_surface_listener m_scShellSurfaceListener;
+
+        // XDG surface event handlers.
+        static void HandleXdgSurfaceConfigure( void*, xdg_surface*, uint32_t );
+
+        static const xdg_surface_listener m_scXdgSurfaceListener;
+
+        // XDG toplevel event handlers.
+        static void HandleXdgToplevelConfigure( void*, xdg_toplevel*, int32_t, int32_t, wl_array* );
+        static void HandleXdgToplevelClose( void*, xdg_toplevel* );
+        static void HandleXdgToplevelConfigureBounds( void*, xdg_toplevel*, int32_t, int32_t );
+        static void HandleXdgToplevelCapabilities( void*, xdg_toplevel*, wl_array* );
 
         static const xdg_toplevel_listener m_scXdgToplevelListener;
 
@@ -98,41 +124,9 @@ namespace Profiler
         static void HandlePointerAxisDiscrete( void*, wl_pointer*, uint32_t, int32_t );
         static void HandlePointerFrame( void*, wl_pointer* );
 
-        static const wl_pointer_listener m_scPointerListener; 
-
-        enum PointerEventFlags
-        {
-            POINTER_EVENT_ENTER = 0x1,
-            POINTER_EVENT_LEAVE = 0x2,
-            POINTER_EVENT_MOTION = 0x4,
-            POINTER_EVENT_BUTTON = 0x8,
-            POINTER_EVENT_AXIS = 0x10,
-            POINTER_EVENT_AXIS_SOURCE = 0x20,
-            POINTER_EVENT_AXIS_STOP = 0x40,
-            POINTER_EVENT_AXIS_DISCRETE = 0x80
-        };
-
-        struct PointerAxis
-        {
-            bool m_Valid;
-            float m_Value;
-            int32_t m_Discrete;
-        };
-
-        struct PointerEvent
-        {
-            uint32_t m_Mask;
-            uint32_t m_Time;
-            uint32_t m_Serial;
-            ImVec2 m_Position;
-            uint32_t m_Button;
-            uint32_t m_State;
-            uint32_t m_AxisSource;
-            PointerAxis m_Axes[2];
-        };
+        static const wl_pointer_listener m_scPointerListener;
 
         wl_pointer* m_Pointer;
-        PointerEvent m_PointerEvent;
 
         // Keyboard event handlers.
         static void HandleKeyboardEnter( void*, wl_keyboard*, uint32_t, wl_surface*, wl_array* );

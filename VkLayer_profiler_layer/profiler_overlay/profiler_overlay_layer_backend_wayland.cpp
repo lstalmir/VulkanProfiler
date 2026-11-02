@@ -22,24 +22,37 @@
 #include <imgui_internal.h>
 #include <stdlib.h>
 #include <array>
-#include <mutex>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <syscall.h>
+
+#define trace_fn( args, ... ) printf( "%s (" args ")\n", __func__, __VA_ARGS__ )
 
 namespace Profiler
 {
-    extern std::mutex s_ImGuiMutex;
+    // Flags provided by this backend.
+    static constexpr ImGuiBackendFlags s_WaylandPlatformBackendFlags = 0;
 
     const wl_registry_listener OverlayLayerWaylandPlatformBackend::m_scRegistryListener = {
         &OverlayLayerWaylandPlatformBackend::HandleGlobal,
         &OverlayLayerWaylandPlatformBackend::HandleGlobalRemove 
     };
 
+    const wl_shell_surface_listener OverlayLayerWaylandPlatformBackend::m_scShellSurfaceListener = {
+        &OverlayLayerWaylandPlatformBackend::HandleShellSurfacePing,
+        &OverlayLayerWaylandPlatformBackend::HandleShellSurfaceConfigure,
+        nullptr
+    };
+
+    const xdg_surface_listener OverlayLayerWaylandPlatformBackend::m_scXdgSurfaceListener = {
+        &OverlayLayerWaylandPlatformBackend::HandleXdgSurfaceConfigure
+    };
+
     const xdg_toplevel_listener OverlayLayerWaylandPlatformBackend::m_scXdgToplevelListener = {
-        &OverlayLayerWaylandPlatformBackend::HandleToplevelConfigure,
-        &OverlayLayerWaylandPlatformBackend::HandleTopLevelClose,
-        &OverlayLayerWaylandPlatformBackend::HandleTopLevelConfigureBounds,
-        &OverlayLayerWaylandPlatformBackend::HandleTopLevelCapabilities
+        &OverlayLayerWaylandPlatformBackend::HandleXdgToplevelConfigure,
+        &OverlayLayerWaylandPlatformBackend::HandleXdgToplevelClose,
+        &OverlayLayerWaylandPlatformBackend::HandleXdgToplevelConfigureBounds,
+        &OverlayLayerWaylandPlatformBackend::HandleXdgToplevelCapabilities
     };
 
     const wl_seat_listener OverlayLayerWaylandPlatformBackend::m_scSeatListener = {
@@ -69,7 +82,7 @@ namespace Profiler
     };
 
     template<typename T>
-    static void ReleaseIfNull( T** ppObject, void( *pfnRelease )(T*) )
+    static void DestroyObject( T** ppObject, void( *pfnRelease )(T*) )
     {
         if( *ppObject != nullptr )
         {
@@ -86,12 +99,9 @@ namespace Profiler
     Description:
         Constructor.
 
-        s_ImGuiMutex must be locked before creating the window context.
-
     \***********************************************************************************/
     OverlayLayerWaylandPlatformBackend::OverlayLayerWaylandPlatformBackend( wl_surface* surface ) try
-        : m_pImGuiContext( nullptr )
-        , m_pXkbBackend( nullptr )
+        : m_pXkbBackend( nullptr )
         , m_Display( nullptr )
         , m_Registry( nullptr )
         , m_Compositor( nullptr )
@@ -99,6 +109,10 @@ namespace Profiler
         , m_InputSurface( nullptr )
         , m_InputSubsurface( nullptr )
         , m_InputRegion( nullptr )
+        , m_InputBuffer( nullptr )
+        , m_InputBufferFd( -1 )
+        , m_InputBufferSize( 0 )
+        , m_pInputBufferMemory( nullptr )
         , m_Shell( nullptr )
         , m_XdgShell( nullptr )
         , m_XdgSurface( nullptr )
@@ -106,7 +120,6 @@ namespace Profiler
         , m_Seat( nullptr )
         , m_SeatCapabilities( 0 )
         , m_Pointer( nullptr )
-        , m_PointerEvent{}
         , m_Keyboard( nullptr )
     {
         // Create XKB backend
@@ -130,49 +143,75 @@ namespace Profiler
         // Another roundtrip needed to initialize input devices
         wl_display_roundtrip( m_Display );
 
-        if( m_XdgShell )
-        {
-            // Get XDG surface of the application's window
-            m_XdgSurface = xdg_wm_base_get_xdg_surface( m_XdgShell, m_AppSurface );
-            m_XdgToplevel = xdg_surface_get_toplevel( m_XdgSurface );
-
-            xdg_toplevel_add_listener( m_XdgToplevel, &m_scXdgToplevelListener, this );
-        }
-
         // Create a subsurface to capture input events
         m_InputSurface = wl_compositor_create_surface( m_Compositor );
         if( !m_InputSurface )
             throw;
 
-        m_InputRegion = wl_compositor_create_region( m_Compositor );
-        if( !m_InputRegion )
+        // Create top-level surface depending on the available interfaces
+        if( m_XdgShell )
+        {
+            m_XdgSurface = xdg_wm_base_get_xdg_surface( m_XdgShell, m_InputSurface );
+            if( !m_XdgSurface )
+                throw;
+
+            m_XdgToplevel = xdg_surface_get_toplevel( m_XdgSurface );
+            if( !m_XdgToplevel )
+                throw;
+
+            xdg_surface_add_listener( m_XdgSurface, &m_scXdgSurfaceListener, this );
+            xdg_toplevel_add_listener( m_XdgToplevel, &m_scXdgToplevelListener, this );
+        }
+        else if( m_Shell )
+        {
+            m_ShellSurface = wl_shell_get_shell_surface( m_Shell, m_InputSurface );
+            if( !m_ShellSurface )
+                throw;
+
+            wl_shell_surface_add_listener( m_ShellSurface, &m_scShellSurfaceListener, this );
+            wl_shell_surface_set_toplevel( m_ShellSurface );
+        }
+
+        // Allocate memory buffer for the input surface
+        m_InputBufferFd = static_cast<int>( ::syscall( SYS_memfd_create, "buffer", 0 ) );
+        if( m_InputBufferFd < 0 )
             throw;
+
+        m_InputBufferSize = 4096 * 4096 * 4;
+        if( ::ftruncate( m_InputBufferFd, m_InputBufferSize ) != 0 )
+            throw;
+
+        m_ShmPool = wl_shm_create_pool( m_Shm, m_InputBufferFd, m_InputBufferSize );
+        if( !m_ShmPool )
+            throw;
+
+        m_pInputBufferMemory = ::mmap( nullptr, m_InputBufferSize, PROT_READ | PROT_WRITE, MAP_SHARED, m_InputBufferFd, 0 );
+        if( !m_pInputBufferMemory )
+            throw;
+
+        m_InputBuffer = wl_shm_pool_create_buffer( m_ShmPool, 0, 1024, 1024, 4096, WL_SHM_FORMAT_ABGR8888 );
+        if( !m_InputBuffer )
+            throw;
+
+        //m_InputRegion = wl_compositor_create_region( m_Compositor );
+        //if( !m_InputRegion )
+        //    throw;
 
         // Make the input surface a subsurface of the application's surface to capture its input
-        m_InputSubsurface = wl_subcompositor_get_subsurface( m_Subcompositor, m_InputSurface, m_AppSurface );
-        if( !m_InputSubsurface )
-            throw;
+        //m_InputSubsurface = wl_subcompositor_get_subsurface( m_Subcompositor, m_InputSurface, m_AppSurface );
+        //if( !m_InputSubsurface )
+        //    throw;
 
-        wl_subsurface_set_sync( m_InputSubsurface );
+        //wl_subsurface_set_sync( m_InputSubsurface );
 
-        wl_subsurface_place_above( m_InputSubsurface, m_AppSurface );
-        wl_surface_set_input_region( m_InputSurface, m_InputRegion );
+        //wl_subsurface_place_above( m_InputSubsurface, m_AppSurface );
+        //wl_surface_set_input_region( m_InputSurface, m_InputRegion );
+
         wl_surface_commit( m_InputSurface );
-
-        // Setup backend info
-        ImGuiIO& io = ImGui::GetIO();
-        io.BackendPlatformName = "wayland";
-        io.BackendPlatformUserData = this;
-
-        // ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
-        // platformIO.Platform_GetClipboardTextFn = nullptr;
-        // platformIO.Platform_SetClipboardTextFn = OverlayLayerXcbPlatformBackend::SetClipboardTextFn;
-
-        m_pImGuiContext = ImGui::GetCurrentContext();
     }
     catch (...)
     {
-        OverlayLayerWaylandPlatformBackend::~OverlayLayerWaylandPlatformBackend();
+        Destroy();
         throw;
     }
 
@@ -184,42 +223,117 @@ namespace Profiler
     Description:
         Destructor.
 
-        s_ImGuiMutex must be locked before destroying the window context.
-
     \***********************************************************************************/
     OverlayLayerWaylandPlatformBackend::~OverlayLayerWaylandPlatformBackend()
     {
+        Destroy();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+        Free all Wayland resources created for this backend.
+
+    \***********************************************************************************/
+    void OverlayLayerWaylandPlatformBackend::Destroy()
+    {
         m_AppSurface = nullptr;
 
-        ReleaseIfNull( &m_XdgToplevel, xdg_toplevel_destroy );
-        ReleaseIfNull( &m_XdgSurface, xdg_surface_destroy );
-        ReleaseIfNull( &m_XdgShell, xdg_wm_base_destroy );
-        ReleaseIfNull( &m_Shell, wl_shell_destroy );
-        ReleaseIfNull( &m_Pointer, wl_pointer_release );
-        ReleaseIfNull( &m_Keyboard, wl_keyboard_release );
-        ReleaseIfNull( &m_Seat, wl_seat_release );
-        ReleaseIfNull( &m_InputRegion, wl_region_destroy );
-        ReleaseIfNull( &m_InputSubsurface, wl_subsurface_destroy );
-        ReleaseIfNull( &m_InputSurface, wl_surface_destroy );
-        ReleaseIfNull( &m_Subcompositor, wl_subcompositor_destroy );
-        ReleaseIfNull( &m_Compositor, wl_compositor_destroy );
-        ReleaseIfNull( &m_Registry, wl_registry_destroy );
-        ReleaseIfNull( &m_Display, wl_display_disconnect );
+        DestroyObject( &m_XdgToplevel, xdg_toplevel_destroy );
+        DestroyObject( &m_XdgSurface, xdg_surface_destroy );
+        DestroyObject( &m_XdgShell, xdg_wm_base_destroy );
+
+        DestroyObject( &m_ShellSurface, wl_shell_surface_destroy );
+        DestroyObject( &m_Shell, wl_shell_destroy );
+
+        DestroyObject( &m_ShmPool, wl_shm_pool_destroy );
+        DestroyObject( &m_Shm, wl_shm_destroy );
+
+        DestroyObject( &m_Pointer, wl_pointer_release );
+        DestroyObject( &m_Keyboard, wl_keyboard_release );
+        DestroyObject( &m_Seat, wl_seat_release );
+        DestroyObject( &m_InputBuffer, wl_buffer_destroy );
+        DestroyObject( &m_InputRegion, wl_region_destroy );
+        DestroyObject( &m_InputSubsurface, wl_subsurface_destroy );
+        DestroyObject( &m_InputSurface, wl_surface_destroy );
+        DestroyObject( &m_Subcompositor, wl_subcompositor_destroy );
+        DestroyObject( &m_Compositor, wl_compositor_destroy );
+        DestroyObject( &m_Registry, wl_registry_destroy );
+        DestroyObject( &m_Display, wl_display_disconnect );
+
+        if( m_pInputBufferMemory )
+        {
+            ::munmap( m_pInputBufferMemory, m_InputBufferSize );
+            m_pInputBufferMemory = nullptr;
+            m_InputBufferSize = 0;
+        }
+
+        if( m_InputBufferFd >= 0 )
+        {
+            ::close( m_InputBufferFd );
+            m_InputBufferFd = -1;
+        }
 
         delete m_pXkbBackend;
         m_pXkbBackend = nullptr;
+    }
 
-        if( m_pImGuiContext )
+    /***********************************************************************************\
+
+    Function:
+        PrepareImGuiBackend
+
+    Description:
+        Initialize ImGui backend for Xlib platform.
+
+    \***********************************************************************************/
+    bool OverlayLayerWaylandPlatformBackend::PrepareImGuiBackend()
+    {
+        ImGuiContext* pContext = ImGui::GetCurrentContext();
+        IM_ASSERT( pContext && "OverlayLayerWaylandPlatformBackend::PrepareImGuiBackend called when no ImGui context was set." );
+        if( !pContext )
         {
-            assert( ImGui::GetCurrentContext() == m_pImGuiContext );
-
-            ImGuiIO& io = ImGui::GetIO();
-            io.BackendPlatformName = nullptr;
-            io.BackendPlatformUserData = nullptr;
-
-            ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
-            platformIO.ClearPlatformHandlers();
+            return false;
         }
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags |= s_WaylandPlatformBackendFlags;
+        io.BackendPlatformName = "wayland";
+        io.BackendPlatformUserData = this;
+
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.Platform_GetClipboardTextFn = nullptr;
+        platformIO.Platform_SetClipboardTextFn = nullptr;
+
+        return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImGuiBackend
+
+    Description:
+        Destroy ImGui backend.
+
+    \***********************************************************************************/
+    void OverlayLayerWaylandPlatformBackend::DestroyImGuiBackend()
+    {
+        if( !ValidateContext() )
+        {
+            return;
+        }
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.BackendFlags &= ~s_WaylandPlatformBackendFlags;
+        io.BackendPlatformName = nullptr;
+        io.BackendPlatformUserData = nullptr;
+
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.ClearPlatformHandlers();
     }
 
     /***********************************************************************************\
@@ -233,16 +347,14 @@ namespace Profiler
     void OverlayLayerWaylandPlatformBackend::NewFrame()
     {
         // Validate the current ImGui context.
-        ImGuiContext* pContext = ImGui::GetCurrentContext();
-        IM_ASSERT( pContext && "OverlayLayerXcbPlatformBackend::NewFrame called when no ImGui context was set." );
-        IM_ASSERT( pContext == m_pImGuiContext && "OverlayLayerXcbPlatformBackend::NewFrame called with different context than the one used for initialization." );
-        if( !pContext )
+        if( !ValidateContext() )
+        {
             return;
+        }
 
         ImGuiIO& io = ImGui::GetIO();
-        IM_ASSERT( io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer back-end. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame()." );
 
-        #if 0
+#if 0
         // Setup display size (every frame to accommodate for window resizing).
         auto geometry = GetGeometry( m_AppWindow );
         io.DisplaySize = ImVec2( (float)(geometry.width), (float)(geometry.height));
@@ -254,31 +366,55 @@ namespace Profiler
 
         // Update OS mouse position.
         UpdateMousePos();
-        #endif
+#endif
 
+#if 0
         // Update input capture rects.
-        wl_region_add( m_InputRegion, 0, 0, 1000, 1000 ); 
-
-        #if 0
         for( ImGuiWindow* pWindow : GImGui->Windows )
         {
             if( pWindow && pWindow->WasActive )
             {
-                xcb_rectangle_t rect;
-                rect.x = static_cast<int16_t>( pWindow->Pos.x );
-                rect.y = static_cast<int16_t>( pWindow->Pos.y );
-                rect.width = static_cast<uint16_t>( pWindow->Size.x );
-                rect.height = static_cast<uint16_t>( pWindow->Size.y );
-                m_InputRects.push_back( rect );
+                wl_region_add( m_InputRegion,
+                    static_cast<int32_t>( pWindow->Pos.x ),
+                    static_cast<int32_t>( pWindow->Pos.y ),
+                    static_cast<int32_t>( pWindow->Size.x ),
+                    static_cast<int32_t>( pWindow->Size.y ) );
             }
         }
-        #endif
 
         wl_surface_set_input_region( m_InputSurface, m_InputRegion );
         wl_surface_commit( m_InputSurface );
+#endif
 
         // Process pending messages.
         wl_display_roundtrip( m_Display );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        ValidateContext
+
+    Description:
+
+    \***********************************************************************************/
+    bool OverlayLayerWaylandPlatformBackend::ValidateContext() const
+    {
+        ImGuiContext* pContext = ImGui::GetCurrentContext();
+        IM_ASSERT( pContext && "OverlayLayerWaylandPlatformBackend function called when no ImGui context was set." );
+        if( !pContext )
+        {
+            return false;
+        }
+
+        ImGuiIO& io = ImGui::GetIO();
+        IM_ASSERT( io.BackendPlatformUserData == this && "OverlayLayerWaylandPlatformBackend function called but different backend is set." );
+        if( io.BackendPlatformUserData != this )
+        {
+            return false;
+        }
+
+        return true;
     }
 
     /***********************************************************************************\
@@ -292,7 +428,8 @@ namespace Profiler
     void OverlayLayerWaylandPlatformBackend::HandleGlobal( void* data, wl_registry* registry, uint32_t name, const char* interface, uint32_t version )
     {
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        if( !bd )
+            return;
 
         if( strcmp( interface, wl_compositor_interface.name ) == 0 )
         {
@@ -345,6 +482,16 @@ namespace Profiler
                 version ) );
             return;
         }
+
+        if ( strcmp( interface, wl_shm_interface.name ) == 0 )
+        {
+            bd->m_Shm = static_cast<wl_shm*>( wl_registry_bind(
+                registry,
+                name,
+                &wl_shm_interface,
+                version ) );
+            return;
+        }
     }
 
     /***********************************************************************************\
@@ -362,57 +509,118 @@ namespace Profiler
     /***********************************************************************************\
 
     Function:
-        HandleGlobalRemove
+        HandleShellSurfacePing
 
     Description:
 
     \***********************************************************************************/
-    void OverlayLayerWaylandPlatformBackend::HandleToplevelConfigure( void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states )
+    void OverlayLayerWaylandPlatformBackend::HandleShellSurfacePing( void* data, wl_shell_surface* surface, uint32_t serial )
     {
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        if( !bd || bd->m_ShellSurface != surface )
+        {
+            return;
+        }
+
+        wl_shell_surface_pong( surface, serial );
     }
 
     /***********************************************************************************\
 
     Function:
-        HandleGlobalRemove
+        HandleShellSurfaceConfigure
 
     Description:
 
     \***********************************************************************************/
-    void OverlayLayerWaylandPlatformBackend::HandleTopLevelClose( void* data, xdg_toplevel* toplevel )
+    void OverlayLayerWaylandPlatformBackend::HandleShellSurfaceConfigure( void* data, wl_shell_surface* surface, uint32_t edges, int32_t width, int32_t height )
     {
+        trace_fn( "%p, %p, %u, %i, %i", data, surface, edges, width, height );
+
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        if( !bd || bd->m_ShellSurface != surface )
+        {
+            return;
+        }
+
+        wl_surface_attach( bd->m_InputSurface, bd->m_InputBuffer, 0, 0 );
+        wl_surface_commit( bd->m_InputSurface );
     }
 
     /***********************************************************************************\
 
     Function:
-        HandleGlobalRemove
+        HandleXdgSurfaceConfigure
 
     Description:
 
     \***********************************************************************************/
-    void OverlayLayerWaylandPlatformBackend::HandleTopLevelConfigureBounds( void* data, xdg_toplevel* toplevel, int32_t width, int32_t height )
+    void OverlayLayerWaylandPlatformBackend::HandleXdgSurfaceConfigure( void* data, xdg_surface* surface, uint32_t serial )
     {
+        trace_fn( "%p, %p, %u", data, surface, serial );
+
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        if( !bd || bd->m_XdgSurface != surface )
+        {
+            return;
+        }
+
+        xdg_surface_ack_configure( surface, serial );
+
+        wl_surface_attach( bd->m_InputSurface, bd->m_InputBuffer, 0, 0 );
+        wl_surface_commit( bd->m_InputSurface );
     }
 
     /***********************************************************************************\
 
     Function:
-        HandleGlobalRemove
+        HandleXdgToplevelConfigure
 
     Description:
 
     \***********************************************************************************/
-    void OverlayLayerWaylandPlatformBackend::HandleTopLevelCapabilities( void* data, xdg_toplevel* toplevel, wl_array* capabilities )
+    void OverlayLayerWaylandPlatformBackend::HandleXdgToplevelConfigure( void* data, xdg_toplevel* toplevel, int32_t width, int32_t height, wl_array* states )
     {
-        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        trace_fn( "%p, %p, %i, %i, %p", data, toplevel, width, height, states );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        HandleXdgToplevelClose
+
+    Description:
+
+    \***********************************************************************************/
+    void OverlayLayerWaylandPlatformBackend::HandleXdgToplevelClose( void* data, xdg_toplevel* toplevel )
+    {
+        trace_fn( "%p, %p", data, toplevel );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        HandleXdgToplevelConfigureBounds
+
+    Description:
+
+    \***********************************************************************************/
+    void OverlayLayerWaylandPlatformBackend::HandleXdgToplevelConfigureBounds( void* data, xdg_toplevel* toplevel, int32_t width, int32_t height )
+    {
+        trace_fn( "%p, %p, %i, %i", data, toplevel, width, height );
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        HandleXdgToplevelCapabilities
+
+    Description:
+
+    \***********************************************************************************/
+    void OverlayLayerWaylandPlatformBackend::HandleXdgToplevelCapabilities( void* data, xdg_toplevel* toplevel, wl_array* capabilities )
+    {
+        trace_fn( "%p, %p, %p", data, toplevel, capabilities );
     }
 
     /***********************************************************************************\
@@ -425,8 +633,13 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandleSeatCapabilities( void* data, wl_seat* seat, uint32_t capabilities )
     {
+        trace_fn( "%p, %p, %u", data, seat, capabilities );
+
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        if( !bd )
+        {
+            return;
+        }
 
         bd->m_SeatCapabilities = capabilities;
 
@@ -436,7 +649,7 @@ namespace Profiler
             wl_pointer* pointer = wl_seat_get_pointer( seat );
             if( bd->m_Pointer != pointer )
             {
-                ReleaseIfNull( &bd->m_Pointer, wl_pointer_release );
+                DestroyObject( &bd->m_Pointer, wl_pointer_release );
                 bd->m_Pointer = pointer;
 
                 wl_pointer_add_listener( bd->m_Pointer, &m_scPointerListener, data );
@@ -445,7 +658,7 @@ namespace Profiler
         else
         {
             // Pointer device disconnected.
-            ReleaseIfNull( &bd->m_Pointer, wl_pointer_release );
+            DestroyObject( &bd->m_Pointer, wl_pointer_release );
         }
 
         // Register keyboard handlers
@@ -454,7 +667,7 @@ namespace Profiler
             wl_keyboard* keyboard = wl_seat_get_keyboard( seat );
             if( bd->m_Keyboard != keyboard )
             {
-                ReleaseIfNull( &bd->m_Keyboard, wl_keyboard_release );
+                DestroyObject( &bd->m_Keyboard, wl_keyboard_release );
                 bd->m_Keyboard = keyboard;
 
                 wl_keyboard_add_listener( bd->m_Keyboard, &m_scKeyboardListener, data );
@@ -463,7 +676,7 @@ namespace Profiler
         else
         {
             // Keyboard device disconnected.
-            ReleaseIfNull( &bd->m_Keyboard, wl_keyboard_release );
+            DestroyObject( &bd->m_Keyboard, wl_keyboard_release );
         }
     }
 
@@ -477,6 +690,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandleSeatName( void* data, wl_seat* seat, const char* name )
     {
+        trace_fn( "%p, %p, %s", data, seat, name );
     }
 
     /***********************************************************************************\
@@ -489,13 +703,18 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandlePointerEnter( void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface, wl_fixed_t x, wl_fixed_t y )
     {
-        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        trace_fn( "%p, %p, %u, %p, %lf, %lf", data, pointer, serial, surface, wl_fixed_to_double( x ), wl_fixed_to_double( y ) );
 
-        bd->m_PointerEvent.m_Mask |= POINTER_EVENT_ENTER;
-        bd->m_PointerEvent.m_Serial = serial;
-        bd->m_PointerEvent.m_Position.x = wl_fixed_to_double( x );
-        bd->m_PointerEvent.m_Position.y = wl_fixed_to_double( y );
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddMousePosEvent(
+            static_cast<float>( wl_fixed_to_double( x ) ),
+            static_cast<float>( wl_fixed_to_double( y ) ) );
     }
 
     /***********************************************************************************\
@@ -508,11 +727,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandlePointerLeave( void* data, wl_pointer* pointer, uint32_t serial, wl_surface* surface )
     {
-        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
-
-        bd->m_PointerEvent.m_Mask |= POINTER_EVENT_LEAVE;
-        bd->m_PointerEvent.m_Serial = serial;
+        trace_fn( "%p, %p, %u, %p", data, pointer, serial, surface );
     }
 
     /***********************************************************************************\
@@ -525,13 +740,18 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandlePointerMotion( void* data, wl_pointer* pointer, uint32_t time, wl_fixed_t x, wl_fixed_t y )
     {
-        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        trace_fn( "%p, %p, %u, %lf, %lf", data, pointer, time, wl_fixed_to_double( x ), wl_fixed_to_double( y ) );
 
-        bd->m_PointerEvent.m_Mask |= POINTER_EVENT_MOTION;
-        bd->m_PointerEvent.m_Time = time;
-        bd->m_PointerEvent.m_Position.x = wl_fixed_to_double( x );
-        bd->m_PointerEvent.m_Position.y = wl_fixed_to_double( y );
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
+
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddMousePosEvent(
+            static_cast<float>( wl_fixed_to_double( x ) ),
+            static_cast<float>( wl_fixed_to_double( y ) ) );
     }
 
     /***********************************************************************************\
@@ -544,14 +764,15 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandlePointerButton( void* data, wl_pointer* pointer, uint32_t serial, uint32_t time, uint32_t button, uint32_t state )
     {
-        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        trace_fn( "%p, %p, %u, %u, %u, %u", data, pointer, serial, time, button, state );
 
-        bd->m_PointerEvent.m_Mask |= POINTER_EVENT_BUTTON;
-        bd->m_PointerEvent.m_Time = time;
-        bd->m_PointerEvent.m_Serial = serial;
-        bd->m_PointerEvent.m_Button = button;
-        bd->m_PointerEvent.m_State = state;
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
+
+        // TODO: Impl
     }
 
     /***********************************************************************************\
@@ -564,13 +785,15 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandlePointerAxis( void* data, wl_pointer* pointer, uint32_t time, uint32_t axis, wl_fixed_t value )
     {
-        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        trace_fn( "%p, %p, %u, %u, %lf", data, pointer, time, axis, wl_fixed_to_double( value ) );
 
-        bd->m_PointerEvent.m_Mask |= POINTER_EVENT_AXIS;
-        bd->m_PointerEvent.m_Time = time;
-        bd->m_PointerEvent.m_Axes[axis].m_Valid = true;
-        bd->m_PointerEvent.m_Axes[axis].m_Value = wl_fixed_to_double( value );
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
+
+        // TODO: Impl
     }
 
     /***********************************************************************************\
@@ -583,11 +806,15 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandlePointerAxisSource( void* data, wl_pointer* pointer, uint32_t source )
     {
-        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        trace_fn( "%p, %p, %u", data, pointer, source );
 
-        bd->m_PointerEvent.m_Mask |= POINTER_EVENT_AXIS_SOURCE;
-        bd->m_PointerEvent.m_AxisSource = source;
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
+
+        // TODO: Impl
     }
 
     /***********************************************************************************\
@@ -600,12 +827,15 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandlePointerAxisStop( void* data, wl_pointer* pointer, uint32_t time, uint32_t axis )
     {
-        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        trace_fn( "%p, %p, %u, %u", data, pointer, time, axis );
 
-        bd->m_PointerEvent.m_Mask |= POINTER_EVENT_AXIS_STOP;
-        bd->m_PointerEvent.m_Time = time;
-        bd->m_PointerEvent.m_Axes[axis].m_Valid = true;
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
+
+        // TODO: Impl
     }
 
     /***********************************************************************************\
@@ -618,12 +848,15 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandlePointerAxisDiscrete( void* data, wl_pointer* pointer, uint32_t axis, int32_t value )
     {
-        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        trace_fn( "%p, %p, %u, %i", data, pointer, axis, value );
 
-        bd->m_PointerEvent.m_Mask |= POINTER_EVENT_AXIS_DISCRETE;
-        bd->m_PointerEvent.m_Axes[axis].m_Valid = true;
-        bd->m_PointerEvent.m_Axes[axis].m_Discrete = value;
+        auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
+
+        // TODO: Impl
     }
 
     /***********************************************************************************\
@@ -636,12 +869,15 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandlePointerFrame( void* data, wl_pointer* pointer )
     {
+        trace_fn( "%p, %p", data, pointer );
+
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
 
-        // TODO
-
-        memset( &bd->m_PointerEvent, 0, sizeof( bd->m_PointerEvent ) );
+        // TODO: Impl
     }
 
     /***********************************************************************************\
@@ -654,6 +890,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandleKeyboardEnter( void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface, wl_array* keys )
     {
+        trace_fn( "%p, %p, %u, %p, %p", data, keyboard, serial, surface, keys );
     }
 
     /***********************************************************************************\
@@ -666,6 +903,7 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandleKeyboardLeave( void* data, wl_keyboard* keyboard, uint32_t serial, wl_surface* surface )
     {
+        trace_fn( "%p, %p, %u, %p", data, keyboard, serial, surface );
     }
 
     /***********************************************************************************\
@@ -678,13 +916,18 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandleKeyboardKeymap( void* data, wl_keyboard* keyboard, uint32_t format, int32_t fd, uint32_t size )
     {
+        trace_fn( "%p, %p, %u, %i, %u", data, keyboard, format, fd, size );
+
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
 
         // Only classic XKB text format is currently supported.
         if( format == WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1 )
         {
-            void* mappedFd = mmap( NULL, size, PROT_READ, MAP_SHARED, fd, 0 );
+            void* mappedFd = ::mmap( NULL, size, PROT_READ, MAP_SHARED, fd, 0 );
             if( mappedFd != MAP_FAILED )
             {
                 // Set the new keymap from the provided string.
@@ -693,11 +936,11 @@ namespace Profiler
                     XKB_KEYMAP_FORMAT_TEXT_V1,
                     XKB_KEYMAP_COMPILE_NO_FLAGS );
 
-                munmap( mappedFd, size );
+                ::munmap( mappedFd, size );
             }
         }
 
-        close( fd );
+        ::close( fd );
     }
 
     /***********************************************************************************\
@@ -710,8 +953,13 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandleKeyboardKey( void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state )
     {
+        trace_fn( "%p, %p, %u, %u, %u, %u", data, keyboard, serial, time, key, state );
+
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
 
         bd->m_pXkbBackend->AddKeyEvent( key, state == WL_KEYBOARD_KEY_STATE_PRESSED );
     }
@@ -726,8 +974,13 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandleKeyboardModifiers( void* data, wl_keyboard* keyboard, uint32_t serial, uint32_t depressed, uint32_t latched, uint32_t locked, uint32_t group )
     {
+        trace_fn( "%p, %p, %u, %u, %u, %u, %u", data, keyboard, serial, depressed, latched, locked, group );
+
         auto* bd = static_cast<OverlayLayerWaylandPlatformBackend*>( data );
-        assert( bd );
+        if( !bd || !bd->ValidateContext() )
+        {
+            return;
+        }
 
         bd->m_pXkbBackend->SetKeyModifiers( depressed, latched, locked, group );
     }
@@ -742,5 +995,6 @@ namespace Profiler
     \***********************************************************************************/
     void OverlayLayerWaylandPlatformBackend::HandleKeyboardRepeat( void* data, wl_keyboard* keyboard, int32_t rate, int32_t delay )
     {
+        trace_fn( "%p, %p, %i, %i", data, keyboard, rate, delay );
     }
 }
