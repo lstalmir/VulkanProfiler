@@ -43,6 +43,11 @@ namespace Profiler
         OverlayLayerWin32PlatformBackend( HWND hWnd );
         ~OverlayLayerWin32PlatformBackend();
 
+        void Destroy();
+
+        bool PrepareImGuiBackend() override;
+        void DestroyImGuiBackend() override;
+
         HWND GetWindow() const;
         void NewFrame() override;
         float GetDPIScale() const override;

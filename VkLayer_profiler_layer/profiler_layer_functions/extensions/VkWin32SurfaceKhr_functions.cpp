@@ -48,7 +48,7 @@ namespace Profiler
             surfaceObject.Handle = *pSurface;
             surfaceObject.Window = pCreateInfo->hwnd;
 
-            id.Instance.Surfaces.emplace( *pSurface, surfaceObject );
+            id.Instance.Surfaces.emplace( *pSurface, std::move( surfaceObject ) );
         }
 
         return result;

@@ -194,8 +194,6 @@ namespace Profiler
     Description:
         Constructor.
 
-        s_ImGuiMutex must be locked before creating the window context.
-
     \***********************************************************************************/
     OverlayLayerWin32PlatformBackend::OverlayLayerWin32PlatformBackend( HWND hWnd ) try
         : m_AppWindow( hWnd )
@@ -205,21 +203,6 @@ namespace Profiler
         , m_MouseScreenPosY( 0 )
         , m_MouseButtons( 0 )
     {
-        // Access to map controlled with s_ImGuiMutex.
-        g_pWin32Contexts.emplace( m_AppWindow, this );
-
-        if( !ImGui_ImplWin32_Init( m_AppWindow ) )
-        {
-            throw;
-        }
-
-        // Get the current ImGui context.
-        // It must happen after the backend has been initialized to indicate the initialization was successful.
-        m_pImGuiContext = ImGui::GetCurrentContext();
-
-        HINSTANCE hProfilerDllInstance =
-            static_cast<HINSTANCE>( Profiler::ProfilerPlatformFunctions::GetLibraryInstanceHandle() );
-
         // Get thread owning the window.
         m_AppWindowThreadId = GetWindowThreadProcessId( hWnd, nullptr );
 
@@ -228,6 +211,9 @@ namespace Profiler
 
         if( !hook.Handle )
         {
+            HINSTANCE hProfilerDllInstance =
+                static_cast<HINSTANCE>( Profiler::ProfilerPlatformFunctions::GetLibraryInstanceHandle() );
+
             // Register a window hook on GetMessage/PeekMessage function.
             hook.Handle = SetWindowsHookEx(
                 WH_GETMESSAGE,
@@ -245,7 +231,7 @@ namespace Profiler
     catch (...)
     {
         // Cleanup the partially initialized context.
-        OverlayLayerWin32PlatformBackend::~OverlayLayerWin32PlatformBackend();
+        Destroy();
         throw;
     }
 
@@ -257,10 +243,21 @@ namespace Profiler
     Description:
         Destructor.
 
-        s_ImGuiMutex must be locked before destroying the window context.
-
     \***********************************************************************************/
     OverlayLayerWin32PlatformBackend::~OverlayLayerWin32PlatformBackend()
+    {
+        Destroy();
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Destroy
+
+    Description:
+
+    \***********************************************************************************/
+    void OverlayLayerWin32PlatformBackend::Destroy()
     {
         // Unhook from the window
         auto& hook = g_Win32ThreadHooks[ m_AppWindowThreadId ];
@@ -271,16 +268,81 @@ namespace Profiler
             UnhookWindowsHookEx( hook.Handle );
             g_Win32ThreadHooks.erase( m_AppWindowThreadId );
         }
+    }
 
+    /***********************************************************************************\
+
+    Function:
+        PrepareImGuiBackend
+
+    Description:
+        Prepare ImGui platform backend for the window.
+
+        s_ImGuiMutex must be locked before creating the window context.
+
+    \***********************************************************************************/
+    bool OverlayLayerWin32PlatformBackend::PrepareImGuiBackend()
+    {
+        ImGuiContext* pContext = ImGui::GetCurrentContext();
+        IM_ASSERT( pContext && "OverlayLayerWin32PlatformBackend::PrepareImGuiBackend called when no ImGui context was set." );
+        if( !pContext )
+        {
+            return false;
+        }
+
+        // Associate the window handle with the current backend.
+        // It theoretically may change if the VkSurfaceKHR is recreated for the same window without destroying the previous one.
+        try
+        {
+            // Access to map controlled with s_ImGuiMutex.
+            g_pWin32Contexts.insert_or_assign( m_AppWindow, this );
+        }
+        catch( ... )
+        {
+            return false;
+        }
+
+        // Initialize ImGui platform backend.
+        if( !ImGui_ImplWin32_Init( m_AppWindow ) )
+        {
+            g_pWin32Contexts.erase( m_AppWindow );
+            return false;
+        }
+
+        // Get the current ImGui context.
+        // It must happen after the backend has been initialized to indicate the initialization was successful.
+        m_pImGuiContext = pContext;
+
+        return true;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        DestroyImGuiBackend
+
+    Description:
+        Destroy ImGui platform backend for the window.
+
+        s_ImGuiMutex must be locked before creating the window context.
+
+    \***********************************************************************************/
+    void OverlayLayerWin32PlatformBackend::DestroyImGuiBackend()
+    {
         // Uninitialize the backend
         if( m_pImGuiContext )
         {
-            assert( ImGui::GetCurrentContext() == m_pImGuiContext );
+            IM_ASSERT( ImGui::GetCurrentContext() == m_pImGuiContext );
             ImGui_ImplWin32_Shutdown();
+            m_pImGuiContext = nullptr;
         }
 
         // Erase context from map
-        g_pWin32Contexts.erase( m_AppWindow );
+        auto it = g_pWin32Contexts.find( m_AppWindow );
+        if( it != g_pWin32Contexts.end() && it->second == this )
+        {
+            g_pWin32Contexts.erase( it );
+        }
     }
 
     /***********************************************************************************\
