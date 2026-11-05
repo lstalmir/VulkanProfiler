@@ -23,6 +23,7 @@
 
 #include <vulkan/vk_layer.h>
 
+#include <list>
 #include <vector>
 #include <mutex>
 
@@ -45,6 +46,7 @@ namespace Profiler
         VkQueryPool m_QueryPool;
         uint32_t    m_QueryOffset;
         uint32_t    m_QueryCount;
+        void*       m_pQueryAllocatorData;
     };
 
     /***********************************************************************************\
@@ -72,7 +74,8 @@ namespace Profiler
         void Destroy();
 
         bool Allocate( CommandBufferQueryPoolAllocation& allocation );
-        void Free( const CommandBufferQueryPoolAllocation& allocation );
+        void Free( CommandBufferQueryPoolAllocation& allocation );
+        void Free( std::vector<CommandBufferQueryPoolAllocation>& allocations );
 
     private:
         DeviceProfiler*                  m_pProfiler;
@@ -85,11 +88,12 @@ namespace Profiler
         struct QueryPool
         {
             VkQueryPool                  m_Handle;
+            uint32_t                     m_FreeCount;
             std::vector<bool>            m_Allocations;
         };
 
         std::mutex                       m_Mutex;
-        std::vector<QueryPool>           m_QueryPools;
+        std::list<QueryPool>             m_QueryPools;
 
         void ResetMembers();
     };

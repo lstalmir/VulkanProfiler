@@ -103,14 +103,22 @@ namespace Profiler
         auto ReserveQueryPool = [&]( QueryPool& queryPool, uint32_t chunkIndex )
         {
             queryPool.m_Allocations[chunkIndex] = true;
+            queryPool.m_FreeCount--;
+
             allocation.m_QueryPool = queryPool.m_Handle;
             allocation.m_QueryOffset = chunkIndex * m_QueryAllocationSize;
             allocation.m_QueryCount = m_QueryAllocationSize;
+            allocation.m_pQueryAllocatorData = &queryPool;
         };
 
         // Try to suballocate from an existing query pool.
         for( QueryPool& queryPool : m_QueryPools )
         {
+            if( queryPool.m_FreeCount == 0 )
+            {
+                continue;
+            }
+
             for( uint32_t i = 0; i < queryPool.m_Allocations.size(); ++i )
             {
                 if( !queryPool.m_Allocations[i] )
@@ -140,7 +148,8 @@ namespace Profiler
             {
                 QueryPool queryPool = {};
                 queryPool.m_Handle = queryPoolHandle;
-                queryPool.m_Allocations.resize( m_QueryPoolSize / m_QueryAllocationSize, false );
+                queryPool.m_FreeCount = m_QueryPoolSize / m_QueryAllocationSize;
+                queryPool.m_Allocations.resize( queryPool.m_FreeCount, false );
                 m_QueryPools.push_back( std::move( queryPool ) );
 
                 ReserveQueryPool( m_QueryPools.back(), 0 );
@@ -170,18 +179,43 @@ namespace Profiler
         Frees a previously allocated range of queries.
 
     \***********************************************************************************/
-    void CommandBufferQueryPoolAllocator::Free( const CommandBufferQueryPoolAllocation& allocation )
+    void CommandBufferQueryPoolAllocator::Free( CommandBufferQueryPoolAllocation& allocation )
     {
         std::scoped_lock lock( m_Mutex );
 
-        for( QueryPool& queryPool : m_QueryPools )
+        QueryPool* pQueryPool = static_cast<QueryPool*>( allocation.m_pQueryAllocatorData );
+        size_t chunkIndex = allocation.m_QueryOffset / m_QueryAllocationSize;
+
+        pQueryPool->m_Allocations[chunkIndex] = false;
+        pQueryPool->m_FreeCount++;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        Free
+
+    Description:
+        Frees a previously allocated range of queries.
+
+    \***********************************************************************************/
+    void CommandBufferQueryPoolAllocator::Free( std::vector<CommandBufferQueryPoolAllocation>& allocations )
+    {
+        if( !allocations.empty() )
         {
-            if( queryPool.m_Handle == allocation.m_QueryPool )
+            std::scoped_lock lock( m_Mutex );
+
+            for( auto& allocation : allocations )
             {
-                queryPool.m_Allocations[allocation.m_QueryOffset / m_QueryAllocationSize] = false;
-                return;
+                QueryPool* pQueryPool = static_cast<QueryPool*>( allocation.m_pQueryAllocatorData );
+                size_t chunkIndex = allocation.m_QueryOffset / m_QueryAllocationSize;
+
+                pQueryPool->m_Allocations[chunkIndex] = false;
+                pQueryPool->m_FreeCount++;
             }
         }
+
+        allocations.clear();
     }
 
     /***********************************************************************************\
@@ -240,10 +274,7 @@ namespace Profiler
     \***********************************************************************************/
     CommandBufferQueryPool::~CommandBufferQueryPool()
     {
-        for( auto& allocation : m_QueryPools )
-        {
-            m_TimestampAllocator.Free( allocation );
-        }
+        m_TimestampAllocator.Free( m_QueryPools );
 
         if( m_PerformanceQueryPool != VK_NULL_HANDLE )
         {
@@ -315,12 +346,7 @@ namespace Profiler
         m_AbsQueryIndex = UINT64_MAX;
         m_CurrentQueryIndex = UINT32_MAX;
 
-        for( CommandBufferQueryPoolAllocation& allocation : m_QueryPools )
-        {
-            m_TimestampAllocator.Free( allocation );
-        }
-
-        m_QueryPools.clear();
+        m_TimestampAllocator.Free( m_QueryPools );
     }
 
     /***********************************************************************************\
