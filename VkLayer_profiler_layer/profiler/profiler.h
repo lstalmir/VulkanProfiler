@@ -21,6 +21,7 @@
 #pragma once
 #include "profiler_counters.h"
 #include "profiler_command_pool.h"
+#include "profiler_command_buffer_query_pool.h"
 #include "profiler_config.h"
 #include "profiler_data_aggregator.h"
 #include "profiler_helpers.h"
@@ -181,6 +182,8 @@ namespace Profiler
         CpuEventFrequencyCounter m_CpuFpsCounter;
 
         DeviceProfilerMemoryTracker m_MemoryTracker;
+
+        CommandBufferQueryPoolAllocator m_TimestampQueryAllocator;
 
         ConcurrentMap<VkCommandBuffer, std::unique_ptr<ProfilerCommandBuffer>> m_pCommandBuffers;
         ConcurrentMap<VkCommandPool, std::unique_ptr<DeviceProfilerCommandPool>> m_pCommandPools;

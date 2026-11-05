@@ -120,12 +120,6 @@ namespace Profiler
         Milliseconds GetNormalizedCpuTimestamp( uint64_t ) const;
         Milliseconds GetNormalizedGpuTimestamp( uint64_t ) const;
 
-        template<typename DataStructType>
-        inline Milliseconds GetDuration( const DataStructType& data ) const
-        {
-            return (data.m_EndTimestamp.m_Value - data.m_BeginTimestamp.m_Value) * m_GpuTimestampPeriod;
-        }
-
         // Serialization
         void Serialize( const struct DeviceProfilerCommandBufferData& );
         void Serialize( const struct DeviceProfilerRenderPassData& );

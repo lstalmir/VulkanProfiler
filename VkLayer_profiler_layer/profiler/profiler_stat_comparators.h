@@ -22,11 +22,42 @@
 
 namespace Profiler
 {
+    // Timestamp validator
+    template<typename Timestamp>
+    inline bool CheckTimestamp( const Timestamp& timestamp )
+    {
+        return ( timestamp.m_Index != UINT64_MAX );
+    }
+
+    // Range duration validator
+    template<typename Timestamp>
+    inline bool CheckDurationTimestamps( const Timestamp& begin, const Timestamp& end )
+    {
+        return CheckTimestamp( begin ) &&
+               CheckTimestamp( end ) &&
+               ( end.m_Value >= begin.m_Value );
+    }
+
+    // Range duration validator
+    template<typename Data>
+    inline bool CheckDurationTimestamps( const Data& a )
+    {
+        return CheckDurationTimestamps( a.GetBeginTimestamp(), a.GetEndTimestamp() );
+    }
+
     // Range duration getter
     template<typename Data>
     inline uint64_t GetDuration( const Data& a )
     {
-        return (a.GetEndTimestamp().m_Value - a.GetBeginTimestamp().m_Value);
+        const auto& begin = a.GetBeginTimestamp();
+        const auto& end = a.GetEndTimestamp();
+
+        if( CheckDurationTimestamps( begin, end ) )
+        {
+            return ( end.m_Value - begin.m_Value );
+        }
+
+        return 0;
     }
 
     // Extracts a specific type from an std::variant

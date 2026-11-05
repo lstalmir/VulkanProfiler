@@ -24,6 +24,7 @@
 #include "profiler/profiler_data.h"
 #include "profiler/profiler_counters.h"
 #include "profiler/profiler_helpers.h"
+#include "profiler/profiler_stat_comparators.h"
 #include "profiler/profiler_frontend.h"
 #include "profiler_layer_objects/VkObject.h"
 #include "profiler_helpers/profiler_string_serializer.h"
@@ -570,6 +571,12 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerCommandBufferData& data )
     {
+        if( !CheckDurationTimestamps( data ) )
+        {
+            // Skip if begin/end timestamps are invalid.
+            return;
+        }
+
         const std::string eventName = m_pStringSerializer->GetName( data );
 
         // Begin
@@ -640,6 +647,12 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerRenderPassData& data )
     {
+        if( !CheckDurationTimestamps( data ) )
+        {
+            // Skip if begin/end timestamps are invalid.
+            return;
+        }
+
         const bool isValidRenderPass = (data.m_Type != DeviceProfilerRenderPassType::eNone);
         const std::string eventName = m_pStringSerializer->GetName(data);
 
@@ -654,7 +667,7 @@ namespace Profiler
                 m_CommandQueue ) );
 
             if( (data.HasBeginCommand()) &&
-                (data.m_Begin.m_BeginTimestamp.m_Value != UINT64_MAX) )
+                CheckDurationTimestamps( data.m_Begin ) )
             {
                 const std::string beginEventName = m_pStringSerializer->GetName( data.m_Begin, data.m_Dynamic );
 
@@ -684,7 +697,7 @@ namespace Profiler
         if( isValidRenderPass )
         {
             if( (data.HasEndCommand()) &&
-                (data.m_End.m_BeginTimestamp.m_Value != UINT64_MAX) )
+                CheckDurationTimestamps( data.m_End ) )
             {
                 const std::string endEventName = m_pStringSerializer->GetName( data.m_End, data.m_Dynamic );
 
@@ -725,6 +738,12 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerSubpassData& data, bool isOnlySubpassInRenderPass )
     {
+        if( !CheckDurationTimestamps( data ) )
+        {
+            // Skip if begin/end timestamps are invalid.
+            return;
+        }
+
         const std::string eventName = m_pStringSerializer->GetName( data );
 
         if( !isOnlySubpassInRenderPass )
@@ -739,11 +758,6 @@ namespace Profiler
 
         for( const auto& data : data.m_Data )
         {
-            if( data.GetBeginTimestamp().m_Value == UINT64_MAX )
-            {
-                continue;
-            }
-
             switch( data.GetType() )
             {
             case DeviceProfilerSubpassDataType::ePipeline:
@@ -778,6 +792,12 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerPipelineData& data )
     {
+        if( !CheckDurationTimestamps( data ) )
+        {
+            // Skip if begin/end timestamps are invalid.
+            return;
+        }
+
         const std::string eventName = m_pStringSerializer->GetName( data, true /*showEntryPoints*/ );
 
         const bool isValidPipeline =
@@ -800,11 +820,8 @@ namespace Profiler
 
         for( const auto& drawcall : data.m_Drawcalls )
         {
-            if( drawcall.m_BeginTimestamp.m_Value != UINT64_MAX )
-            {
-                // Serialize the drawcall
-                Serialize( drawcall );
-            }
+            // Serialize the drawcall
+            Serialize( drawcall );
         }
 
         if( isValidPipeline )
@@ -830,6 +847,12 @@ namespace Profiler
     \*************************************************************************/
     void DeviceProfilerTraceSerializer::Serialize( const DeviceProfilerDrawcall& data )
     {
+        if( !CheckDurationTimestamps( data ) )
+        {
+            // Skip if begin/end timestamps are invalid.
+            return;
+        }
+
         if( data.GetPipelineType() != DeviceProfilerPipelineType::eDebug )
         {
             const std::string eventName = m_pStringSerializer->GetCommandName( data );
@@ -851,7 +874,6 @@ namespace Profiler
                 GetNormalizedGpuTimestamp( data.m_EndTimestamp.m_Value ),
                 m_CommandQueue ) );
         }
-
         else
         {
             if( data.m_Type == DeviceProfilerDrawcallType::eInsertDebugLabel )

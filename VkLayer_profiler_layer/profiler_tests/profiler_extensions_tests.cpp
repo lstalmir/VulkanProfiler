@@ -528,7 +528,6 @@ namespace Profiler
             EXPECT_EQ( nullptr, submitInfoData.pNext );
             EXPECT_EQ( VK_PROFILER_REGION_TYPE_SUBMIT_INFO_EXT, submitInfoData.regionType );
             EXPECT_EQ( 1, submitInfoData.subregionCount );
-            EXPECT_EQ( 0, submitInfoData.duration );
             ASSERT_NE( nullptr, submitInfoData.pSubregions );
 
             const VkProfilerRegionDataEXT& commandBufferData = submitInfoData.pSubregions[ 0 ];
@@ -540,6 +539,7 @@ namespace Profiler
             EXPECT_EQ( commandBuffer, commandBufferData.properties.commandBuffer.handle );
             EXPECT_EQ( VK_COMMAND_BUFFER_LEVEL_PRIMARY, commandBufferData.properties.commandBuffer.level );
             ASSERT_NE( nullptr, commandBufferData.pSubregions );
+            EXPECT_EQ( commandBufferData.duration, submitInfoData.duration );
 
             const VkProfilerRegionDataEXT& renderPassData = commandBufferData.pSubregions[ 0 ];
             EXPECT_EQ( VK_STRUCTURE_TYPE_PROFILER_REGION_DATA_EXT, renderPassData.sType );

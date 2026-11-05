@@ -98,7 +98,7 @@ namespace Profiler
             VkCommandBuffer copyCommandBuffer = VK_NULL_HANDLE );
 
         void SetContext( const void* handle );
-        void WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryCount );
+        void WriteTimestampQueryResults( VkQueryPool queryPool, uint32_t queryOffset, uint32_t queryCount );
         void WritePerformanceQueryResults( VkQueryPool queryPool, uint32_t metricsSetIndex, uint32_t queueFamilyIndex );
 
     private:
