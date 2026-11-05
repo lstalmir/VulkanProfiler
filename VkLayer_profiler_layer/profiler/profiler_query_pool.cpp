@@ -278,11 +278,10 @@ namespace Profiler
         Sets the command buffer context for the subsequent write operations.
 
     \***********************************************************************************/
-    void DeviceProfilerQueryDataBufferWriter::SetContext( const void* handle, uint32_t timestampValidBits )
+    void DeviceProfilerQueryDataBufferWriter::SetContext( const void* handle )
     {
         m_pContext = m_pData->CreateContext( handle );
         m_pContext->m_TimestampDataOffset = m_DataOffset;
-        m_pContext->m_TimestampValidMask = ( timestampValidBits < 64 ) ? ( 1ULL << timestampValidBits ) - 1 : UINT64_MAX;
     }
 
     /***********************************************************************************\
@@ -402,7 +401,7 @@ namespace Profiler
             return 0;
         }
 
-        return m_pMappedTimestampQueryData[queryIndex] & m_pContext->m_TimestampValidMask;
+        return m_pMappedTimestampQueryData[queryIndex];
     }
 
     /***********************************************************************************\
