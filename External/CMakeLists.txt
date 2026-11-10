@@ -291,4 +291,9 @@ add_library (stb INTERFACE)
 target_include_directories (stb
     INTERFACE stb)
 
+# libsdl-org/SDL
+set (SDL_STATIC ON CACHE BOOL "" FORCE)
+set (SDL_SHARED OFF CACHE BOOL "" FORCE)
+add_subdirectory (SDL)
+
 set (PROFILER_INSTALL_EXTERNAL_TARGETS ${_PROFILER_INSTALL_EXTERNAL_TARGETS} PARENT_SCOPE)

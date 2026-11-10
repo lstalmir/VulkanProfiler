@@ -241,6 +241,7 @@ add_subdirectory (profiler_ext)
 add_subdirectory (profiler_helpers)
 add_subdirectory (profiler_overlay)
 add_subdirectory (profiler_trace)
+add_subdirectory (profiler_tools)
 
 # Enable tests
 if (BUILD_TESTS)

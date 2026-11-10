@@ -55,3 +55,6 @@
 [submodule "External/metrics-library"]
 	path = External/metrics-library
 	url = https://github.com/intel/metrics-library
+[submodule "External/SDL"]
+	path = External/SDL
+	url = https://github.com/libsdl-org/SDL
