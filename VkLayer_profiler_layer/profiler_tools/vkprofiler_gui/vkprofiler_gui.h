@@ -23,14 +23,13 @@
 
 namespace Profiler
 {
-    class OverlayBackend;
     class ProfilerOverlayOutput;
-    class DeviceProfilerFrontend;
 }
 
 namespace Profiler::GUI
 {
     class SDLRendererBackend;
+    class ProfilerProxyFrontend;
 
     /***********************************************************************************\
 
@@ -56,7 +55,7 @@ namespace Profiler::GUI
         SDL_Window* m_pWindow;
 
         SDLRendererBackend* m_pBackend;
-        DeviceProfilerFrontend* m_pFrontend;
+        ProfilerProxyFrontend* m_pFrontend;
 
         ProfilerOverlayOutput* m_pGui;
     };

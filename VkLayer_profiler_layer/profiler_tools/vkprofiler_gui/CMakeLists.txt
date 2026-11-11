@@ -27,7 +27,9 @@ set (vkprofiler_gui_sources
     vkprofiler_gui.h
     vkprofiler_gui.cpp
     vkprofiler_gui_backend.h
-    vkprofiler_gui_backend.cpp)
+    vkprofiler_gui_backend.cpp
+    vkprofiler_gui_frontend.h
+    vkprofiler_gui_frontend.cpp)
 
 add_executable (vkprofiler_gui WIN32
     ${vkprofiler_gui_sources})

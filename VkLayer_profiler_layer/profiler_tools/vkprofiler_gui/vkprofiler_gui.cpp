@@ -20,6 +20,7 @@
 
 #include "vkprofiler_gui.h"
 #include "vkprofiler_gui_backend.h"
+#include "vkprofiler_gui_frontend.h"
 
 #include "profiler/profiler_frontend.h"
 #include "profiler_overlay/profiler_overlay.h"
@@ -118,7 +119,12 @@ namespace Profiler::GUI
         }
 
         // Initialize the device profiler frontend.
-        // TODO: Choose depending on the data source.
+        m_pFrontend = new( std::nothrow ) ProfilerProxyFrontend();
+        if( !m_pFrontend )
+        {
+            std::cerr << "Failed to initialize device profiler frontend." << std::endl;
+            return false;
+        }
 
         // Initialize the overlay output.
         m_pGui = new( std::nothrow ) ProfilerOverlayOutput( *m_pFrontend, *m_pBackend );
