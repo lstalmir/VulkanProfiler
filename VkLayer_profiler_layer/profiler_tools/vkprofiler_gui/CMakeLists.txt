@@ -41,5 +41,7 @@ target_link_libraries (vkprofiler_gui
     PRIVATE SDL3::SDL3-static)
 
 # Install target
+if (0)
 install (TARGETS vkprofiler_gui
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+endif ()
