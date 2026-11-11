@@ -20,6 +20,9 @@
 
 #include "vkprofiler_gui_backend.h"
 
+#include <backends/imgui_impl_sdl3.h>
+#include <backends/imgui_impl_sdlrenderer3.h>
+
 #include <iostream>
 #include <memory>
 
@@ -38,6 +41,7 @@ namespace Profiler::GUI
         : m_pWindow( pWindow )
         , m_pRenderer( nullptr )
         , m_pDevice( nullptr )
+        , m_pImages()
     {
     }
 
@@ -159,9 +163,9 @@ namespace Profiler::GUI
         Submits ImGui draw data to the GPU.
 
     \***********************************************************************************/
-    void SDLRendererBackend::RenderDrawData( ImDrawData* draw_data )
+    void SDLRendererBackend::RenderDrawData( ImDrawData* pDrawData )
     {
-        ImGui_ImplSDLRenderer3_RenderDrawData( draw_data, m_pRenderer );
+        ImGui_ImplSDLRenderer3_RenderDrawData( pDrawData, m_pRenderer );
     }
 
     /***********************************************************************************\
@@ -175,6 +179,12 @@ namespace Profiler::GUI
     \***********************************************************************************/
     float SDLRendererBackend::GetDPIScale() const
     {
+        float scale = SDL_GetWindowDisplayScale( m_pWindow );
+        if( scale != 0.0f )
+        {
+            return scale;
+        }
+
         return 1.0f;
     }
 
@@ -189,9 +199,19 @@ namespace Profiler::GUI
     \***********************************************************************************/
     ImVec2 SDLRendererBackend::GetRenderArea() const
     {
-        int w, h;
-        SDL_GetWindowSize( m_pWindow, &w, &h );
-        return ImVec2( static_cast<float>( w ), static_cast<float>( h ) );
+        SDL_Rect viewport;
+
+        if( SDL_GetRenderViewport( m_pRenderer, &viewport ) )
+        {
+            return ImVec2( viewport.w, viewport.h );
+        }
+
+        if( SDL_GetWindowSize( m_pWindow, &viewport.w, &viewport.h ) )
+        {
+            return ImVec2( viewport.w, viewport.h );
+        }
+
+        return ImVec2( 0.0f, 0.0f );
     }
 
     /***********************************************************************************\
@@ -205,10 +225,23 @@ namespace Profiler::GUI
     \***********************************************************************************/
     int SDLRendererBackend::CreateImage( int width, int height, const void* pData )
     {
+        auto it = std::find( m_pImages.begin(), m_pImages.end(), nullptr );
+        if( it == m_pImages.end() )
+        {
+            try
+            {
+                it = m_pImages.insert( m_pImages.end(), nullptr );
+            }
+            catch( const std::bad_alloc& )
+            {
+                return -1;
+            }
+        }
+
         SDL_Surface* pSurface = SDL_CreateSurface( width, height, SDL_PIXELFORMAT_RGBA8888 );
         if( !pSurface )
         {
-            return 0;
+            return -1;
         }
 
         if( pData )
@@ -216,20 +249,17 @@ namespace Profiler::GUI
             if( !SDL_LockSurface( pSurface ) )
             {
                 SDL_DestroySurface( pSurface );
-                return 0;
+                return -1;
             }
 
             std::memcpy( pSurface->pixels, pData, static_cast<size_t>( width * height * 4 ) );
             SDL_UnlockSurface( pSurface );
         }
 
-        SDL_Texture* pTexture = SDL_CreateTextureFromSurface(
-            m_pRenderer,
-            pSurface );
-
+        *it = SDL_CreateTextureFromSurface( m_pRenderer, pSurface );
         SDL_DestroySurface( pSurface );
 
-        return static_cast<uint64_t>( reinterpret_cast<uintptr_t>( pTexture ) );
+        return static_cast<int>( std::distance( m_pImages.begin(), it ) );
     }
 
     /***********************************************************************************\
@@ -243,10 +273,11 @@ namespace Profiler::GUI
     \***********************************************************************************/
     void SDLRendererBackend::DestroyImage( int image )
     {
-        SDL_Texture* pTexture = reinterpret_cast<SDL_Texture*>( static_cast<uintptr_t>( image ) );
-        if( pTexture )
+        SDL_Texture** ppTexture = GetImageTexture( image );
+        if( ppTexture && *ppTexture )
         {
-            SDL_DestroyTexture( pTexture );
+            SDL_DestroyTexture( *ppTexture );
+            *ppTexture = nullptr;
         }
     }
 
@@ -261,7 +292,7 @@ namespace Profiler::GUI
     \***********************************************************************************/
     void SDLRendererBackend::CreateFontsImage()
     {
-        ImGui_ImplSDLRenderer3_CreateFontsTexture();
+        // Created implicitly by ImGui backend.
     }
 
     /***********************************************************************************\
@@ -275,7 +306,7 @@ namespace Profiler::GUI
     \***********************************************************************************/
     void SDLRendererBackend::DestroyFontsImage()
     {
-        ImGui_ImplSDLRenderer3_DestroyFontsTexture();
+        // Created implicitly by ImGui backend.
     }
 
     /***********************************************************************************\
@@ -289,7 +320,36 @@ namespace Profiler::GUI
     \***********************************************************************************/
     uint64_t SDLRendererBackend::GetImageHandle( int image )
     {
+        SDL_Texture** ppTexture = GetImageTexture( image );
+        if( ppTexture && *ppTexture )
+        {
+            return static_cast<uint64_t>(
+                reinterpret_cast<uintptr_t>( *ppTexture ) );
+        }
+
         return 0;
+    }
+
+    /***********************************************************************************\
+
+    Function:
+        GetImageTexture
+
+    Description:
+        Returns the SDL_Texture pointer for the given image index,
+        or nullptr if no such image exists.
+
+    \***********************************************************************************/
+    SDL_Texture** SDLRendererBackend::GetImageTexture( int image )
+    {
+        if( ( image >= 0 ) &&
+            ( image < m_pImages.size() ) &&
+            ( m_pImages[image] != nullptr ) )
+        {
+            return &m_pImages[image];
+        }
+
+        return nullptr;
     }
 
     /***********************************************************************************\
@@ -320,3 +380,7 @@ namespace Profiler::GUI
         SDL_RenderPresent( m_pRenderer );
     }
 }
+
+// Include the actual backend implementation.
+#include <backends/imgui_impl_sdl3.cpp>
+#include <backends/imgui_impl_sdlrenderer3.cpp>

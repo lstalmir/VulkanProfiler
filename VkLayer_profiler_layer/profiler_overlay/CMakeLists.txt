@@ -103,13 +103,13 @@ add_library (profiler_overlay
 
 target_link_libraries (profiler_overlay
     PUBLIC profiler_common
-    PRIVATE imgui
-    PRIVATE imgui-text-editor
-    PRIVATE imgui-file-dialog
-    PRIVATE implot
+    PUBLIC imgui
+    PUBLIC imgui-text-editor
+    PUBLIC imgui-file-dialog
+    PUBLIC implot
     PRIVATE stb
-    PRIVATE profiler
-    PRIVATE profiler_helpers)
+    PUBLIC profiler
+    PUBLIC profiler_helpers)
 
 add_dependencies (profiler_overlay profiler_overlay_assets)
 

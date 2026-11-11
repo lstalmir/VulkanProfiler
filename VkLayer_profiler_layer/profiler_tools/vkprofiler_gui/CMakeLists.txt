@@ -35,6 +35,7 @@ add_executable (vkprofiler_gui WIN32
 target_link_libraries (vkprofiler_gui
     PRIVATE profiler_common
     PRIVATE profiler_overlay
+    PRIVATE profiler_trace
     PRIVATE SDL3::SDL3-static)
 
 # Install target

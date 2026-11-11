@@ -22,6 +22,7 @@
 #include "profiler_overlay/profiler_overlay_backend.h"
 
 #include <SDL3/SDL.h>
+#include <vector>
 
 namespace Profiler::GUI
 {
@@ -47,7 +48,7 @@ namespace Profiler::GUI
         void WaitIdle() override;
 
         bool NewFrame() override;
-        void RenderDrawData( ImDrawData* draw_data ) override;
+        void RenderDrawData( ImDrawData* pDrawData ) override;
 
         float GetDPIScale() const override;
         ImVec2 GetRenderArea() const override;
@@ -65,5 +66,9 @@ namespace Profiler::GUI
         SDL_Window* m_pWindow;
         SDL_Renderer* m_pRenderer;
         SDL_GPUDevice* m_pDevice;
+
+        std::vector<SDL_Texture*> m_pImages;
+
+        SDL_Texture** GetImageTexture( int image );
     };
 }
