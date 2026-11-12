@@ -23,8 +23,10 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_sdlrenderer3.h>
 
+#include <algorithm>
 #include <iostream>
 #include <memory>
+#include <cstring>
 
 namespace Profiler::GUI
 {
