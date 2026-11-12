@@ -31,9 +31,10 @@ Following packages are required for building on Debian-based systems:
 - cmake-3.8 (or later)
 - extra-cmake-modules
 - libdrm-dev
-- libxkbcommon-dev, libxi-dev
+- libxkbcommon-dev
 - libx11-dev, libxext-dev (for Xlib support)
 - libxcb1-dev, libxcb-shape0-dev (for XCB support)
+- xorg-dev
 - python3, python3-pip
 - Python packages specified in VkLayer_profiler_layer/scripts/requirements.txt
 
