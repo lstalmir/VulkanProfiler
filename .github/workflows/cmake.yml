@@ -60,7 +60,7 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         sudo apt update
-        sudo apt install extra-cmake-modules libvulkan-dev libxkbcommon-dev libx11-dev libxext-dev libxcb1-dev libxcb-shape0-dev libdrm-dev
+        sudo apt install extra-cmake-modules libvulkan-dev libxkbcommon-dev libx11-dev libxext-dev libxcb1-dev libxcb-shape0-dev libdrm-dev xorg-dev
 
     - uses: actions/setup-python@v6
       with:
